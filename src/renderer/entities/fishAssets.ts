@@ -44,7 +44,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'tetra-a',
     file: tetraAUrl,
     kind: 'schooling',
-    baseScale: 0.42,
+    baseScale: 0.58,
     swimAmplitude: 0.3,
     swimSpeed: 1.2,
   },
@@ -52,7 +52,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'tetra-b',
     file: tetraBUrl,
     kind: 'schooling',
-    baseScale: 0.42,
+    baseScale: 0.58,
     swimAmplitude: 0.25,
     swimSpeed: 1.3,
   },
@@ -189,6 +189,9 @@ function extractGeometry(scene: THREE.Group): THREE.BufferGeometry | null {
     const col = new THREE.Color(0xffffff)
     if (mat && 'color' in mat && (mat as THREE.MeshStandardMaterial).color) {
       col.copy((mat as THREE.MeshStandardMaterial).color)
+      // glTF baseColorFactor가 어두운 편이라 종 색이 또렷이 읽히도록 약간 밝게(클램프)
+      const GAIN = 1.4
+      col.setRGB(Math.min(1, col.r * GAIN), Math.min(1, col.g * GAIN), Math.min(1, col.b * GAIN))
     }
     const n = clean.attributes.position.count
     const colors = new Float32Array(n * 3)

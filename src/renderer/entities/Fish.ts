@@ -316,8 +316,8 @@ ${CAUSTIC_FRAG_MAIN}`,
       )
 
       shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <output_fragment>',
-        `#include <output_fragment>
+        '#include <opaque_fragment>',
+        `#include <opaque_fragment>
 ${WATER_DEPTH_FRAG_MAIN}`,
       )
     }

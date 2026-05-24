@@ -44,7 +44,7 @@ uniform float uWaterMaxTint;
 uniform float uWaterMaxFade;
 varying float vWaterDepth;`
 
-/** 프래그먼트: #include <output_fragment> 뒤에 삽입. gl_FragColor를 수정. */
+/** 프래그먼트: #include <opaque_fragment> 뒤에 삽입. gl_FragColor를 수정. */
 export const WATER_DEPTH_FRAG_MAIN = /* glsl */ `
 {
   float waterT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterDepthFar - uWaterDepthNear), 0.0, 1.0);
@@ -80,8 +80,8 @@ export function applyWaterDepthToMaterial(mat: THREE.MeshStandardMaterial): void
       `${WATER_DEPTH_FRAG_DECLARE}\nvoid main() {`,
     )
     shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <output_fragment>',
-      `#include <output_fragment>\n${WATER_DEPTH_FRAG_MAIN}`,
+      '#include <opaque_fragment>',
+      `#include <opaque_fragment>\n${WATER_DEPTH_FRAG_MAIN}`,
     )
   }
 

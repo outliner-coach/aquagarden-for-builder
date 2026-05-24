@@ -14,6 +14,7 @@ const SHAFT_FRAG = /* glsl */ `
 uniform float uTime;
 uniform float uOpacity;
 uniform vec3 uColor;
+varying vec2 vUv;
 void main() {
   // 수직 그라디언트: 위(v=1) 밝고 아래(v=0) 사라짐
   float gradient = smoothstep(0.0, 0.7, vUv.y);

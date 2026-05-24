@@ -39,6 +39,10 @@ export const BUBBLE = {
   wobbleAmplitude: 0.15,
   wobbleSpeed: 2.0,
   size: 0.08,
+  sizeMin: 0.04,
+  sizeMax: 0.12,
+  surfaceFadeRange: 0.5,
+  softSpriteRes: 64,
   spreadX: 20,
 } as const
 
@@ -155,6 +159,22 @@ export const WATER = {
     widths: [1.5, 1.8, 1.2] as readonly number[],
     angles: [0.12, -0.08, 0.15] as readonly number[],
   },
+} as const
+
+export const GLOW = {
+  count: 8,
+  size: 0.2,
+  color: [0.4, 0.85, 0.8] as readonly [number, number, number],
+  minOpacity: 0.04,
+  maxOpacity: 0.12,
+  pulseSpeed: 1.5,
+  spriteRes: 64,
+  spreadX: 16,
+  yMin: -1.0,
+  yMax: 1.6,
+  zMin: -2.0,
+  zMax: 0.0,
+  driftSpeed: 0.1,
 } as const
 
 export const BOIDS = {

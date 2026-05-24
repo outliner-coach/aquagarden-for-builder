@@ -17,3 +17,23 @@ export function bubbleWobbleX(
 ): number {
   return Math.sin(time * speed + phase) * amplitude
 }
+
+/**
+ * 시드(0~1)에 따른 기포 크기 결정. 결정적(deterministic).
+ */
+export function bubbleSizeForSeed(seed: number, minSize: number, maxSize: number): number {
+  const t = Math.max(0, Math.min(1, seed))
+  return minSize + t * (maxSize - minSize)
+}
+
+/**
+ * 수면 근처에서 기포 알파를 페이드아웃.
+ * surfaceY에 가까울수록 0으로, fadeRange 이상 멀면 1.
+ */
+export function bubbleSurfaceFadeAlpha(y: number, surfaceY: number, fadeRange: number): number {
+  const dist = surfaceY - y
+  if (dist <= 0) return 0
+  if (fadeRange <= 0) return 1
+  if (dist >= fadeRange) return 1
+  return dist / fadeRange
+}

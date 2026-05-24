@@ -4,6 +4,7 @@ import { Aquascape } from './entities/Aquascape'
 import { FishSchool } from './entities/FishSchool'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
+import { GlowSprites } from './entities/GlowSprites'
 import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
@@ -35,6 +36,9 @@ sceneRoot.add(lightShafts)
 
 const bubbles = new Bubbles()
 sceneRoot.add(bubbles)
+
+const glowSprites = new GlowSprites()
+sceneRoot.add(glowSprites)
 
 const loop = new RenderLoop((dt) => {
   sceneRoot.update(dt)
@@ -85,6 +89,7 @@ new ControlPanel(
       settings.brightness01 = b01
       lighting.setBrightness01(b01)
       lightShafts.setBrightness01(b01)
+      glowSprites.setBrightness01(b01)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden

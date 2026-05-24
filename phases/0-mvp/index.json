@@ -69,7 +69,10 @@
     {
       "step": 8,
       "name": "lighting-bubbles",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T12:09:03+0900",
+      "completed_at": "2026-05-24T12:15:00+0900",
+      "summary": "Lighting SceneEntity(DirectionalLight+AmbientLight, setBrightness01 API, brightnessToIntensity/brightnessToAmbient 순수함수 선형매핑), Bubbles SceneEntity(THREE.Points 80파티클 순환 재사용, respawnIfAboveSurface/bubbleWobbleX 순수함수), config.ts에 LIGHT.minAmbient/maxAmbient·BUBBLE.surfaceY/floorY/riseSpeed/wobbleAmplitude/wobbleSpeed/size/spreadX 추가, main.ts에 Lighting(씬 최상단)+Bubbles 등록, 24개 단위 테스트 추가(총 114개)"
     },
     {
       "step": 9,

@@ -39,7 +39,7 @@
       "name": "render-core",
       "status": "completed",
       "started_at": "2026-05-24T11:33:33+0900",
-      "completed_at": "2026-05-24T11:36:30+0900",
+      "completed_at": "2026-05-24T11:37:37+0900",
       "summary": "SceneEntity 인터페이스, SceneRoot(Scene/Camera/Renderer alpha:true + resize + entity 관리), RenderLoop(rAF start/stop + computeDelta 순수함수), ObjectPool<T>(acquire/release/setActiveCount 제네릭 풀링). 투명 렌더 설정(clearAlpha 0). 17개 단위 테스트 추가(총 48개)"
     },
     {

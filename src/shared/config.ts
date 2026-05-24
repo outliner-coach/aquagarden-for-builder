@@ -25,6 +25,10 @@ export const CAMERA = {
   far: 100,
 } as const
 
+export const AQUASCAPE = {
+  sandY: -1.8,
+} as const
+
 export const COLORS = {
   point: '#4fd1c5',
   panelBg: 'rgba(15, 23, 28, 0.82)',

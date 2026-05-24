@@ -4,6 +4,10 @@
       "dir": "0-mvp",
       "status": "completed",
       "completed_at": "2026-05-24T12:22:09+0900"
+    },
+    {
+      "dir": "1-visual-quality",
+      "status": "pending"
     }
   ]
 }

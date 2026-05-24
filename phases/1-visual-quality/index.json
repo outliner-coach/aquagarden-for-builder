@@ -1,0 +1,14 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "1-visual-quality",
+  "steps": [
+    { "step": 0, "name": "lit-pipeline", "status": "pending" },
+    { "step": 1, "name": "fish-assets-loader", "status": "pending" },
+    { "step": 2, "name": "fish-pool-swim", "status": "pending" },
+    { "step": 3, "name": "aquascape-plants", "status": "pending" },
+    { "step": 4, "name": "hardscape-sand", "status": "pending" },
+    { "step": 5, "name": "caustics", "status": "pending" },
+    { "step": 6, "name": "water-atmosphere", "status": "pending" },
+    { "step": 7, "name": "effects-polish", "status": "pending" }
+  ]
+}

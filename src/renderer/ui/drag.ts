@@ -79,9 +79,10 @@ export function setupButtonDrag(
     }
   })
 
-  const endDrag = () => {
+  const endDrag = (e: PointerEvent) => {
     if (!dragging) return
     dragging = false
+    if (button.hasPointerCapture(e.pointerId)) button.releasePointerCapture(e.pointerId)
     button.style.cursor = 'grab'
     // 임계값을 넘지 않았으면(=드래그 전환 안 됨) 클릭으로 처리 → 패널 토글.
     if (!started) {
@@ -91,6 +92,15 @@ export function setupButtonDrag(
 
   button.addEventListener('pointerup', endDrag)
   button.addEventListener('pointercancel', endDrag)
+  // 캡처가 어떤 이유로든(멀티모니터로 창 이동 중 모니터 전환, OS 가로채기 등) 풀리면 드래그
+  // 상태를 반드시 정리한다. 이게 빠지면 dragging이 true로 고착돼 이후 hover만 해도 창이 끌려가고
+  // 클릭이 무반응처럼 보인다(보조 모니터로 드래그 후 버튼 무반응 — 0-A 클릭 무반응의 한 경로).
+  // pointerup이 다른 모니터/요소에서 발생해 버튼에 미도달하는 케이스를 lostpointercapture가 메운다.
+  button.addEventListener('lostpointercapture', () => {
+    if (!dragging) return
+    dragging = false
+    button.style.cursor = 'grab'
+  })
 }
 
 /**
@@ -132,12 +142,19 @@ export function setupPanelDrag(
     panel.style.top = `${clamped.y}px`
   })
 
-  const endDrag = () => {
+  const endDrag = (e: PointerEvent) => {
     if (!dragging) return
     dragging = false
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId)
     handle.style.cursor = 'grab'
   }
 
   handle.addEventListener('pointerup', endDrag)
   handle.addEventListener('pointercancel', endDrag)
+  // 버튼 드래그와 동일하게, 캡처 유실 시 dragging 고착 방지(멀티모니터/OS 가로채기).
+  handle.addEventListener('lostpointercapture', () => {
+    if (!dragging) return
+    dragging = false
+    handle.style.cursor = 'grab'
+  })
 }

@@ -6,15 +6,20 @@
 ## 현재 상태
 
 - 브랜치: **`feat-4-fish-interactions`** (main 미병합).
-- 검증: `npm run test`(358) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
+- 검증: `npm run test`(361) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
 - 이번 세션에서 핸드오프의 인터랙션 UX 이슈 6건 + 발견된 패널 잘림 버그 1건을 모두 처리했다.
 
-## 후속 세션 작업 (2026-05-25, 추가) — 버그 2건 + 신규 기능 2건
+## 후속 세션 작업 (2026-05-25, 추가) — 버그 3건 + 신규 기능 2건
 
 ### 버그 수정 (완료)
 1. **멀티모니터 창 강제 이동** — `setWindowSize`가 `getPrimaryDisplay()`로 클램프 → 보조 모니터 창이
    주 모니터로 끌려옴. `getDisplayMatching(win.getBounds()).workArea` 기준으로 변경 + 순수 함수
    `clampSizeToDisplay`로 분리(유닛테스트). ⚠ 실 멀티모니터 체감은 미검증(smoke 단일 디스플레이).
+1b. **보조 모니터로 드래그 후 버튼 클릭 무반응(복귀해도 지속)** — `setupButtonDrag`/`setupPanelDrag`에
+   `lostpointercapture` 정리·`releasePointerCapture`가 없어, 멀티모니터 드래그 중 캡처/`pointerup`이
+   유실되면 `dragging`이 true로 고착 → 이후 클릭 무반응(0-A 클릭 무반응의 실제 트리거). resizeHandles에
+   이미 있던 정리 패턴을 버튼/패널 드래그에도 적용. mock 엘리먼트 기반 회귀 테스트 3개.
+   ✅ dev에서 드래그 후 클릭 정상(회귀 없음) 확인. ⚠ 실 cross-monitor 드래그 자체는 사용자 확인 권장.
 2. **고밝기 수평선 잔상** — 격리 캡처로 원인 확정: 베일/IBL 아님, **모래 평면 먼 가장자리**(뷰 깊이≈16)가
    알파 페이드 포화(`depthFar=10`) 후 하드 컷. 알파 페이드를 틴트와 분리(`WATER.alphaDepthFar=15`,
    `maxAlphaFade=1.0`, `uWaterAlphaFar`)해 가장자리를 0으로 용해. delta ±36→~3.

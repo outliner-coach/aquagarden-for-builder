@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { CAMERA, LIGHT } from '../../shared/config'
+import { CAMERA, LIGHT, WINDOW } from '../../shared/config'
 
 export interface SceneEntity {
   update(dt: number): void
@@ -66,14 +66,6 @@ export class SceneRoot {
     this.renderer.render(this.scene, this.camera)
   }
 
-  resize(): void {
-    const width = this.renderer.domElement.parentElement?.clientWidth ?? window.innerWidth
-    const height = this.renderer.domElement.parentElement?.clientHeight ?? window.innerHeight
-    this.camera.aspect = width / height
-    this.camera.updateProjectionMatrix()
-    this.renderer.setSize(width, height)
-  }
-
   /**
    * 창이 리사이즈되어도 world↔pixel 배율을 보존하는 리사이즈.
    * FOV를 재계산해 오브제 픽셀 크기를 유지(중앙 크롭).
@@ -105,6 +97,7 @@ export class SceneRoot {
   }
 
   private _onResize = (): void => {
-    this.resize()
+    // 창 리사이즈 시 내용이 줌아웃되지 않고 중앙 크롭되도록 배율 보존.
+    this.resizePreservingScale(CAMERA.fov, WINDOW.height)
   }
 }

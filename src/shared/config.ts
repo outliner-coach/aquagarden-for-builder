@@ -1,15 +1,13 @@
 export const WINDOW = {
   height: 220,
   topMargin: 0,
-  // 패널 확장 시 창 높이 여유분. 바 height + panelAllowance = 확장 높이.
-  panelAllowance: 140,
-  // 패널 확장 시 창 높이 (기본 바 높이 기준, 하위 호환)
-  expandedHeight: 360,
-  // 창 크기 슬라이더 범위
+  // 패널 확장 시 창 최소 높이. 패널(헤더+슬라이더+토글) 전체가 잘리지 않도록 충분히 크게.
+  // 확장 높이 = max(현재 바 높이, expandedHeight) — 작은 바에서도 패널이 안 잘림.
+  expandedHeight: 480,
+  // 모서리 드래그 리사이즈 범위 (clampSize)
   minWidth: 400,
   minHeight: 80,
   maxHeight: 350,
-  defaultScale01: 1,
 } as const
 
 export const FISH = {
@@ -209,17 +207,6 @@ export const WATER = {
     midAlphaRatio: 0.50,
     bottomAlphaRatio: 0.22,
     midStop: 55,
-  },
-  shaft: {
-    baseOpacity: 0.30,
-    driftSpeed: 0.18,
-    height: 5.5,
-    topY: 2.6,
-    color: [0.75, 0.9, 1.0] as readonly [number, number, number],
-    zPos: -1.5,
-    xPositions: [-7, -2.5, 3, 8] as readonly number[],
-    widths: [2.4, 3.0, 2.2, 2.7] as readonly number[],
-    angles: [0.12, -0.08, 0.15, -0.05] as readonly number[],
   },
 } as const
 

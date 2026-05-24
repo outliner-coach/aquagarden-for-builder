@@ -5,8 +5,8 @@ import { FishSchool } from './entities/FishSchool'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
 import { GlowSprites } from './entities/GlowSprites'
-import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
+import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
 import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
@@ -15,8 +15,12 @@ import { markReady, setFishActive, tickFrame } from './health'
 
 const container = document.getElementById('app')!
 
-// 현재 바 높이 (슬라이더로 변경 가능)
+// 현재 바(수조 캔버스) 크기 — 모서리 드래그 리사이즈로 변경된다.
+// 시작 시 창은 work-area 전폭으로 생성되므로 innerWidth가 곧 전폭이다.
+let currentBarWidth: number = window.innerWidth
 let currentBarHeight: number = WINDOW.height
+// 패널 확장 여부 — 확장 시 창 높이를 패널 전체가 담기도록 키운다(잘림 방지).
+let panelExpanded = false
 
 // 캔버스를 바 높이에 고정한다. 패널 확장 시 창이 커져도 수조는 리프레임되지 않는다.
 container.style.cssText = `width:100%;height:${currentBarHeight}px;`
@@ -40,9 +44,6 @@ fishSchool
     console.error('[FishSchool] 초기화 실패:', err)
   })
 
-const lightShafts = new LightShafts()
-sceneRoot.add(lightShafts)
-
 const bubbles = new Bubbles()
 sceneRoot.add(bubbles)
 
@@ -65,7 +66,6 @@ const settings: AppSettings = {
   hidden: false,
   clickThrough: false,
   sceneTransparency01: SCENE.defaultTransparency01,
-  windowScale01: WINDOW.defaultScale01,
 }
 
 // 캔버스 참조 (hidden 시 display 제어)
@@ -100,16 +100,29 @@ function setWaterVeil(b01: number, sceneFactor?: number): void {
 }
 setWaterVeil(LIGHT.default01)
 
-// 컨트롤(버튼/패널) 위에 마우스가 있는지. click-through 중에도 컨트롤 조작을 위해 추적.
+// 컨트롤(버튼/패널) 또는 리사이즈 핸들 위에 마우스가 있는지. click-through 중에도 조작 위해 추적.
 let hoveringControls = false
+let hoveringHandles = false
 
 /**
  * 현재 상태로 창의 click-through(마우스 무시) 여부를 계산해 main에 반영한다.
- * 숨김 또는 투과가 켜져 있고 컨트롤 위가 아닐 때만 통과시킨다 → 버튼/패널은 항상 조작 가능.
+ * 숨김 또는 투과가 켜져 있고 컨트롤/핸들 위가 아닐 때만 통과시킨다 → 버튼/패널/핸들은 항상 조작 가능.
  */
 function applyMouseIgnore(): void {
   const passthrough = settings.hidden || settings.clickThrough
-  window.aqua.setMouseIgnore(computeMouseIgnore(passthrough, hoveringControls))
+  window.aqua.setMouseIgnore(computeMouseIgnore(passthrough, hoveringControls || hoveringHandles))
+}
+
+/**
+ * 현재 바 크기 + 패널 확장 여부로 OS 창 크기를 갱신한다.
+ * 패널이 열려 있으면 창 높이를 패널 전체가 담길 만큼(expandedHeight) 키워 잘림을 막는다.
+ * 캔버스(수조)는 항상 바 높이에 고정되고, 늘어난 영역은 투명 패널 공간이다.
+ */
+function syncWindowSize(): void {
+  const winH = panelExpanded
+    ? Math.max(currentBarHeight, WINDOW.expandedHeight)
+    : currentBarHeight
+  window.aqua.setWindowSize(currentBarWidth, winH)
 }
 
 // ── ControlPanel 배선 ──
@@ -119,7 +132,6 @@ new ControlPanel(
     fishCount: settings.fishCount,
     brightness01: settings.brightness01,
     sceneTransparency01: settings.sceneTransparency01,
-    windowScale01: settings.windowScale01,
     hidden: settings.hidden,
     clickThrough: settings.clickThrough,
     alwaysOnTop: true,
@@ -132,7 +144,6 @@ new ControlPanel(
     onBrightnessChange(b01: number) {
       settings.brightness01 = b01
       lighting.setBrightness01(b01)
-      lightShafts.setBrightness01(b01)
       glowSprites.setBrightness01(b01)
       setWaterVeil(b01)
     },
@@ -140,28 +151,9 @@ new ControlPanel(
       settings.sceneTransparency01 = t01
       const factor = sceneOpacityFactor(t01)
       aquascape.setSceneOpacity(factor)
-      lightShafts.setSceneOpacity(factor)
       glowSprites.setSceneOpacity(factor)
       bubbles.setSceneOpacity(factor)
       setWaterVeil(settings.brightness01, factor)
-    },
-    onWindowScaleChange(t01: number) {
-      settings.windowScale01 = t01
-      // barSizeForScale 인라인: t∈[0,1] → width/height 선형 매핑
-      const clamped = Math.max(0, Math.min(1, t01))
-      const screenW = window.innerWidth
-      const newWidth = Math.round(WINDOW.minWidth + (screenW - WINDOW.minWidth) * clamped)
-      const newHeight = Math.round(WINDOW.minHeight + (WINDOW.maxHeight - WINDOW.minHeight) * clamped)
-
-      currentBarHeight = newHeight
-
-      // OS 창 크기 변경 (main에서 가로 중앙 정렬)
-      window.aqua.setWindowSize(newWidth, newHeight)
-
-      // 캔버스 리프레임 (비축소 크롭: FOV 재계산으로 오브제 픽셀 크기 유지)
-      container.style.height = `${newHeight}px`
-      waterVeil.style.height = `${newHeight}px`
-      sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden
@@ -192,9 +184,37 @@ new ControlPanel(
       applyMouseIgnore()
     },
     onExpandedChange(expanded: boolean) {
-      // 현재 바 height 기준으로 확장 높이 계산 (고정값 대신 일반화)
-      const expandedH = currentBarHeight + WINDOW.panelAllowance
-      window.aqua.setWindowHeight(expanded ? expandedH : currentBarHeight)
+      // 패널이 열리면 창을 패널 전체가 담길 만큼 키운다(작은 바에서도 안 잘림). 닫으면 바 높이로 복귀.
+      panelExpanded = expanded
+      syncWindowSize()
+    },
+  },
+)
+
+// ── 모서리 드래그 리사이즈 핸들 ──
+// 창 크기 슬라이더 대신 캔버스 가장자리(우/하/우하단)를 드래그해 크기 조정.
+// 좌상단 앵커(중앙정렬 안 함)로 창이 점프하지 않는다. 내용은 배율 보존(중앙 크롭).
+setupResizeHandles(
+  container,
+  () => ({
+    minWidth: WINDOW.minWidth,
+    minHeight: WINDOW.minHeight,
+    maxWidth: window.screen.availWidth,
+    maxHeight: WINDOW.maxHeight,
+  }),
+  {
+    getStartSize: () => ({ width: currentBarWidth, height: currentBarHeight }),
+    onResize(width: number, height: number) {
+      currentBarWidth = width
+      currentBarHeight = height
+      container.style.height = `${height}px`
+      waterVeil.style.height = `${height}px`
+      syncWindowSize()
+      sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
+    },
+    onHoverChange(hovering: boolean) {
+      hoveringHandles = hovering
+      applyMouseIgnore()
     },
   },
 )

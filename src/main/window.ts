@@ -78,50 +78,17 @@ export function setAlwaysOnTop(win: BrowserWindow, enabled: boolean): void {
 }
 
 /**
- * 창 크기를 변경하고 가로 중앙 정렬한다. work area를 벗어나지 않도록 클램프.
+ * 창 크기를 변경한다. 현재 위치(좌상단)를 유지하며 화면(work area)을 벗어나지 않게 클램프.
+ * (가로 중앙 정렬하지 않는다 — 모서리 드래그 리사이즈 중 창이 점프하지 않도록.)
  */
 export function setWindowSize(win: BrowserWindow, width: number, height: number): void {
   const workArea = screen.getPrimaryDisplay().workAreaSize
-  const clampedW = Math.max(1, Math.min(width, workArea.width))
-  const clampedH = Math.max(1, Math.min(height, workArea.height))
-  const bounds = centeredBarBounds(workArea, clampedW, clampedH, WINDOW.topMargin)
-  win.setBounds(bounds)
-}
-
-// ── 창 크기 슬라이더 순수 함수 ──
-
-interface SizeLimits {
-  minWidth: number
-  minHeight: number
-  maxHeight: number
-}
-
-/**
- * t∈[0,1]을 width·height로 선형 매핑 후 클램프.
- * t=0 → 최소(minWidth, minHeight), t=1 → 최대(workArea.width, maxHeight).
- */
-export function barSizeForScale(
-  t: number,
-  workArea: { width: number },
-  limits: SizeLimits,
-): { width: number; height: number } {
-  const clamped = Math.max(0, Math.min(1, t))
-  const width = Math.round(limits.minWidth + (workArea.width - limits.minWidth) * clamped)
-  const height = Math.round(limits.minHeight + (limits.maxHeight - limits.minHeight) * clamped)
-  return { width, height }
-}
-
-/**
- * 가로 중앙 정렬 bounds 계산. x = round((workArea.width - width)/2), y = topMargin.
- */
-export function centeredBarBounds(
-  workArea: { width: number },
-  width: number,
-  height: number,
-  topMargin: number,
-): BarBounds {
-  const x = Math.max(0, Math.round((workArea.width - width) / 2))
-  return { x, y: topMargin, width, height }
+  const w = Math.max(WINDOW.minWidth, Math.min(Math.round(width), workArea.width))
+  const h = Math.max(WINDOW.minHeight, Math.min(Math.round(height), workArea.height))
+  const b = win.getBounds()
+  const x = Math.max(0, Math.min(b.x, workArea.width - w))
+  const y = Math.max(0, Math.min(b.y, workArea.height - h))
+  win.setBounds({ x, y, width: w, height: h })
 }
 
 /**

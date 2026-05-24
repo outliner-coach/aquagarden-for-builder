@@ -4,7 +4,6 @@ export interface AppSettings {
   hidden: boolean
   clickThrough: boolean
   sceneTransparency01: number
-  windowScale01: number
 }
 
 export interface MoveWindowByPayload {
@@ -36,6 +35,6 @@ export interface AquaBridge {
   /** 패널 확장/축소에 맞춰 창 높이 조정 (잘림 방지) */
   setWindowHeight(height: number): void
   setAlwaysOnTop(enabled: boolean): void
-  /** 창 크기(width/height) 변경. main에서 centeredBarBounds로 가로 중앙 정렬. */
+  /** 창 크기(width/height) 변경. main에서 현재 위치(좌상단)를 유지하며 화면 안으로 클램프(중앙정렬 안 함). */
   setWindowSize(width: number, height: number): void
 }

@@ -45,7 +45,10 @@
     {
       "step": 5,
       "name": "caustics",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T15:14:09+0900",
+      "completed_at": "2026-05-24T15:30:00+0900",
+      "summary": "절차적 Voronoi CanvasTexture 커스틱 2중 UV 스크롤, 모래+물고기+바위+유목 top-down 투사(공유 GLSL 청크+uniform 싱글턴), causticUvOffset 순수함수+테스트 10건, 밝기 연동 세기(config 상수)"
     },
     {
       "step": 6,

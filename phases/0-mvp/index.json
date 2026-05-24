@@ -45,7 +45,10 @@
     {
       "step": 5,
       "name": "aquascape",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T11:37:37+0900",
+      "completed_at": "2026-05-24T11:50:00+0900",
+      "summary": "Aquascape SceneEntity: 모래 바닥(PlaneGeometry, 밝은 베이지), 6개 수초 군락(vertex shader sin-sway), 3개 바위+4개 자갈(DodecahedronGeometry/SphereGeometry), 유리 엣지 하이라이트(상/하 반투명 Line). 순수 헬퍼 advanceTime·swayOffset export. config.ts에 AQUASCAPE.sandY 상수 추가. 11개 단위 테스트 추가(총 59개)"
     },
     {
       "step": 6,

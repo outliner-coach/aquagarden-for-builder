@@ -7,7 +7,8 @@
     },
     {
       "dir": "1-visual-quality",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-05-24T15:50:38+0900"
     }
   ]
 }

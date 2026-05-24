@@ -1,9 +1,11 @@
 export const WINDOW = {
   height: 220,
   topMargin: 0,
-  // 패널 확장 시 창 최소 높이. 패널(헤더+슬라이더+토글) 전체가 잘리지 않도록 충분히 크게.
+  // 패널 확장 시 창 최소 높이. 패널(헤더+슬라이더+토글+먹이/놀래키기+힌트+종료) 전체가
+  // 잘리지 않도록 충분히 크게. 패널 max-height=calc(100vh-96)이므로 내용(힌트 포함 ~406px)
+  // 보다 창이 커야 한다(이전 480은 힌트 표시 시 종료 버튼이 스크롤 영역으로 밀려 클릭 불가였음).
   // 확장 높이 = max(현재 바 높이, expandedHeight) — 작은 바에서도 패널이 안 잘림.
-  expandedHeight: 480,
+  expandedHeight: 540,
   // 모서리 드래그 리사이즈 범위 (clampSize)
   minWidth: 400,
   minHeight: 80,
@@ -302,4 +304,13 @@ export const COLORS = {
   textDisabled: 'rgba(255, 255, 255, 0.35)',
   toggleOff: 'rgba(255, 255, 255, 0.2)',
   sliderTrackEmpty: 'rgba(255, 255, 255, 0.15)',
+  // 파괴적 액션(종료) — 평상시 옅은 빨강 테두리, 무장 시 채움.
+  danger: '#f87171',
+  dangerFill: 'rgba(248, 113, 113, 0.92)',
+} as const
+
+export const DRAG = {
+  // 플로팅 버튼: 이 거리(px) 이내 이동은 '클릭'(패널 토글)으로 간주. 미세 지터로 토글이
+  // 스킵되던 문제(#4) 방지. 화면 좌표(screenX/Y) 기준.
+  clickThresholdPx: 4,
 } as const

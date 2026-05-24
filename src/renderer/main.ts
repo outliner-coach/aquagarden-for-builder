@@ -209,6 +209,9 @@ const controlPanel = new ControlPanel(
     onLureModeChange(mode) {
       foodLure.setMode(mode)
     },
+    onQuit() {
+      window.aqua.quitApp()
+    },
   },
 )
 
@@ -218,12 +221,14 @@ foodLure.onModeChange = (mode) => {
 }
 
 // ── 물고기 클릭 대사 ──
+// lure(먹이/놀래키기)가 armed일 때는 대사를 띄우지 않는다 — 한 번의 클릭에 두 핸들러가
+// 동시에 발동하던 겹침(#3) 방지. lure 해제(mode===null) 상태에서만 대사 활성.
 new FishDialogue(
   document.body,
   sceneRoot.camera,
   canvas!,
   fishSchool,
-  () => !settings.clickThrough && !settings.hidden,
+  () => !settings.clickThrough && !settings.hidden && foodLure.mode === null,
 )
 
 // ── 모서리 드래그 리사이즈 핸들 ──

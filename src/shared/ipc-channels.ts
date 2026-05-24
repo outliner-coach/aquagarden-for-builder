@@ -4,4 +4,5 @@ export const IPC = {
   SET_MOUSE_IGNORE: 'overlay:set-mouse-ignore',
   SET_WINDOW_HEIGHT: 'overlay:set-window-height',
   SET_WINDOW_SIZE: 'overlay:set-window-size',
+  QUIT_APP: 'overlay:quit-app',
 } as const

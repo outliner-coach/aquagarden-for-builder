@@ -18,6 +18,9 @@ const bridge: AquaBridge = {
   setWindowSize(width: number, height: number): void {
     ipcRenderer.send(IPC.SET_WINDOW_SIZE, { width, height })
   },
+  quitApp(): void {
+    ipcRenderer.send(IPC.QUIT_APP)
+  },
 }
 
 contextBridge.exposeInMainWorld('aqua', bridge)

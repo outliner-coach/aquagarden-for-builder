@@ -37,8 +37,16 @@ export interface ResizeHandleCallbacks {
   onHoverChange: (hovering: boolean) => void
 }
 
-const HANDLE_THICKNESS = 8
-const CORNER_SIZE = 16
+// 가장자리 히트영역은 넉넉히(보이지 않아도 잡기 쉽게), 코너 그립은 더 크고 '보이게'.
+const HANDLE_THICKNESS = 12
+const CORNER_SIZE = 24
+
+// 우하단 코너 그립의 빗금 무늬 (평상시 옅게, hover 시 진하게). 투명 오버레이에서도
+// 임의의 바탕화면 위에 사각형으로 보이지 않도록 코너에만, 대각선 스트라이프로 페더링.
+const GRIP_STRIPES = (alpha: number): string =>
+  `repeating-linear-gradient(-45deg,` +
+  ` rgba(255,255,255,${alpha}) 0px, rgba(255,255,255,${alpha}) 2px,` +
+  ` rgba(255,255,255,0) 2px, rgba(255,255,255,0) 5px)`
 
 function makeHandle(axis: Axis): HTMLDivElement {
   const el = document.createElement('div')
@@ -50,7 +58,12 @@ function makeHandle(axis: Axis): HTMLDivElement {
   } else if (axis === 's') {
     el.style.cssText = common + `left:0;bottom:0;height:${HANDLE_THICKNESS}px;width:100%;`
   } else {
-    el.style.cssText = common + `right:0;bottom:0;width:${CORNER_SIZE}px;height:${CORNER_SIZE}px;`
+    // 우하단: 보이는 그립. 무늬는 코너 안쪽으로만(우하단에 모이는 삼각형 느낌).
+    el.style.cssText =
+      common +
+      `right:0;bottom:0;width:${CORNER_SIZE}px;height:${CORNER_SIZE}px;` +
+      `background:${GRIP_STRIPES(0.35)};` +
+      `border-bottom-right-radius:4px;transition:background 120ms;`
   }
   return el
 }
@@ -86,9 +99,16 @@ export function setupResizeHandles(
       cb.onResize(pendingW, pendingH)
     }
 
-    handle.addEventListener('mouseenter', () => cb.onHoverChange(true))
+    const isCorner = axis === 'se'
+    handle.addEventListener('mouseenter', () => {
+      if (isCorner) handle.style.background = GRIP_STRIPES(0.7)
+      cb.onHoverChange(true)
+    })
     handle.addEventListener('mouseleave', () => {
-      if (!dragging) cb.onHoverChange(false)
+      if (!dragging) {
+        if (isCorner) handle.style.background = GRIP_STRIPES(0.35)
+        cb.onHoverChange(false)
+      }
     })
 
     handle.addEventListener('pointerdown', (e: PointerEvent) => {
@@ -122,9 +142,19 @@ export function setupResizeHandles(
       if (!dragging) return
       dragging = false
       if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId)
+      if (isCorner) handle.style.background = GRIP_STRIPES(0.35)
       cb.onHoverChange(false)
     }
     handle.addEventListener('pointerup', endDrag)
     handle.addEventListener('pointercancel', endDrag)
+    // 캡처가 어떤 이유로든(창 리사이즈로 커서가 창 밖, OS 가로채기 등) 풀리면 드래그 상태를
+    // 반드시 정리한다. 이게 빠지면 dragging/capture가 고착돼 이후 포인터 이벤트를 가로채
+    // 패널·버튼이 무반응처럼 보일 수 있다(0-A 클릭 무반응의 한 경로).
+    handle.addEventListener('lostpointercapture', () => {
+      if (!dragging) return
+      dragging = false
+      if (isCorner) handle.style.background = GRIP_STRIPES(0.35)
+      cb.onHoverChange(false)
+    })
   }
 }

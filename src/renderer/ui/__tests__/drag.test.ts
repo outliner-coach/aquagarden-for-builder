@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import { dragDelta, clampPanelPos } from '../drag'
+import { dragDelta, clampPanelPos, exceedsThreshold } from '../drag'
+
+describe('exceedsThreshold', () => {
+  const start = { x: 100, y: 100 }
+
+  it('returns false when within threshold (jitter on click)', () => {
+    expect(exceedsThreshold(start, { x: 102, y: 101 }, 4)).toBe(false)
+  })
+
+  it('returns false at exactly the threshold distance', () => {
+    // 거리 4.0 == threshold 4 → 초과 아님(>이지 >=가 아님)
+    expect(exceedsThreshold(start, { x: 104, y: 100 }, 4)).toBe(false)
+  })
+
+  it('returns true when moved beyond threshold (real drag)', () => {
+    expect(exceedsThreshold(start, { x: 110, y: 100 }, 4)).toBe(true)
+  })
+
+  it('uses euclidean distance across both axes', () => {
+    // (3,4) → 거리 5 > 4
+    expect(exceedsThreshold(start, { x: 103, y: 104 }, 4)).toBe(true)
+  })
+
+  it('returns false when no movement', () => {
+    expect(exceedsThreshold(start, { x: 100, y: 100 }, 4)).toBe(false)
+  })
+})
 
 describe('dragDelta', () => {
   it('returns dx/dy between two points', () => {

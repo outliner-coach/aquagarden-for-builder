@@ -17,6 +17,8 @@ export interface ControlPanelCallbacks {
   onExpandedChange: (expanded: boolean) => void
   /** 먹이주기/놀래키기 모드 변경. */
   onLureModeChange: (mode: LureMode) => void
+  /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
+  onQuit: () => void
 }
 
 /** 초기 상태 */
@@ -52,6 +54,10 @@ export class ControlPanel {
   private readonly _alwaysOnTopToggle: HTMLInputElement
   private readonly _feedBtn: HTMLButtonElement
   private readonly _scareBtn: HTMLButtonElement
+  private _lureHint!: HTMLDivElement
+  private _quitBtn!: HTMLButtonElement
+  private _quitArmed = false
+  private _quitTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     container: HTMLElement,
@@ -63,7 +69,9 @@ export class ControlPanel {
     // 루트 컨테이너 — 상단 우측 고정(메뉴바를 피하도록 top:36). 패널은 아래로 펼친다.
     this._root = document.createElement('div')
     this._root.className = 'cp'
-    this._root.style.cssText = 'position:fixed;top:36px;right:12px;z-index:9999;'
+    // top:40 — macOS 메뉴바(고DPI 디스플레이에서 ~33px) 아래로 충분히 내려 버튼 상단이
+    // 메뉴바에 가려 빗나가지 않게 한다(0-A: 작은 버튼이 메뉴바에 붙어 클릭이 빗나가던 문제).
+    this._root.style.cssText = 'position:fixed;top:40px;right:12px;z-index:9999;'
 
     // ── 플로팅 버튼 (40px 원형) ──
     this._button = document.createElement('div')
@@ -170,6 +178,19 @@ export class ControlPanel {
     lureRow.appendChild(this._scareBtn)
     this._panel.appendChild(lureRow)
 
+    // 활성 모드 힌트 — 어떤 모드가 켜졌고 무엇을 해야 하는지 명시(armed 표시 보강).
+    this._lureHint = document.createElement('div')
+    this._lureHint.style.cssText = `font-size:11px;color:${COLORS.point};margin-bottom:12px;display:none;`
+    this._panel.appendChild(this._lureHint)
+
+    // ── 종료 버튼 (파괴적: 2단계 확인) ──
+    // frameless·always-on-top 오버레이라 메뉴/X가 없어 끌 방법이 없으므로 여기서 종료.
+    this._quitBtn = document.createElement('button')
+    this._quitBtn.className = 'cp__quit-btn'
+    this._quitBtn.textContent = '종료'
+    this._quitBtn.addEventListener('click', () => this._onQuitClick())
+    this._panel.appendChild(this._quitBtn)
+
     this._root.appendChild(this._panel)
     container.appendChild(this._root)
 
@@ -201,6 +222,13 @@ export class ControlPanel {
   setLureMode(mode: LureMode): void {
     this._feedBtn.classList.toggle('cp__lure-btn--active', mode === 'feed')
     this._scareBtn.classList.toggle('cp__lure-btn--active', mode === 'scare')
+    if (mode === null) {
+      this._lureHint.style.display = 'none'
+    } else {
+      this._lureHint.textContent =
+        mode === 'feed' ? '먹이주기 모드: 화면을 클릭하세요' : '놀래키기 모드: 화면을 클릭하세요'
+      this._lureHint.style.display = 'block'
+    }
   }
 
   /** 외부에서 상태를 갱신하면 UI를 동기화 */
@@ -214,6 +242,24 @@ export class ControlPanel {
     this._hideToggle.checked = state.hidden
     this._clickThroughToggle.checked = state.clickThrough
     this._alwaysOnTopToggle.checked = state.alwaysOnTop
+  }
+
+  /** 종료 버튼: 한 번 누르면 무장(확인 문구), 3초 내 다시 누르면 실제 종료. 오클릭 방지. */
+  private _onQuitClick(): void {
+    if (this._quitArmed) {
+      if (this._quitTimer !== null) clearTimeout(this._quitTimer)
+      this._callbacks.onQuit()
+      return
+    }
+    this._quitArmed = true
+    this._quitBtn.textContent = '한 번 더 누르면 종료'
+    this._quitBtn.classList.add('cp__quit-btn--armed')
+    this._quitTimer = setTimeout(() => {
+      this._quitArmed = false
+      this._quitBtn.textContent = '종료'
+      this._quitBtn.classList.remove('cp__quit-btn--armed')
+      this._quitTimer = null
+    }, 3000)
   }
 
   private _togglePanel(): void {
@@ -322,7 +368,7 @@ export class ControlPanel {
     style.id = 'cp-styles'
     style.textContent = `
       .cp__btn {
-        width:40px;height:40px;border-radius:50%;
+        width:44px;height:44px;border-radius:50%;
         background:${COLORS.buttonBg};border:1px solid ${COLORS.border};
         display:flex;align-items:center;justify-content:center;
         cursor:grab;color:${COLORS.textPrimary};
@@ -384,7 +430,32 @@ export class ControlPanel {
       }
       .cp__lure-btn--active {
         border-color:${COLORS.point};
-        color:${COLORS.point};
+        background:${COLORS.point};
+        color:#06201d;
+        font-weight:700;
+      }
+      .cp__lure-btn--active:hover {
+        background:${COLORS.point};
+      }
+
+      .cp__quit-btn {
+        width:100%;
+        margin-top:4px;
+        padding:7px 0;
+        border:1px solid ${COLORS.danger};
+        border-radius:6px;
+        background:transparent;
+        color:${COLORS.danger};
+        font-size:12px;font-weight:600;
+        cursor:pointer;
+        transition:background 120ms,color 120ms;
+      }
+      .cp__quit-btn:hover {
+        background:rgba(248,113,113,0.12);
+      }
+      .cp__quit-btn--armed {
+        background:${COLORS.dangerFill};
+        color:#1a0d0d;
       }
     `
     document.head.appendChild(style)

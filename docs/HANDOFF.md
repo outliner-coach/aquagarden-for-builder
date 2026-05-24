@@ -23,9 +23,7 @@
   `preload/index.ts` `ipcRenderer.send`, `main/ipc.ts`에서 `app.quit()`(OS 제어는 main에서만).
 - `ControlPanel` 하단에 빨간 **종료** 버튼(파괴적, 2단계 확인: 1클릭 무장 "한 번 더 누르면 종료"
   → 3초 내 재클릭 시 종료). 색은 `COLORS.danger/dangerFill`.
-- ⚠️ 라이브에서 버튼 표시·스타일·도달성은 확인했으나, **무장 텍스트 전환만은 hi-DPI 화면에서
-  computer-use 픽셀 타게팅 한계로 확정 캡처하지 못함**(동작 정상인 먹이주기 버튼과 동일한 click 패턴).
-  실제 마우스로 한 번 확인 권장.
+- ✅ 버튼 표시·스타일·도달성, **2단계 무장 텍스트 전환("한 번 더 누르면 종료")까지 사용자 실기기 확인 완료.**
 
 ### 1. 보이는 리사이즈 그립 (P0)
 - `resizeHandles.ts`: 우하단에 **보이는 빗금 그립**(`repeating-linear-gradient`, hover 시 진하게),

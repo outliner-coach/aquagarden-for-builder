@@ -23,7 +23,7 @@
       "name": "fish-pool-swim",
       "status": "completed",
       "started_at": "2026-05-24T14:52:53+0900",
-      "completed_at": "2026-05-24T15:00:00+0900",
+      "completed_at": "2026-05-24T15:01:07+0900",
       "summary": "Fish를 GLB 클론(geometry 공유)+MeshStandard로 교체, onBeforeCompile 바디 벤딩 헤엄+림라이트, FishSchool 비동기 프로토타입 로딩·분할 생성, seedToPhase/swimAmplitudeFor 순수함수+테스트 10건, boids/풀링 보존"
     },
     {

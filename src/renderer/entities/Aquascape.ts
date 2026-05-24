@@ -11,6 +11,8 @@ const GRASS_CARD_VERT = /* glsl */ `
   uniform float uTime;
   uniform float uSwaySpeed;
   uniform float uSwayAmplitude;
+  uniform float uSwaySpeed2;
+  uniform float uSwayAmplitude2;
 
   attribute vec3 instanceOffset;   // x, y(=sandY), z
   attribute float instanceYaw;
@@ -48,8 +50,14 @@ const GRASS_CARD_VERT = /* glsl */ `
     float h01 = uv.y;  // 0 at base, 1 at tip
     float heightFactor = h01 * h01;  // quadratic falloff
     float worldX = instanceOffset.x + rotated.x;
+
+    // Primary sway
     float swayX = sin(uTime * uSwaySpeed + worldX * 3.0 + instancePhase) * heightFactor * uSwayAmplitude;
     float swayZ = cos(uTime * uSwaySpeed * 0.75 + worldX * 2.5 + instancePhase * 0.7) * heightFactor * uSwayAmplitude * 0.5;
+
+    // Secondary slow wave for organic feel
+    swayX += sin(uTime * uSwaySpeed2 + worldX * 1.5 + instancePhase * 1.3) * heightFactor * uSwayAmplitude2;
+    swayZ += cos(uTime * uSwaySpeed2 * 0.6 + worldX * 2.0 + instancePhase * 0.5) * heightFactor * uSwayAmplitude2 * 0.4;
 
     vec3 worldPos = rotated + instanceOffset;
     worldPos.x += swayX;
@@ -145,19 +153,28 @@ function createLeafAlphaTexture(width = 64, height = 128): THREE.CanvasTexture {
   // Clear to transparent
   ctx.clearRect(0, 0, width, height)
 
-  // Draw a tapered leaf shape: wide at bottom, pointed at top
+  // Organic leaf shape: wider base with slight left/right asymmetry
   const cx = width / 2
   ctx.beginPath()
-  ctx.moveTo(cx - width * 0.35, height)         // base left
-  ctx.quadraticCurveTo(cx - width * 0.4, height * 0.5, cx, 0) // left edge to tip
-  ctx.quadraticCurveTo(cx + width * 0.4, height * 0.5, cx + width * 0.35, height) // tip to right base
+  ctx.moveTo(cx - width * 0.38, height)           // base left (wider)
+  ctx.bezierCurveTo(
+    cx - width * 0.42, height * 0.6,              // left bulge at lower third
+    cx - width * 0.25, height * 0.25,             // taper toward tip
+    cx, 0,                                         // tip
+  )
+  ctx.bezierCurveTo(
+    cx + width * 0.28, height * 0.25,             // slightly different curve (asymmetry)
+    cx + width * 0.44, height * 0.6,              // right bulge
+    cx + width * 0.38, height,                    // base right
+  )
   ctx.closePath()
 
-  // Gradient fill: subtle green tint for more natural alpha
+  // Gradient fill: gradual fade toward tip for natural translucency
   const grad = ctx.createLinearGradient(0, height, 0, 0)
   grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)')
-  grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.95)')
-  grad.addColorStop(1, 'rgba(255, 255, 255, 0.6)')
+  grad.addColorStop(0.6, 'rgba(255, 255, 255, 0.95)')
+  grad.addColorStop(0.85, 'rgba(255, 255, 255, 0.8)')
+  grad.addColorStop(1, 'rgba(255, 255, 255, 0.5)')
   ctx.fillStyle = grad
   ctx.fill()
 
@@ -170,11 +187,10 @@ function createLeafAlphaTexture(width = 64, height = 128): THREE.CanvasTexture {
 }
 
 /* ── Crossed grass card geometry (2-3 quads intersecting) ── */
-function createGrassCardGeometry(quadCount = 2): THREE.BufferGeometry {
+function createGrassCardGeometry(quadCount = 2, halfW = 0.12): THREE.BufferGeometry {
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
-  const halfW = 0.12
 
   for (let q = 0; q < quadCount; q++) {
     const angle = (q / quadCount) * Math.PI // spread quads evenly across 180°
@@ -293,10 +309,6 @@ export class Aquascape implements SceneEntity {
     const leafTex = createLeafAlphaTexture()
     this._disposables.push({ texture: leafTex })
 
-    // Shared base card geometry (2 crossed quads)
-    const cardGeo = createGrassCardGeometry(2)
-    this._disposables.push({ geometry: cardGeo })
-
     for (const speciesCfg of PLANT.species) {
       const params: PlantSpeciesParams = {
         minHeight: speciesCfg.minHeight,
@@ -316,7 +328,9 @@ export class Aquascape implements SceneEntity {
       )
 
       const count = instances.length
-      const iMesh = new THREE.InstancedMesh(cardGeo, undefined as unknown as THREE.Material, count)
+
+      // Per-species card geometry with species-specific quad count and width
+      const iGeo = createGrassCardGeometry(speciesCfg.quadCount, speciesCfg.cardHalfWidth)
 
       // Prepare instanced attributes
       const offsets = new Float32Array(count * 3)
@@ -344,14 +358,6 @@ export class Aquascape implements SceneEntity {
         tipColors[i * 3 + 2] = inst.tipColor[2]
       }
 
-      // Set dummy identity matrices for all instances
-      const identity = new THREE.Matrix4()
-      for (let i = 0; i < count; i++) {
-        iMesh.setMatrixAt(i, identity)
-      }
-
-      // Attach instanced buffer attributes to the geometry clone
-      const iGeo = cardGeo.clone()
       iGeo.setAttribute('instanceOffset', new THREE.InstancedBufferAttribute(offsets, 3))
       iGeo.setAttribute('instanceYaw', new THREE.InstancedBufferAttribute(yaws, 1))
       iGeo.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scales, 1))
@@ -367,12 +373,15 @@ export class Aquascape implements SceneEntity {
           uTime: { value: 0 },
           uSwaySpeed: { value: PLANT.swaySpeed },
           uSwayAmplitude: { value: PLANT.swayAmplitude },
+          uSwaySpeed2: { value: PLANT.swaySpeed2 },
+          uSwayAmplitude2: { value: PLANT.swayAmplitude2 },
           uLeafAlpha: { value: leafTex },
           uAlphaTest: { value: PLANT.alphaTest },
         },
         side: THREE.DoubleSide,
       })
 
+      const identity = new THREE.Matrix4()
       const mesh = new THREE.InstancedMesh(iGeo, mat, count)
       for (let i = 0; i < count; i++) {
         mesh.setMatrixAt(i, identity)

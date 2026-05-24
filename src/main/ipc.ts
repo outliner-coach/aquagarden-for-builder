@@ -29,7 +29,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   })
 
   ipcMain.on(IPC.SET_WINDOW_SIZE, (_event, payload: SetWindowSizePayload) => {
-    setWindowSize(win, payload.width, payload.height)
+    setWindowSize(win, payload.width, payload.height, payload.anchorBottom ?? false)
   })
 
   // OS 제어(앱 종료)는 main에서만. renderer는 종료 버튼에서 IPC 요청만 보낸다.

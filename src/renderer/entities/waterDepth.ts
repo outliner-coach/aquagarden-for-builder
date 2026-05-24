@@ -12,6 +12,7 @@ import { WATER } from '../../shared/config'
 const _tintColor = { value: new THREE.Vector3(...WATER.tintColor) }
 const _depthNear = { value: WATER.depthNear }
 const _depthFar = { value: WATER.depthFar }
+const _alphaFar = { value: WATER.alphaDepthFar }
 const _maxTint = { value: WATER.maxTintStrength }
 const _maxFade = { value: WATER.maxAlphaFade }
 
@@ -21,6 +22,7 @@ export function attachWaterDepthUniforms(
   shader.uniforms.uWaterTintColor = _tintColor
   shader.uniforms.uWaterDepthNear = _depthNear
   shader.uniforms.uWaterDepthFar = _depthFar
+  shader.uniforms.uWaterAlphaFar = _alphaFar
   shader.uniforms.uWaterMaxTint = _maxTint
   shader.uniforms.uWaterMaxFade = _maxFade
 }
@@ -40,6 +42,7 @@ export const WATER_DEPTH_FRAG_DECLARE = /* glsl */ `
 uniform vec3 uWaterTintColor;
 uniform float uWaterDepthNear;
 uniform float uWaterDepthFar;
+uniform float uWaterAlphaFar;
 uniform float uWaterMaxTint;
 uniform float uWaterMaxFade;
 varying float vWaterDepth;`
@@ -47,9 +50,11 @@ varying float vWaterDepth;`
 /** 프래그먼트: #include <opaque_fragment> 뒤에 삽입. gl_FragColor를 수정. */
 export const WATER_DEPTH_FRAG_MAIN = /* glsl */ `
 {
-  float waterT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterDepthFar - uWaterDepthNear), 0.0, 1.0);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, uWaterTintColor, waterT * uWaterMaxTint);
-  gl_FragColor.a *= 1.0 - waterT * uWaterMaxFade;
+  float tintT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterDepthFar - uWaterDepthNear), 0.0, 1.0);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, uWaterTintColor, tintT * uWaterMaxTint);
+  // 알파 페이드는 더 먼 거리(uWaterAlphaFar)까지 램프 → 모래 먼 가장자리에서 0으로 용해(하드 컷 제거)
+  float alphaT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterAlphaFar - uWaterDepthNear), 0.0, 1.0);
+  gl_FragColor.a *= 1.0 - alphaT * uWaterMaxFade;
 }`
 
 /**

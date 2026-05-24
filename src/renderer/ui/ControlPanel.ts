@@ -58,6 +58,9 @@ export class ControlPanel {
   private _quitBtn!: HTMLButtonElement
   private _quitArmed = false
   private _quitTimer: ReturnType<typeof setTimeout> | null = null
+  /** 패널 닫힘 상태의 transform — 펼침 방향(up/down)에 따라 슬라이드 방향이 바뀐다. */
+  private _closedTransform = 'translateY(-4px)'
+  private _helpModal!: HTMLDivElement
 
   constructor(
     container: HTMLElement,
@@ -92,15 +95,28 @@ export class ControlPanel {
       max-height:calc(100vh - 96px);overflow-y:auto;
     `
 
-    // 패널 드래그 핸들 (표제 영역)
+    // 패널 드래그 핸들 (표제 영역) — 제목 + 가이드('?') 버튼
     const header = document.createElement('div')
     header.className = 'cp__panel-header'
     header.style.cssText = `
+      display:flex;align-items:center;justify-content:space-between;
       font-size:12px;font-weight:600;
       color:${COLORS.textSecondary};letter-spacing:0.02em;
       margin-bottom:12px;cursor:grab;user-select:none;
     `
-    header.textContent = 'Aquagarden'
+    const titleEl = document.createElement('span')
+    titleEl.textContent = 'Aquagarden'
+    header.appendChild(titleEl)
+
+    const helpBtn = document.createElement('button')
+    helpBtn.className = 'cp__help-btn'
+    helpBtn.textContent = '?'
+    helpBtn.title = '이용 방법'
+    // 헤더 드래그와 충돌 방지: 버튼 위 pointerdown은 드래그를 시작시키지 않는다.
+    helpBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
+    helpBtn.addEventListener('click', () => this._openHelp())
+    header.appendChild(helpBtn)
+
     this._panel.appendChild(header)
 
     // ── 개체수 슬라이더 ──
@@ -194,6 +210,9 @@ export class ControlPanel {
     this._root.appendChild(this._panel)
     container.appendChild(this._root)
 
+    // ── 이용 가이드 모달 ──
+    this._buildHelpModal(container)
+
     // ── CSS 주입 ──
     this._injectStyles()
 
@@ -216,6 +235,30 @@ export class ControlPanel {
     this._root.addEventListener('mouseleave', () => {
       this._callbacks.onControlsHoverChange(false)
     })
+  }
+
+  /**
+   * 패널 펼침 방향을 설정한다(펼치기 직전 호출).
+   * 'down': 버튼 아래로(top-right 고정). 'up': 버튼 위로(바를 창 하단에 두고 위로 펼침).
+   * barHeight는 'up'일 때 root를 바 상단-우측에 맞추기 위해 필요.
+   */
+  setOpenDirection(dir: 'down' | 'up', barHeight: number): void {
+    if (dir === 'up') {
+      // 바가 창 하단에 위치 → 버튼을 바 상단(=창 하단에서 barHeight-84px)에 두고 패널은 위로.
+      this._root.style.top = 'auto'
+      this._root.style.bottom = `${Math.max(0, barHeight - 84)}px`
+      this._panel.style.top = 'auto'
+      this._panel.style.bottom = '48px'
+      this._closedTransform = 'translateY(4px)'
+    } else {
+      this._root.style.top = '40px'
+      this._root.style.bottom = 'auto'
+      this._panel.style.bottom = 'auto'
+      this._panel.style.top = '48px'
+      this._closedTransform = 'translateY(-4px)'
+    }
+    // 닫힘 상태면 새 방향의 closed transform을 즉시 반영(다음 펼침 애니메이션 방향 일치).
+    if (!this._expanded) this._panel.style.transform = this._closedTransform
   }
 
   /** 외부에서 lure 모드 상태를 UI에 반영 */
@@ -262,6 +305,77 @@ export class ControlPanel {
     }, 3000)
   }
 
+  /** 이용 가이드 모달 — 앱 내 DOM 카드(백드롭 클릭/✕로 닫기). 처음 이용자용 안내. */
+  private _buildHelpModal(container: HTMLElement): void {
+    const backdrop = document.createElement('div')
+    backdrop.className = 'cp__help-backdrop'
+    this._helpModal = backdrop
+
+    const card = document.createElement('div')
+    card.className = 'cp__help-card'
+    // 카드 클릭은 백드롭으로 전파되지 않게(닫힘 방지)
+    card.addEventListener('click', (e) => e.stopPropagation())
+
+    const titleRow = document.createElement('div')
+    titleRow.className = 'cp__help-title-row'
+    const title = document.createElement('span')
+    title.textContent = '이용 방법'
+    title.className = 'cp__help-title'
+    const closeBtn = document.createElement('button')
+    closeBtn.className = 'cp__help-close'
+    closeBtn.textContent = '✕'
+    closeBtn.title = '닫기'
+    closeBtn.addEventListener('click', () => this._closeHelp())
+    titleRow.append(title, closeBtn)
+    card.appendChild(titleRow)
+
+    const items: [string, string][] = [
+      ['⚙ 플로팅 버튼', '드래그하면 창 이동, 클릭하면 이 패널을 열고 닫습니다.'],
+      ['개체수', '헤엄치는 물고기 수를 조절합니다.'],
+      ['밝기', '수조 조명의 밝기를 조절합니다.'],
+      ['배경 투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
+      ['수조 숨김', '렌더링을 멈춰 절전합니다. 플로팅 버튼만 남습니다.'],
+      ['마우스 투과', '수조 영역의 클릭이 뒤쪽 화면(바탕화면)으로 통과됩니다.'],
+      ['Always on Top', '항상 다른 창 위에 표시합니다.'],
+      ['먹이주기 / 놀래키기', '버튼을 켠 뒤 화면을 클릭하면 물고기가 반응합니다.'],
+      ['크기 조절', '수조의 오른쪽·아래·우하단 모서리를 드래그해 크기를 바꿉니다.'],
+      ['종료', '한 번 누르면 확인, 다시 누르면 앱이 종료됩니다.'],
+    ]
+    const list = document.createElement('div')
+    list.className = 'cp__help-list'
+    for (const [k, v] of items) {
+      const row = document.createElement('div')
+      row.className = 'cp__help-item'
+      const term = document.createElement('div')
+      term.className = 'cp__help-term'
+      term.textContent = k
+      const desc = document.createElement('div')
+      desc.className = 'cp__help-desc'
+      desc.textContent = v
+      row.append(term, desc)
+      list.appendChild(row)
+    }
+    card.appendChild(list)
+    backdrop.appendChild(card)
+
+    // 백드롭 클릭(카드 바깥)으로 닫기
+    backdrop.addEventListener('click', () => this._closeHelp())
+    // 모달 위 hover는 컨트롤로 간주(click-through 중에도 조작 가능)
+    backdrop.addEventListener('mouseenter', () => this._callbacks.onControlsHoverChange(true))
+    backdrop.addEventListener('mouseleave', () => this._callbacks.onControlsHoverChange(false))
+
+    container.appendChild(backdrop)
+  }
+
+  private _openHelp(): void {
+    this._helpModal.style.display = 'flex'
+  }
+
+  private _closeHelp(): void {
+    this._helpModal.style.display = 'none'
+    this._callbacks.onControlsHoverChange(false)
+  }
+
   private _togglePanel(): void {
     this._expanded = !this._expanded
     // 펼칠 때는 잘리지 않도록 먼저 창 높이를 키운다.
@@ -273,7 +387,7 @@ export class ControlPanel {
     } else {
       this._panel.style.opacity = '0'
       this._panel.style.pointerEvents = 'none'
-      this._panel.style.transform = 'translateY(-4px)'
+      this._panel.style.transform = this._closedTransform
     }
   }
 
@@ -456,6 +570,49 @@ export class ControlPanel {
       .cp__quit-btn--armed {
         background:${COLORS.dangerFill};
         color:#1a0d0d;
+      }
+
+      .cp__help-btn {
+        width:20px;height:20px;flex:0 0 auto;
+        display:flex;align-items:center;justify-content:center;
+        border:1px solid ${COLORS.border};border-radius:50%;
+        background:${COLORS.buttonBg};color:${COLORS.textSecondary};
+        font-size:12px;font-weight:700;line-height:1;cursor:pointer;
+        padding:0;transition:background 120ms,color 120ms;
+      }
+      .cp__help-btn:hover { background:${COLORS.point};color:#06201d; }
+
+      .cp__help-backdrop {
+        display:none;position:fixed;inset:0;z-index:10001;
+        align-items:center;justify-content:center;
+        background:rgba(6,18,20,0.35);
+      }
+      .cp__help-card {
+        width:300px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);
+        overflow-y:auto;box-sizing:border-box;
+        background:${COLORS.panelBg};border:1px solid ${COLORS.border};
+        border-radius:12px;padding:16px 18px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.4);
+      }
+      .cp__help-title-row {
+        display:flex;align-items:center;justify-content:space-between;
+        margin-bottom:12px;
+      }
+      .cp__help-title {
+        font-size:14px;font-weight:700;color:${COLORS.textPrimary};
+      }
+      .cp__help-close {
+        width:24px;height:24px;border:none;border-radius:6px;
+        background:transparent;color:${COLORS.textSecondary};
+        font-size:13px;cursor:pointer;line-height:1;padding:0;
+      }
+      .cp__help-close:hover { background:rgba(255,255,255,0.08);color:${COLORS.textPrimary}; }
+      .cp__help-item { margin-bottom:10px; }
+      .cp__help-term {
+        font-size:12px;font-weight:600;color:${COLORS.textPrimary};margin-bottom:2px;
+      }
+      .cp__help-desc {
+        font-size:11px;line-height:1.45;color:${COLORS.textSecondary};
       }
     `
     document.head.appendChild(style)

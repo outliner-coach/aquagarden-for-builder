@@ -19,6 +19,18 @@ interface BarBounds {
   height: number
 }
 
+interface DisplayArea {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface SizeConstraints {
+  minWidth: number
+  minHeight: number
+}
+
 export function computeBarBounds(workArea: WorkArea, cfg: BarConfig): BarBounds {
   return {
     x: 0,
@@ -78,17 +90,46 @@ export function setAlwaysOnTop(win: BrowserWindow, enabled: boolean): void {
 }
 
 /**
- * 창 크기를 변경한다. 현재 위치(좌상단)를 유지하며 화면(work area)을 벗어나지 않게 클램프.
- * (가로 중앙 정렬하지 않는다 — 모서리 드래그 리사이즈 중 창이 점프하지 않도록.)
+ * 원하는 크기를 창이 위치한 디스플레이의 work area(전역 좌표) 안으로 클램프한다.
+ * x/y 오프셋을 가진 보조 모니터에서도 그 모니터 영역을 벗어나지 않으며,
+ * 주 모니터로 끌려오지 않도록 디스플레이의 x/y 오프셋을 기준으로 클램프한다. (순수 함수)
  */
-export function setWindowSize(win: BrowserWindow, width: number, height: number): void {
-  const workArea = screen.getPrimaryDisplay().workAreaSize
-  const w = Math.max(WINDOW.minWidth, Math.min(Math.round(width), workArea.width))
-  const h = Math.max(WINDOW.minHeight, Math.min(Math.round(height), workArea.height))
+export function clampSizeToDisplay(
+  current: BarBounds,
+  desired: { width: number; height: number },
+  area: DisplayArea,
+  min: SizeConstraints,
+  anchorBottom = false,
+): BarBounds {
+  const w = Math.max(min.minWidth, Math.min(Math.round(desired.width), area.width))
+  const h = Math.max(min.minHeight, Math.min(Math.round(desired.height), area.height))
+  // anchorBottom: 하단 가장자리를 고정한 채 높이를 바꾼다(패널을 위로 펼칠 때 바가 제자리 유지).
+  const desiredY = anchorBottom ? current.y + current.height - h : current.y
+  const x = Math.max(area.x, Math.min(current.x, area.x + area.width - w))
+  const y = Math.max(area.y, Math.min(desiredY, area.y + area.height - h))
+  return { x, y, width: w, height: h }
+}
+
+/**
+ * 창 크기를 변경한다. 현재 위치(좌상단)를 유지하며 창이 놓인 디스플레이의 work area를
+ * 벗어나지 않게 클램프. (가로 중앙 정렬하지 않는다 — 모서리 드래그 리사이즈 중 창이 점프하지 않도록.)
+ */
+export function setWindowSize(
+  win: BrowserWindow,
+  width: number,
+  height: number,
+  anchorBottom = false,
+): void {
   const b = win.getBounds()
-  const x = Math.max(0, Math.min(b.x, workArea.width - w))
-  const y = Math.max(0, Math.min(b.y, workArea.height - h))
-  win.setBounds({ x, y, width: w, height: h })
+  const area = screen.getDisplayMatching(b).workArea
+  const next = clampSizeToDisplay(
+    b,
+    { width, height },
+    area,
+    { minWidth: WINDOW.minWidth, minHeight: WINDOW.minHeight },
+    anchorBottom,
+  )
+  win.setBounds(next)
 }
 
 /**

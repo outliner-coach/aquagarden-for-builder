@@ -6,8 +6,27 @@
 ## 현재 상태
 
 - 브랜치: **`feat-4-fish-interactions`** (main 미병합).
-- 검증: `npm run test`(334) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
+- 검증: `npm run test`(358) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
 - 이번 세션에서 핸드오프의 인터랙션 UX 이슈 6건 + 발견된 패널 잘림 버그 1건을 모두 처리했다.
+
+## 후속 세션 작업 (2026-05-25, 추가) — 버그 2건 + 신규 기능 2건
+
+### 버그 수정 (완료)
+1. **멀티모니터 창 강제 이동** — `setWindowSize`가 `getPrimaryDisplay()`로 클램프 → 보조 모니터 창이
+   주 모니터로 끌려옴. `getDisplayMatching(win.getBounds()).workArea` 기준으로 변경 + 순수 함수
+   `clampSizeToDisplay`로 분리(유닛테스트). ⚠ 실 멀티모니터 체감은 미검증(smoke 단일 디스플레이).
+2. **고밝기 수평선 잔상** — 격리 캡처로 원인 확정: 베일/IBL 아님, **모래 평면 먼 가장자리**(뷰 깊이≈16)가
+   알파 페이드 포화(`depthFar=10`) 후 하드 컷. 알파 페이드를 틴트와 분리(`WATER.alphaDepthFar=15`,
+   `maxAlphaFade=1.0`, `uWaterAlphaFar`)해 가장자리를 0으로 용해. delta ±36→~3.
+
+### 신규 기능 (완료, dev 실기기 확인)
+3. **패널 자동 위/아래 열기** — 패널 펼침 시 하단 공간이 부족하면 창을 강제 이동하던 것을, **위로 펼침**으로
+   전환. `panelLayout.choosePanelDirection`(순수, 테스트)으로 방향 결정. 'up'이면 `setWindowSize(...,
+   anchorBottom=true)`로 하단 앵커 + 캔버스/베일을 창 하단에 붙이고(`position:fixed`+top/bottom),
+   `ControlPanel.setOpenDirection`이 버튼 위로 패널을 펼침. `WINDOW.expandedHeight`→`panelExtra`(바+여백).
+   ✅ dev로 상단=아래로/하단=위로 열림·바 제자리 유지 확인.
+4. **이용 가이드** — `ControlPanel` 헤더에 '?' 버튼, 클릭 시 앱 내 DOM 모달(`cp__help-*`)로 각 컨트롤
+   사용법 안내(백드롭/✕ 닫기). ✅ dev 확인.
 
 ## 이번 세션에서 처리한 이슈 (모두 완료)
 
@@ -47,12 +66,28 @@
   종료 버튼이 스크롤 영역으로 밀려 잘림**. `WINDOW.expandedHeight` `480→540`으로 해결.
   ✅ 라이브로 힌트 표시 상태에서도 종료 버튼 잘림 없이 전부 보임.
 
-## 남은 알려진 이슈 (별도 후속 — 미착수)
-- 멀티모니터에서 패널 열면 보조모니터의 창이 주 모니터로 강제 이동. 원인: `src/main/window.ts`의
-  `setWindowSize`/`setWindowHeight`가 `screen.getPrimaryDisplay()` 기준 클램프 →
-  `getDisplayMatching(win.getBounds())`로 변경 필요.
-- 밝기 올리면 옅은 수평선 하나가 움직임(라이트샤프트 제거 후 잔여). 용의자: 수중 베일 DOM
-  그라디언트 밴딩(`main.ts setWaterVeil`)/IBL. systematic-debugging으로 격리.
+## 남은 알려진 이슈 (별도 후속)
+- (완료) ~~멀티모니터에서 보조모니터 창이 주 모니터로 강제 이동.~~ 원인은 `src/main/window.ts`의
+  `setWindowSize`가 `screen.getPrimaryDisplay().workAreaSize`(주 모니터 기준, x/y 오프셋 없음)로
+  x/y/width/height를 클램프한 것. `screen.getDisplayMatching(win.getBounds()).workArea`(전역 좌표,
+  창이 놓인 디스플레이 기준)로 변경하고, 클램프를 순수 함수 `clampSizeToDisplay`로 분리해 유닛테스트
+  7개 추가. `setWindowHeight`/`moveWindowBy`는 primary를 참조하지 않아 이 버그 없음(미수정).
+  ⚠ **실 멀티모니터 검증 미완료** — smoke는 단일 가상 디스플레이라 못 잡음. 순수 로직만 유닛테스트로
+  가드됨. 실기기(보조 모니터에서 리사이즈) 확인 필요.
+- (완료) ~~밝기 올리면 옅은 수평선 하나가 움직임.~~ **격리 캡처(고밝기+흰배경, 후보 요소 토글)로
+  근본 원인 확정**: 핸드오프가 지목한 베일·IBL은 무관(베일만 남긴 캡처에선 수평선 0개). 실제 원인은
+  **모래 평면(`Aquascape._buildSand`, `PlaneGeometry 200×14`)의 먼 가장자리**. 카메라 z=5·모래 z=-4라
+  먼 가장자리 뷰 깊이≈16인데, 알파 페이드가 `depthFar=10`에서 포화(55% 불투명)된 뒤 가장자리에서
+  0.55→0 하드 컷 → 전체 폭 수평선. 커스틱 스크롤이 얹혀 "일렁임", 밝기↑ 시 대비 강화.
+  - 조치: 알파 페이드를 틴트와 **분리**(`WATER.alphaDepthFar=15`, `maxAlphaFade 0.45→1.0`,
+    `waterDepth.ts` GLSL에 `uWaterAlphaFar` 추가). 먼 가장자리(깊이 16)에서 알파가 0에 도달해
+    하드 컷이 수중 헤이즈로 용해됨. 틴트(`depthFar=10`)는 그대로라 수중 무드 회귀 없음.
+    순수 매핑 `waterDepthHelpers.waterDepthAlphaFactor` + "먼 가장자리 알파 0" 회귀 가드 테스트 5개.
+  - 검증: 격리 캡처에서 해당 수평선 delta **±36→~3 (약 10배↓)**, 시각적으로 소프트 용해 확인.
+    실 데스크톱(밝은 배경)에서의 최종 체감은 사용자 확인 권장.
+- (잔여, 미수정) 위 수정 후 화면 **최상단(y≈12px)**의 더 옅은 **정적** 수평선이 상대적으로 두드러짐 —
+  `Aquascape._buildGlassEdge`의 유리 엣지 하이라이트(`THREE.Line` y=2.2, `glassEdgeOpacity=0.05`).
+  움직이지 않으므로 사용자가 보고한 "움직이는" 선과는 별개. 거슬리면 제거/추가 페이드 검토.
 
 ## 테스트 절차
 

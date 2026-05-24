@@ -1,11 +1,10 @@
 export const WINDOW = {
   height: 220,
   topMargin: 0,
-  // 패널 확장 시 창 최소 높이. 패널(헤더+슬라이더+토글+먹이/놀래키기+힌트+종료) 전체가
-  // 잘리지 않도록 충분히 크게. 패널 max-height=calc(100vh-96)이므로 내용(힌트 포함 ~406px)
-  // 보다 창이 커야 한다(이전 480은 힌트 표시 시 종료 버튼이 스크롤 영역으로 밀려 클릭 불가였음).
-  // 확장 높이 = max(현재 바 높이, expandedHeight) — 작은 바에서도 패널이 안 잘림.
-  expandedHeight: 540,
+  // 패널 펼침 시 바 위/아래에 추가하는 여백(px). 확장 창 높이 = 바 높이 + panelExtra.
+  // 패널(헤더+슬라이더+토글+먹이/놀래키기+힌트+종료) 전체(~406px)가 위·아래 어느 방향으로
+  // 펼쳐도 잘리지 않도록 충분히 크게(위로 펼칠 때 top-right 버튼 위로 패널이 다 들어가야 함).
+  panelExtra: 400,
   // 모서리 드래그 리사이즈 범위 (clampSize)
   minWidth: 400,
   minHeight: 80,
@@ -197,9 +196,17 @@ export const CAUSTIC = {
 export const WATER = {
   tintColor: [0.15, 0.55, 0.52] as readonly [number, number, number],
   depthNear: 4.0,
+  /** 틴트(색 헤이즈) 포화 깊이 — 알파 페이드와 분리해 수중 무드 유지 */
   depthFar: 10.0,
   maxTintStrength: 0.3,
-  maxAlphaFade: 0.45,
+  /**
+   * 알파 페이드 포화 깊이. 모래 평면 먼 가장자리(뷰 깊이≈16)보다 앞에 두어
+   * 가장자리에서 알파가 0에 도달 → 하드 컷(수평선) 대신 수중 헤이즈로 용해.
+   * 변경 시 waterDepthHelpers.test.ts의 "먼 가장자리 알파 0" 가드 확인.
+   */
+  alphaDepthFar: 15.0,
+  /** alphaDepthFar에서의 페이드량. 1.0=완전 투명(가장자리 용해) */
+  maxAlphaFade: 1.0,
   veil: {
     topColor: [35, 105, 118] as readonly [number, number, number],
     midColor: [30, 110, 108] as readonly [number, number, number],

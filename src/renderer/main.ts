@@ -11,6 +11,7 @@ import { FoodLure } from './entities/FoodLure'
 import { ControlPanel } from './ui/ControlPanel'
 import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
+import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
 import type { AppSettings } from '../shared/types'
@@ -26,7 +27,8 @@ let currentBarHeight: number = WINDOW.height
 let panelExpanded = false
 
 // 캔버스를 바 높이에 고정한다. 패널 확장 시 창이 커져도 수조는 리프레임되지 않는다.
-container.style.cssText = `width:100%;height:${currentBarHeight}px;`
+// position:fixed + top/bottom 토글로 패널을 위로 펼칠 때(바를 창 하단에 앵커) 바가 제자리 유지.
+container.style.cssText = `position:fixed;left:0;top:0;width:100%;height:${currentBarHeight}px;`
 
 const sceneRoot = new SceneRoot(container)
 
@@ -122,16 +124,30 @@ function applyMouseIgnore(): void {
   window.aqua.setMouseIgnore(computeMouseIgnore(passthrough, hoveringControls || hoveringHandles))
 }
 
+// 패널 펼침 방향. 펼칠 때 하단 공간이 부족하면 'up'(위로) — 창을 강제 이동하지 않는다.
+let currentPanelDir: PanelDirection = 'down'
+
+/** 펼침 방향에 맞춰 캔버스(바)·베일의 창 내 앵커를 설정한다. 'up'이면 바를 창 하단에 붙인다. */
+function applyCanvasAnchor(): void {
+  const winH = panelExpanded
+    ? expandedWindowHeight(currentBarHeight, WINDOW.panelExtra)
+    : currentBarHeight
+  const top = canvasTopOffset(currentPanelDir, winH, currentBarHeight)
+  container.style.top = `${top}px`
+  waterVeil.style.top = `${top}px`
+}
+
 /**
  * 현재 바 크기 + 패널 확장 여부로 OS 창 크기를 갱신한다.
- * 패널이 열려 있으면 창 높이를 패널 전체가 담길 만큼(expandedHeight) 키워 잘림을 막는다.
- * 캔버스(수조)는 항상 바 높이에 고정되고, 늘어난 영역은 투명 패널 공간이다.
+ * 패널이 열려 있으면 창 높이를 바+panelExtra로 키워 잘림을 막는다. 'up' 방향이면 하단 앵커로
+ * 키워(위로 펼침) 바가 화면 제자리를 유지한다. 캔버스(수조)는 바 높이에 고정.
  */
 function syncWindowSize(): void {
   const winH = panelExpanded
-    ? Math.max(currentBarHeight, WINDOW.expandedHeight)
+    ? expandedWindowHeight(currentBarHeight, WINDOW.panelExtra)
     : currentBarHeight
-  window.aqua.setWindowSize(currentBarWidth, winH)
+  window.aqua.setWindowSize(currentBarWidth, winH, currentPanelDir === 'up')
+  applyCanvasAnchor()
 }
 
 // ── FoodLure 컨트롤러 (먹이주기/놀래키기) ──
@@ -204,6 +220,19 @@ const controlPanel = new ControlPanel(
     onExpandedChange(expanded: boolean) {
       // 패널이 열리면 창을 패널 전체가 담길 만큼 키운다(작은 바에서도 안 잘림). 닫으면 바 높이로 복귀.
       panelExpanded = expanded
+      if (expanded) {
+        // 펼치기 직전 하단/상단 공간을 보고 방향 결정 → 하단 부족 시 위로 펼쳐 창 강제 이동 방지.
+        // availTop은 비표준이라 옵셔널 캐스트(없으면 0). 멀티모니터에서 작업영역 상단 오프셋 반영.
+        const scr = window.screen as Screen & { availTop?: number }
+        currentPanelDir = choosePanelDirection({
+          winTop: window.screenY,
+          barHeight: currentBarHeight,
+          panelExtra: WINDOW.panelExtra,
+          availTop: scr.availTop ?? 0,
+          availHeight: scr.availHeight,
+        })
+        controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
+      }
       syncWindowSize()
     },
     onLureModeChange(mode) {
@@ -249,6 +278,8 @@ setupResizeHandles(
       currentBarHeight = height
       container.style.height = `${height}px`
       waterVeil.style.height = `${height}px`
+      // 'up' 방향일 때 버튼은 바 상단(창 하단 기준 barHeight-84)에 맞춰야 하므로 바 높이 변화에 재정렬.
+      controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
       syncWindowSize()
       sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
     },

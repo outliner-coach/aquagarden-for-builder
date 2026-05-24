@@ -53,7 +53,10 @@
     {
       "step": 6,
       "name": "fish-pool",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T11:49:21+0900",
+      "completed_at": "2026-05-24T12:03:00+0900",
+      "summary": "Fish(FishKind schooling/individual, IcosahedronGeometry 로우폴리, 4+5색 변형, 자유 유영+경계선회+꼬리 애니메이션, applySteer 훅), FishSchool(ObjectPool 풀링, setCount→clampFishCount, nextActiveCount 분할 스폰 perTick=3), config.ts FISH.bounds/spawnPerTick 추가, 10개 단위 테스트(총 69개)"
     },
     {
       "step": 7,

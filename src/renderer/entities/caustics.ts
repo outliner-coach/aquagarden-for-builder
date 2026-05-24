@@ -119,6 +119,7 @@ function getCausticTexture(): THREE.CanvasTexture {
 const _offset1 = { value: new THREE.Vector2(0, 0) }
 const _offset2 = { value: new THREE.Vector2(0, 0) }
 const _intensity = { value: CAUSTIC.intensity }
+const _contrast = { value: CAUSTIC.contrast }
 const _scale = { value: CAUSTIC.scale }
 
 export interface CausticUniformSet {
@@ -126,6 +127,7 @@ export interface CausticUniformSet {
   uCausticOffset1: { value: THREE.Vector2 }
   uCausticOffset2: { value: THREE.Vector2 }
   uCausticIntensity: { value: number }
+  uCausticContrast: { value: number }
   uCausticScale: { value: number }
 }
 
@@ -136,6 +138,7 @@ export function getCausticUniforms(): CausticUniformSet {
     uCausticOffset1: _offset1,
     uCausticOffset2: _offset2,
     uCausticIntensity: _intensity,
+    uCausticContrast: _contrast,
     uCausticScale: _scale,
   }
 }
@@ -172,6 +175,7 @@ uniform sampler2D uCausticTex;
 uniform vec2 uCausticOffset1;
 uniform vec2 uCausticOffset2;
 uniform float uCausticIntensity;
+uniform float uCausticContrast;
 uniform float uCausticScale;
 varying vec2 vCausticWorldXZ;`
 
@@ -181,7 +185,8 @@ export const CAUSTIC_FRAG_MAIN = /* glsl */ `
   vec2 cUV = vCausticWorldXZ * uCausticScale;
   float c1_caustic = texture2D(uCausticTex, cUV + uCausticOffset1).r;
   float c2_caustic = texture2D(uCausticTex, cUV + uCausticOffset2).r;
-  float causticVal = c1_caustic * c2_caustic * uCausticIntensity;
+  float rawCaustic = c1_caustic * c2_caustic;
+  float causticVal = pow(rawCaustic, uCausticContrast) * uCausticIntensity;
   totalEmissiveRadiance += vec3(causticVal);
 }`
 
@@ -197,6 +202,7 @@ export function attachCausticUniforms(
   shader.uniforms.uCausticOffset1 = u.uCausticOffset1
   shader.uniforms.uCausticOffset2 = u.uCausticOffset2
   shader.uniforms.uCausticIntensity = u.uCausticIntensity
+  shader.uniforms.uCausticContrast = u.uCausticContrast
   shader.uniforms.uCausticScale = u.uCausticScale
 }
 

@@ -176,8 +176,9 @@ export const HARDSCAPE = {
 } as const
 
 export const CAUSTIC = {
-  intensity: 0.35,
-  scale: 0.15,
+  intensity: 0.55,
+  contrast: 0.75,
+  scale: 0.18,
   scroll1: { speed: 0.08, angle: 0.3 },
   scroll2: { speed: 0.06, angle: 2.1 },
   textureSize: 256,
@@ -190,9 +191,19 @@ export const WATER = {
   depthFar: 10.0,
   maxTintStrength: 0.3,
   maxAlphaFade: 0.45,
+  veil: {
+    topColor: [35, 105, 118] as readonly [number, number, number],
+    midColor: [30, 110, 108] as readonly [number, number, number],
+    bottomColor: [24, 98, 88] as readonly [number, number, number],
+    maxAlpha: 0.21,
+    brightnessScale: 0.08,
+    midAlphaRatio: 0.50,
+    bottomAlphaRatio: 0.22,
+    midStop: 55,
+  },
   shaft: {
-    baseOpacity: 0.34,
-    driftSpeed: 0.15,
+    baseOpacity: 0.40,
+    driftSpeed: 0.18,
     height: 5.5,
     topY: 2.6,
     color: [0.75, 0.9, 1.0] as readonly [number, number, number],

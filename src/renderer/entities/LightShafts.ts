@@ -16,13 +16,14 @@ uniform float uOpacity;
 uniform vec3 uColor;
 varying vec2 vUv;
 void main() {
-  // 수직 그라디언트: 위(v=1) 밝고 아래(v=0) 사라짐
-  float gradient = smoothstep(0.0, 0.7, vUv.y);
+  // 수직 그라디언트: 위(v=1) 밝고 아래(v=0) 부드럽게 사라짐
+  float gradient = smoothstep(0.0, 0.65, vUv.y);
   // 수평 벨 커브: 가운데 밝고 가장자리 사라짐
   float hDist = abs(vUv.x - 0.5) * 2.0;
   float horizontal = 1.0 - hDist * hDist;
-  // 느린 드리프트: 미세한 일렁임
-  float drift = 0.85 + 0.15 * sin(uTime + vUv.y * 2.0);
+  // 2중 드리프트: 주파수가 다른 두 사인파로 유기적 일렁임
+  float drift = 0.82 + 0.12 * sin(uTime + vUv.y * 2.0)
+              + 0.06 * sin(uTime * 0.7 + vUv.y * 3.5);
   float alpha = gradient * horizontal * drift * uOpacity;
   gl_FragColor = vec4(uColor, alpha);
 }

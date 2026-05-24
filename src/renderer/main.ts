@@ -8,7 +8,7 @@ import { GlowSprites } from './entities/GlowSprites'
 import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
-import { FISH, LIGHT, WINDOW } from '../shared/config'
+import { FISH, LIGHT, WATER, WINDOW } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 
@@ -78,12 +78,16 @@ document.body.appendChild(waterVeil)
 
 function setWaterVeil(b01: number): void {
   // 어두울수록(밤) 살짝 더 짙게, 밝을수록 옅게
-  const a = 0.2 - 0.08 * b01
+  const v = WATER.veil
+  const a = v.maxAlpha - v.brightnessScale * b01
+  const [tr, tg, tb] = v.topColor
+  const [mr, mg, mb] = v.midColor
+  const [br, bg, bb] = v.bottomColor
   waterVeil.style.background =
     `linear-gradient(180deg,` +
-    ` rgba(40,96,134,${(a).toFixed(3)}) 0%,` +
-    ` rgba(32,104,118,${(a * 0.55).toFixed(3)}) 55%,` +
-    ` rgba(26,92,92,${(a * 0.25).toFixed(3)}) 100%)`
+    ` rgba(${tr},${tg},${tb},${a.toFixed(3)}) 0%,` +
+    ` rgba(${mr},${mg},${mb},${(a * v.midAlphaRatio).toFixed(3)}) ${v.midStop}%,` +
+    ` rgba(${br},${bg},${bb},${(a * v.bottomAlphaRatio).toFixed(3)}) 100%)`
 }
 setWaterVeil(LIGHT.default01)
 

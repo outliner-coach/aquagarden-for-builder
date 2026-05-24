@@ -27,8 +27,10 @@ export const LIGHT = {
   minAmbient: 0.05,
   maxAmbient: 0.4,
   minEnvIntensity: 0.15,
-  maxEnvIntensity: 1.2,
+  maxEnvIntensity: 0.8,
   default01: 0.75,
+  /** PMREM 환경맵 생성 시 블러 시그마. 높을수록 RoomEnvironment의 직사각 패널이 부드럽게 퍼짐. */
+  envBlurSigma: 0.5,
 } as const
 
 export const BUBBLE = {

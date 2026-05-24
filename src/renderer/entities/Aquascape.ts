@@ -292,7 +292,7 @@ export class Aquascape implements SceneEntity {
       vertexColors: true,
       normalMap: normalTex,
       normalScale: new THREE.Vector2(HARDSCAPE.sand.normalStrength, HARDSCAPE.sand.normalStrength),
-      roughness: 0.9,
+      roughness: 1.0,
       metalness: 0,
       side: THREE.DoubleSide,
     })

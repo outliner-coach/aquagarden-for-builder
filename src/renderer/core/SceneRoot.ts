@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { CAMERA } from '../../shared/config'
+import { CAMERA, LIGHT } from '../../shared/config'
 
 export interface SceneEntity {
   update(dt: number): void
@@ -39,7 +39,7 @@ export class SceneRoot {
 
     // 환경맵(IBL) 생성 — 조명/반사용. background는 null 유지(투명 창 보존)
     const pmrem = new THREE.PMREMGenerator(this.renderer)
-    this._envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this._envTexture = pmrem.fromScene(new RoomEnvironment(), LIGHT.envBlurSigma).texture
     pmrem.dispose()
     this.scene.environment = this._envTexture
     // CRITICAL: scene.background = null 유지 (투명 창)

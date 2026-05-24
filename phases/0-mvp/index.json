@@ -1,0 +1,16 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "0-mvp",
+  "steps": [
+    { "step": 0, "name": "project-setup", "status": "pending" },
+    { "step": 1, "name": "shared-foundation", "status": "pending" },
+    { "step": 2, "name": "main-window", "status": "pending" },
+    { "step": 3, "name": "overlay-ipc", "status": "pending" },
+    { "step": 4, "name": "render-core", "status": "pending" },
+    { "step": 5, "name": "aquascape", "status": "pending" },
+    { "step": 6, "name": "fish-pool", "status": "pending" },
+    { "step": 7, "name": "boids-school", "status": "pending" },
+    { "step": 8, "name": "lighting-bubbles", "status": "pending" },
+    { "step": 9, "name": "control-panel", "status": "pending" }
+  ]
+}

@@ -16,6 +16,22 @@
 
 ## 고쳐야 할 이슈 (우선순위 순)
 
+### 0-A. (P0, 신규) 패널/버튼 클릭이 안 되는 경우
+- 증상(사용자 보고 2026-05-25): 앱 구동 중 패널·버튼 클릭이 무반응.
+- **먼저 분리**: `pkill` 후 **fresh `npm run dev`**로 재현되는지 확인 → 세션 상태(이전 드래그 잔여)인지, 코드 버그인지 가른다.
+- 유력 가설(코드 버그라면):
+  - `setIgnoreMouseEvents(true)`가 복원 안 됨 → 모든 클릭이 바탕화면으로 통과. `src/renderer/main.ts` `applyMouseIgnore()`(passthrough = hidden||clickThrough; `hoveringControls||hoveringHandles`로 복원). 리사이즈 핸들 hover 상태(`hoveringHandles`)나 `onHoverChange(false)` 누락으로 ignore가 true에 고정되는 경로 점검.
+  - resize 핸들 `setPointerCapture`(`src/renderer/ui/resizeHandles.ts`)가 `pointerup` 누락 시 `dragging`/capture가 꼬여 이후 이벤트를 가로챌 가능성 — `pointercancel`/`lostpointercapture`도 정리하는지 확인.
+  - 패널 위 텍스트가 드래그로 선택되는 문제(`user-select:none` 미적용 라벨). `cp__panel` 내부에 `user-select:none` 부여 검토.
+- 검증: `npm run dev` + 클릭/드래그 반복. (headless 불가)
+
+### 0-B. (P0, 신규) 종료(Quit) 버튼이 없음
+- 증상: frameless·always-on-top 오버레이라 **앱을 끌 방법이 없다**(메뉴/X 없음). 종료 컨트롤 필요.
+- 제안 구현:
+  - `src/renderer/ui/ControlPanel.ts` 패널 하단에 "종료" 버튼 추가(파괴적 액션이므로 시각적으로 구분; 필요시 한 번 확인).
+  - IPC 추가: `src/shared/ipc-channels.ts`에 `QUIT_APP`, `src/shared/types.ts` `AquaBridge.quitApp()`, `src/preload/index.ts`에서 `ipcRenderer.send`, `src/main/ipc.ts` 핸들러에서 `app.quit()` 호출.
+  - 아키텍처 규칙: 앱 종료(OS 제어)는 **main에서만**. renderer는 IPC 요청만.
+
 ### 1. (P0) 창 모서리 리사이즈가 사실상 안 됨
 - 증상: 핸들이 **보이지 않는 8px 투명 띠**라 잡기가 거의 불가능. 픽셀 단위로 조준해도 리사이즈 실패. 우상단 모서리는 패널과 겹친다.
 - 위치: `src/renderer/ui/resizeHandles.ts` — `HANDLE_THICKNESS=8`, `CORNER_SIZE=16`, `makeHandle()`가 배경 없는 투명 div 생성. `src/renderer/main.ts`의 `setupResizeHandles(container, ...)`로 배선(핸들은 `#app` 컨테이너=바 높이의 자식).

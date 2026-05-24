@@ -38,14 +38,6 @@ const BOUNDARY_TURN_FORCE = 2.5
 
 const TINT_STRENGTH = 0.08
 
-function seedToTintHSL(seed: number): { h: number; s: number; l: number } {
-  return {
-    h: pseudoRandom(seed, 10),
-    s: 0.3 + pseudoRandom(seed, 11) * 0.4,
-    l: 0.45 + pseudoRandom(seed, 12) * 0.15,
-  }
-}
-
 /* ── Fish ── */
 
 export class Fish {
@@ -82,6 +74,7 @@ export class Fish {
       roughness: 0.4,
       metalness: 0.1,
       transparent: true,
+      vertexColors: true, // GLB 프리미티브 색을 베이크한 버텍스 컬러 사용
     })
     this._setupShader()
 
@@ -129,12 +122,10 @@ export class Fish {
       this._uSwimSpeed.value = proto.swimSpeed
     }
 
-    // 시드 기반 색 틴트 (약하게)
-    const tint = seedToTintHSL(seed)
-    const baseColor = new THREE.Color()
-    baseColor.setHSL(tint.h, tint.s, tint.l)
-    this._material.color.lerp(baseColor, TINT_STRENGTH)
-    this._material.color.offsetHSL(0, 0, (pseudoRandom(seed, 13) - 0.5) * 0.06)
+    // 버텍스 컬러(종 고유색)를 곱하는 흰색 베이스 + 개체별 미세 밝기 변주만.
+    // (과거엔 흰색에서 랜덤 색조로 lerp해 종 색을 흐렸음 → 흰 물고기 사고)
+    const lightJitter = 1 + (pseudoRandom(seed, 13) - 0.5) * TINT_STRENGTH
+    this._material.color.setRGB(lightJitter, lightJitter, lightJitter)
 
     // 크기: 종 baseScale + 시드 변주 (±15%)
     const baseScale = proto?.baseScale ?? 0.15

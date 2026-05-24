@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { FishKind } from './Fish'
 
 /* ── GLB URL imports (Vite ?url) ── */
@@ -38,12 +39,12 @@ export interface FishPrototype {
 /* ── Manifest ── */
 
 export const FISH_SPECIES: readonly FishSpecies[] = [
-  // 군집(schooling) — 소형 슬림어
+  // 군집(schooling) — 소형 슬림어. (바가 매우 넓어 작으면 점처럼 보이므로 충분히 키운다)
   {
     id: 'tetra-a',
     file: tetraAUrl,
     kind: 'schooling',
-    baseScale: 0.1,
+    baseScale: 0.42,
     swimAmplitude: 0.3,
     swimSpeed: 1.2,
   },
@@ -51,16 +52,16 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'tetra-b',
     file: tetraBUrl,
     kind: 'schooling',
-    baseScale: 0.1,
+    baseScale: 0.42,
     swimAmplitude: 0.25,
     swimSpeed: 1.3,
   },
-  // 개체(individual) — 중형 관상어
+  // 개체(individual) — 중형 관상어 (주인공, 더 크게)
   {
     id: 'clownfish',
     file: clownfishUrl,
     kind: 'individual',
-    baseScale: 0.2,
+    baseScale: 0.85,
     swimAmplitude: 0.4,
     swimSpeed: 0.8,
   },
@@ -68,7 +69,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'butterflyfish',
     file: butterflyfishUrl,
     kind: 'individual',
-    baseScale: 0.22,
+    baseScale: 0.9,
     swimAmplitude: 0.35,
     swimSpeed: 0.7,
   },
@@ -76,7 +77,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'lionfish',
     file: lionfishUrl,
     kind: 'individual',
-    baseScale: 0.25,
+    baseScale: 0.95,
     swimAmplitude: 0.45,
     swimSpeed: 0.6,
   },
@@ -158,20 +159,50 @@ export async function loadFishPrototypes(): Promise<Map<SpeciesId, FishPrototype
 }
 
 /**
- * GLTF 씬에서 첫 메시의 geometry를 추출한다.
- * SkinnedMesh여도 geometry만 추출 (skin/bone 무시).
+ * GLTF 씬의 모든 메시/프리미티브 geometry를 병합해 단일 BufferGeometry로 만든다.
+ * 각 프리미티브의 머티리얼 색(baseColorFactor → material.color)을 **버텍스 컬러로 베이크**해
+ * 종별 고유 색(몸통/줄무늬/눈 등)을 보존한다. SkinnedMesh여도 geometry만 사용(skin/bone 무시).
+ *
+ * 주의: GLB는 1 메시에 머티리얼별 프리미티브가 여러 개다(예: clownfish 4개). 첫 하나만
+ * 가져오면 물고기의 일부만 렌더되고 색도 사라진다(과거 "물고기 안 보임" 사고의 원인).
  */
-function extractGeometry(
-  scene: THREE.Group,
-): THREE.BufferGeometry | null {
-  let found: THREE.BufferGeometry | null = null
+function extractGeometry(scene: THREE.Group): THREE.BufferGeometry | null {
+  const parts: THREE.BufferGeometry[] = []
+
   scene.traverse((child) => {
-    if (found) return
-    if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
-      found = child.geometry.clone()
+    if (!(child instanceof THREE.Mesh)) return // SkinnedMesh도 Mesh의 하위
+    const src = child.geometry
+    if (!src.attributes.position) return
+
+    // position/normal만 남긴 깨끗한 비인덱스 geometry (병합 호환)
+    const g = src.clone().toNonIndexed()
+    const clean = new THREE.BufferGeometry()
+    clean.setAttribute('position', g.attributes.position)
+    if (g.attributes.normal) {
+      clean.setAttribute('normal', g.attributes.normal)
+    } else {
+      clean.computeVertexNormals()
     }
+
+    // 프리미티브 머티리얼 색을 버텍스 컬러로 베이크
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material
+    const col = new THREE.Color(0xffffff)
+    if (mat && 'color' in mat && (mat as THREE.MeshStandardMaterial).color) {
+      col.copy((mat as THREE.MeshStandardMaterial).color)
+    }
+    const n = clean.attributes.position.count
+    const colors = new Float32Array(n * 3)
+    for (let i = 0; i < n; i++) {
+      colors[i * 3] = col.r
+      colors[i * 3 + 1] = col.g
+      colors[i * 3 + 2] = col.b
+    }
+    clean.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    parts.push(clean)
   })
-  return found
+
+  if (parts.length === 0) return null
+  return parts.length === 1 ? parts[0] : mergeGeometries(parts, false)
 }
 
 /**

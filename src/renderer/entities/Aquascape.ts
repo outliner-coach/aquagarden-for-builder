@@ -76,7 +76,8 @@ const GRASS_CARD_FRAG = /* glsl */ `
 `
 
 /* ── Layout constants ── */
-const SAND_COLOR = 0xe8dcc8
+// 밝은 크림색은 화면을 지배해 물고기 대비를 떨어뜨린다 → 차분한 탄(tan)으로 낮춤.
+const SAND_COLOR = 0x9c8a6e
 const GLASS_EDGE_OPACITY = 0.12
 
 /* ── Procedural sand normal map (CanvasTexture, no external file) ── */

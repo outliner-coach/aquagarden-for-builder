@@ -21,7 +21,10 @@
     {
       "step": 2,
       "name": "main-window",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T11:27:06+0900",
+      "completed_at": "2026-05-24T11:30:00+0900",
+      "summary": "window.ts에 computeBarBounds(순수함수)·createOverlayWindow(투명/frameless/alwaysOnTop 바 창)·setOverlayVisible(show/hide)·setAlwaysOnTop 4개 export. index.ts는 createOverlayWindow() 호출로 단순화. 7개 단위 테스트 추가(총 25개)"
     },
     {
       "step": 3,

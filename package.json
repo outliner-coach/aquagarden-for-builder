@@ -1,0 +1,29 @@
+{
+  "name": "aquagarden-overlay",
+  "version": "0.1.0",
+  "description": "Desktop overlay widget - minimal 3D aquarium",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.10.0",
+    "@types/node": "^22.10.0",
+    "@types/three": "^0.184.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "electron": "^35.0.0",
+    "electron-vite": "^5.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

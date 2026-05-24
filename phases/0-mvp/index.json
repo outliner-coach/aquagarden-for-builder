@@ -2,15 +2,58 @@
   "project": "Aquagarden Overlay",
   "phase": "0-mvp",
   "steps": [
-    { "step": 0, "name": "project-setup", "status": "pending" },
-    { "step": 1, "name": "shared-foundation", "status": "pending" },
-    { "step": 2, "name": "main-window", "status": "pending" },
-    { "step": 3, "name": "overlay-ipc", "status": "pending" },
-    { "step": 4, "name": "render-core", "status": "pending" },
-    { "step": 5, "name": "aquascape", "status": "pending" },
-    { "step": 6, "name": "fish-pool", "status": "pending" },
-    { "step": 7, "name": "boids-school", "status": "pending" },
-    { "step": 8, "name": "lighting-bubbles", "status": "pending" },
-    { "step": 9, "name": "control-panel", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "project-setup",
+      "status": "completed",
+      "started_at": "2026-05-24T11:18:24+0900",
+      "summary": "electron-vite 5 + Three.js + TS(strict) + Vitest + ESLint 골격 구성. src/main·preload·renderer·shared 4계층 분리, npm run lint/build/test 모두 종료코드 0"
+    },
+    {
+      "step": 1,
+      "name": "shared-foundation",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "main-window",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "overlay-ipc",
+      "status": "pending"
+    },
+    {
+      "step": 4,
+      "name": "render-core",
+      "status": "pending"
+    },
+    {
+      "step": 5,
+      "name": "aquascape",
+      "status": "pending"
+    },
+    {
+      "step": 6,
+      "name": "fish-pool",
+      "status": "pending"
+    },
+    {
+      "step": 7,
+      "name": "boids-school",
+      "status": "pending"
+    },
+    {
+      "step": 8,
+      "name": "lighting-bubbles",
+      "status": "pending"
+    },
+    {
+      "step": 9,
+      "name": "control-panel",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-05-24T11:18:24+0900"
 }

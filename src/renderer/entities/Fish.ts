@@ -1,48 +1,12 @@
 import * as THREE from 'three'
 import { FISH } from '../../shared/config'
+import type { FishPrototype, SpeciesId } from './fishAssets'
+import { FISH_SPECIES, pickSpecies } from './fishAssets'
+import { seedToPhase, swimAmplitudeFor } from './fishHelpers'
 
 /* ── Types ── */
 
 export type FishKind = 'schooling' | 'individual'
-
-interface FishVariant {
-  bodyColor: number
-  tailColor: number
-  scaleX: number
-  scaleY: number
-}
-
-/* ── Variants (레퍼런스 기반 종/색 다양성) ── */
-
-const SCHOOLING_VARIANTS: readonly FishVariant[] = [
-  { bodyColor: 0x1c70d8, tailColor: 0xe03838, scaleX: 1.0, scaleY: 1.0 },
-  { bodyColor: 0x2898b8, tailColor: 0xf04848, scaleX: 0.9, scaleY: 0.95 },
-  { bodyColor: 0x3480c0, tailColor: 0xcc3030, scaleX: 1.05, scaleY: 1.0 },
-  { bodyColor: 0x1898c0, tailColor: 0xd84040, scaleX: 0.95, scaleY: 0.9 },
-]
-
-const INDIVIDUAL_VARIANTS: readonly FishVariant[] = [
-  { bodyColor: 0xf0c040, tailColor: 0xe8a020, scaleX: 1.3, scaleY: 1.2 },
-  { bodyColor: 0xe87828, tailColor: 0xd06018, scaleX: 1.2, scaleY: 1.1 },
-  { bodyColor: 0xc0c8d0, tailColor: 0xa0a8b0, scaleX: 0.7, scaleY: 2.0 },
-  { bodyColor: 0xd8d0b8, tailColor: 0xc0b898, scaleX: 1.1, scaleY: 1.0 },
-  { bodyColor: 0xcc3838, tailColor: 0xb02828, scaleX: 1.0, scaleY: 1.1 },
-]
-
-/* ── Geometry ── */
-
-function createTailGeometry(): THREE.BufferGeometry {
-  const positions = new Float32Array([
-    0, 0, 0,
-    -0.6, 0.35, 0,
-    -0.6, -0.35, 0,
-  ])
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geo.setIndex([0, 1, 2])
-  geo.computeVertexNormals()
-  return geo
-}
 
 /* ── Seeded pseudo-random (결정적 초기값 생성) ── */
 
@@ -53,14 +17,20 @@ function pseudoRandom(seed: number, index: number): number {
 
 /* ── Constants ── */
 
-const BASE_SCALE_SCHOOLING = 0.12
-const BASE_SCALE_INDIVIDUAL = 0.25
-const SPEED_SCHOOLING = 1.2
-const SPEED_INDIVIDUAL = 0.8
 const BOUNDARY_MARGIN = 0.8
 const BOUNDARY_TURN_FORCE = 2.5
-const TAIL_SWAY_SPEED = 8
-const TAIL_SWAY_AMPLITUDE = 0.35
+
+/* ── Color tint: 시드 기반 미세 색 변주 ── */
+
+const TINT_STRENGTH = 0.08
+
+function seedToTintHSL(seed: number): { h: number; s: number; l: number } {
+  return {
+    h: pseudoRandom(seed, 10),
+    s: 0.3 + pseudoRandom(seed, 11) * 0.4,
+    l: 0.45 + pseudoRandom(seed, 12) * 0.15,
+  }
+}
 
 /* ── Fish ── */
 
@@ -68,33 +38,45 @@ export class Fish {
   readonly mesh: THREE.Group
   private _kind: FishKind = 'schooling'
   private _seed = 0
-  private _speed = SPEED_SCHOOLING
+  private _baseSpeed = 1.0
 
-  private readonly _body: THREE.Mesh
-  private readonly _tail: THREE.Mesh
-  private readonly _bodyMat: THREE.MeshBasicMaterial
-  private readonly _tailMat: THREE.MeshBasicMaterial
+  private readonly _fishMesh: THREE.Mesh
+  private readonly _material: THREE.MeshStandardMaterial
+  private readonly _prototypes: Map<SpeciesId, FishPrototype>
 
+  /* shader uniforms */
+  private readonly _uTime = { value: 0 }
+  private readonly _uSwimAmp = { value: 0.3 }
+  private readonly _uSwimSpeed = { value: 1.0 }
+  private readonly _uPhase = { value: 0 }
+  private readonly _uRimColor = { value: new THREE.Vector3(0.35, 0.55, 0.65) }
+  private readonly _uRimPower = { value: 2.5 }
+
+  /* movement state */
   private readonly _velocity = new THREE.Vector3()
   private _wanderPhase = 0
-  private _tailTime = 0
   private readonly _steer = new THREE.Vector3()
 
-  constructor() {
+  /* prototype cache for current species */
+  private _currentProto: FishPrototype | null = null
+
+  constructor(prototypes: Map<SpeciesId, FishPrototype>) {
+    this._prototypes = prototypes
     this.mesh = new THREE.Group()
 
-    const bodyGeo = new THREE.IcosahedronGeometry(1, 0)
-    this._bodyMat = new THREE.MeshBasicMaterial()
-    this._body = new THREE.Mesh(bodyGeo, this._bodyMat)
-    this._body.scale.set(1.4, 0.5, 0.35)
-    this.mesh.add(this._body)
+    this._material = new THREE.MeshStandardMaterial({
+      roughness: 0.4,
+      metalness: 0.1,
+    })
+    this._setupShader()
 
-    const tailGeo = createTailGeometry()
-    this._tailMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
-    this._tail = new THREE.Mesh(tailGeo, this._tailMat)
-    this._tail.position.x = -1.3
-    this.mesh.add(this._tail)
-
+    // 초기 메시 — reset에서 geometry가 교체됨
+    const firstProto = prototypes.values().next().value as FishPrototype | undefined
+    this._fishMesh = new THREE.Mesh(
+      firstProto?.geometry ?? new THREE.BufferGeometry(),
+      this._material,
+    )
+    this.mesh.add(this._fishMesh)
     this.mesh.visible = false
   }
 
@@ -114,22 +96,38 @@ export class Fish {
     this._kind = kind
     this._seed = seed
     this._wanderPhase = seed * 100
-    this._tailTime = seed * 50
     this._steer.set(0, 0, 0)
 
-    const variants = kind === 'schooling' ? SCHOOLING_VARIANTS : INDIVIDUAL_VARIANTS
-    const variant = variants[Math.floor(Math.abs(seed) * 1000) % variants.length]
+    // 종 선택 & geometry 교체 (geometry는 공유 — clone하지 않음)
+    const speciesId = pickSpecies(seed, kind)
+    const proto = this._prototypes.get(speciesId)
+    if (proto) {
+      this._currentProto = proto
+      this._fishMesh.geometry = proto.geometry // 공유 참조
+    }
 
-    this._bodyMat.color.setHex(variant.bodyColor)
-    this._tailMat.color.setHex(variant.tailColor)
+    // 셰이더 uniform 초기값
+    this._uPhase.value = seedToPhase(seed)
+    this._uTime.value = 0
+    if (proto) {
+      this._uSwimAmp.value = proto.swimAmplitude
+      this._uSwimSpeed.value = proto.swimSpeed
+    }
 
-    const baseScale = kind === 'schooling' ? BASE_SCALE_SCHOOLING : BASE_SCALE_INDIVIDUAL
-    this.mesh.scale.set(
-      baseScale * variant.scaleX,
-      baseScale * variant.scaleY,
-      baseScale,
-    )
+    // 시드 기반 색 틴트 (약하게)
+    const tint = seedToTintHSL(seed)
+    const baseColor = new THREE.Color()
+    baseColor.setHSL(tint.h, tint.s, tint.l)
+    this._material.color.lerp(baseColor, TINT_STRENGTH)
+    this._material.color.offsetHSL(0, 0, (pseudoRandom(seed, 13) - 0.5) * 0.06)
 
+    // 크기: 종 baseScale + 시드 변주 (±15%)
+    const baseScale = proto?.baseScale ?? 0.15
+    const scaleVariation = 0.85 + pseudoRandom(seed, 5) * 0.3
+    const finalScale = baseScale * scaleVariation
+    this.mesh.scale.setScalar(finalScale)
+
+    // 위치: 범위 내 랜덤 배치
     const b = FISH.bounds
     this.mesh.position.set(
       b.minX + (b.maxX - b.minX) * pseudoRandom(seed, 0),
@@ -137,18 +135,19 @@ export class Fish {
       b.minZ + (b.maxZ - b.minZ) * pseudoRandom(seed, 2),
     )
 
+    // 속도
+    const species = FISH_SPECIES.find((s) => s.id === speciesId)
+    this._baseSpeed = species?.swimSpeed ?? (kind === 'schooling' ? 1.2 : 0.8)
     const angle = pseudoRandom(seed, 3) * Math.PI * 2
-    this._speed = kind === 'schooling' ? SPEED_SCHOOLING : SPEED_INDIVIDUAL
     this._velocity.set(
-      Math.cos(angle) * this._speed,
+      Math.cos(angle) * this._baseSpeed,
       (pseudoRandom(seed, 4) - 0.5) * 0.2,
-      Math.sin(angle) * this._speed * 0.3,
+      Math.sin(angle) * this._baseSpeed * 0.3,
     )
 
     this.mesh.visible = true
   }
 
-  /** Step 7 boids hook: 외부 조향 벡터 적용 */
   applySteer(v: THREE.Vector3): void {
     this._steer.add(v)
   }
@@ -190,8 +189,8 @@ export class Fish {
 
     // 속도 범위 유지
     const speed = this._velocity.length()
-    const maxSpeed = this._speed * 1.5
-    const minSpeed = this._speed * 0.3
+    const maxSpeed = this._baseSpeed * 1.5
+    const minSpeed = this._baseSpeed * 0.3
     if (speed > maxSpeed) {
       this._velocity.multiplyScalar(maxSpeed / speed)
     } else if (speed > 0 && speed < minSpeed) {
@@ -210,17 +209,79 @@ export class Fish {
       this.mesh.rotation.z = Math.atan2(this._velocity.y, speed) * 0.3
     }
 
-    // 꼬리 흔들림
-    this._tailTime += dt * (speed + 0.5) * TAIL_SWAY_SPEED
-    this._tail.rotation.y = Math.sin(this._tailTime) * TAIL_SWAY_AMPLITUDE
+    // 셰이더 uniform 업데이트: 시간 + 속도 비례 진폭
+    this._uTime.value += dt
+    if (this._currentProto) {
+      this._uSwimAmp.value = swimAmplitudeFor(
+        speed,
+        this._baseSpeed,
+        this._currentProto.swimAmplitude,
+      )
+    }
 
     this._steer.set(0, 0, 0)
   }
 
   dispose(): void {
-    this._body.geometry.dispose()
-    this._bodyMat.dispose()
-    this._tail.geometry.dispose()
-    this._tailMat.dispose()
+    // geometry는 공유이므로 dispose하지 않는다
+    this._material.dispose()
+  }
+
+  private _setupShader(): void {
+    const uTime = this._uTime
+    const uSwimAmp = this._uSwimAmp
+    const uSwimSpeed = this._uSwimSpeed
+    const uPhase = this._uPhase
+    const uRimColor = this._uRimColor
+    const uRimPower = this._uRimPower
+
+    this._material.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = uTime
+      shader.uniforms.uSwimAmp = uSwimAmp
+      shader.uniforms.uSwimSpeed = uSwimSpeed
+      shader.uniforms.uPhase = uPhase
+      shader.uniforms.uRimColor = uRimColor
+      shader.uniforms.uRimPower = uRimPower
+
+      /* ── Vertex: 바디 벤딩 (yaw 사인파) ── */
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        `uniform float uTime;
+uniform float uSwimAmp;
+uniform float uSwimSpeed;
+uniform float uPhase;
+void main() {`,
+      )
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+// 바디 벤딩: +X=머리, -X=꼬리. 꼬리로 갈수록 진폭 증가.
+float headToTail = clamp(0.5 - transformed.x, 0.0, 1.0);
+float bendWeight = headToTail * headToTail;
+float wave = sin(uTime * uSwimSpeed * 6.0 + uPhase + transformed.x * 5.0);
+transformed.z += wave * uSwimAmp * bendWeight;`,
+      )
+
+      /* ── Fragment: 림라이트/프레넬 ── */
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        `uniform vec3 uRimColor;
+uniform float uRimPower;
+void main() {`,
+      )
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+// 림라이트: 가장자리 프레넬 발광
+vec3 rimViewDir = normalize(vViewPosition);
+float rimNdotV = abs(dot(normal, rimViewDir));
+float rimFactor = pow(1.0 - rimNdotV, uRimPower);
+totalEmissiveRadiance += uRimColor * rimFactor * 0.5;`,
+      )
+    }
+
+    this._material.customProgramCacheKey = () => 'fish-swim-rimlight'
   }
 }

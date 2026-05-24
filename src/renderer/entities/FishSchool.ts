@@ -8,6 +8,8 @@ import { computeBoidsSteer } from './boids'
 import type { BoidAgent } from './boids'
 import { FISH, BOIDS } from '../../shared/config'
 import { clampFishCount } from '../../shared/clamp'
+import { loadFishPrototypes } from './fishAssets'
+import type { SpeciesId, FishPrototype } from './fishAssets'
 
 const SCHOOLING_RATIO = 0.6
 
@@ -24,19 +26,31 @@ const BOIDS_RADII = {
 
 export class FishSchool implements SceneEntity {
   readonly object3d: THREE.Group
-  private readonly _pool: ObjectPool<Fish>
+  private _pool: ObjectPool<Fish> | null = null
   private readonly _allFish: Fish[] = []
   private _targetCount: number
   private _nextSeed = 0
   private readonly _agentBuf: BoidAgent[] = []
+  private _prototypes: Map<SpeciesId, FishPrototype> | null = null
+  private _ready = false
 
   constructor() {
     this.object3d = new THREE.Group()
+    this._targetCount = FISH.default
+  }
+
+  async init(): Promise<void> {
+    const protos = await loadFishPrototypes()
+    if (protos.size === 0) {
+      console.warn('[FishSchool] 프로토타입 로드 실패, 빈 풀 유지')
+      return
+    }
+    this._prototypes = protos
     this._pool = new ObjectPool<Fish>(
       () => this._createFish(),
       (fish) => fish.setVisible(false),
     )
-    this._targetCount = FISH.default
+    this._ready = true
   }
 
   setCount(n: number): void {
@@ -44,6 +58,8 @@ export class FishSchool implements SceneEntity {
   }
 
   update(dt: number): void {
+    if (!this._ready || !this._pool) return
+
     const current = this._pool.activeCount
 
     if (current < this._targetCount) {
@@ -69,9 +85,18 @@ export class FishSchool implements SceneEntity {
       fish.dispose()
     }
     this._allFish.length = 0
+    // prototype geometry는 여기서 dispose
+    if (this._prototypes) {
+      for (const proto of this._prototypes.values()) {
+        proto.geometry.dispose()
+      }
+      this._prototypes = null
+    }
   }
 
   private _applyBoids(): void {
+    if (!this._pool) return
+
     // schooling 물고기의 BoidAgent 목록 수집 (재할당 방지)
     this._agentBuf.length = 0
     const schoolingFish: Fish[] = []
@@ -109,7 +134,7 @@ export class FishSchool implements SceneEntity {
   }
 
   private _createFish(): Fish {
-    const fish = new Fish()
+    const fish = new Fish(this._prototypes!)
     this.object3d.add(fish.mesh)
     this._allFish.push(fish)
     return fish

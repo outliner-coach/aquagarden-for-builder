@@ -24,6 +24,11 @@ sceneRoot.add(aquascape)
 const fishSchool = new FishSchool()
 sceneRoot.add(fishSchool)
 
+// 비동기 GLB 프로토타입 로딩 — 렌더 루프는 즉시 시작, 물고기는 로드 후 등장
+fishSchool.init().catch((err) => {
+  console.error('[FishSchool] 초기화 실패:', err)
+})
+
 const bubbles = new Bubbles()
 sceneRoot.add(bubbles)
 

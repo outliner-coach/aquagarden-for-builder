@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextActiveCount } from '../fishHelpers'
+import { nextActiveCount, seedToPhase, swimAmplitudeFor } from '../fishHelpers'
 
 describe('nextActiveCount', () => {
   it('목표가 현재보다 크면 perTick만큼 증가', () => {
@@ -52,5 +52,67 @@ describe('nextActiveCount', () => {
     expect(nextActiveCount(3, 8, 2)).toBe(5)
     expect(nextActiveCount(5, 8, 2)).toBe(7)
     expect(nextActiveCount(7, 8, 2)).toBe(8)
+  })
+})
+
+/* ── seedToPhase ── */
+
+describe('seedToPhase', () => {
+  it('같은 시드는 같은 위상을 반환한다 (결정적)', () => {
+    expect(seedToPhase(42)).toBe(seedToPhase(42))
+  })
+
+  it('다른 시드는 다른 위상을 반환한다', () => {
+    const phases = new Set<number>()
+    for (let s = 0; s < 20; s++) {
+      phases.add(seedToPhase(s))
+    }
+    expect(phases.size).toBe(20)
+  })
+
+  it('반환값이 [0, 2π) 범위 안에 있다', () => {
+    for (let s = 0; s < 100; s++) {
+      const p = seedToPhase(s * 0.37)
+      expect(p).toBeGreaterThanOrEqual(0)
+      expect(p).toBeLessThan(Math.PI * 2)
+    }
+  })
+
+  it('음수 시드도 유효한 범위를 반환한다', () => {
+    const p = seedToPhase(-5)
+    expect(p).toBeGreaterThanOrEqual(0)
+    expect(p).toBeLessThan(Math.PI * 2)
+  })
+})
+
+/* ── swimAmplitudeFor ── */
+
+describe('swimAmplitudeFor', () => {
+  it('현재 속도가 기본 속도와 같으면 기본 진폭을 반환', () => {
+    expect(swimAmplitudeFor(1.0, 1.0, 0.4)).toBeCloseTo(0.4, 5)
+  })
+
+  it('현재 속도가 빠르면 진폭이 증가', () => {
+    const amp = swimAmplitudeFor(2.0, 1.0, 0.4)
+    expect(amp).toBeGreaterThan(0.4)
+  })
+
+  it('현재 속도가 느리면 진폭이 감소', () => {
+    const amp = swimAmplitudeFor(0.5, 1.0, 0.4)
+    expect(amp).toBeLessThan(0.4)
+  })
+
+  it('속도 0이어도 최소 진폭(0.3배)은 유지', () => {
+    const amp = swimAmplitudeFor(0, 1.0, 0.4)
+    expect(amp).toBeCloseTo(0.4 * 0.3, 5)
+  })
+
+  it('속도가 매우 높아도 최대 2배를 넘지 않는다', () => {
+    const amp = swimAmplitudeFor(100, 1.0, 0.4)
+    expect(amp).toBeCloseTo(0.4 * 2.0, 5)
+  })
+
+  it('baseSpeed가 0이면 baseAmp를 그대로 반환', () => {
+    expect(swimAmplitudeFor(5, 0, 0.4)).toBeCloseTo(0.4, 5)
   })
 })

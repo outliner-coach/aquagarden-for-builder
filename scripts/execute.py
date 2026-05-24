@@ -293,11 +293,13 @@ class StepExecutor:
         return bool(step.get("eval"))
 
     def _run_eval(self, label: str, step_num: Optional[int] = None,
-                  *, vision: bool = False) -> tuple[bool, str]:
+                  *, vision: bool = False, vision_mode: str = "phase",
+                  step_goal: Optional[str] = None) -> tuple[bool, str]:
         """빌드 → 스모크(headless 런타임) → (vision=True 시) 비전 미적 판정. (통과여부, 리포트).
 
         에이전트의 self-report를 신뢰하지 않고 실제 렌더링을 독립 검증한다.
-        per-step은 스모크(깨짐 게이트)만, phase 끝은 비전 미적 판정까지 수행한다.
+        - vision_mode="step": 깨짐 + 이 step 목표 달성만 판정(미구현 후속 기능은 감점 안 함).
+        - vision_mode="phase": reference 대비 체크리스트 항목별 채점 + 종합 점수 임계값.
         """
         eval_dir = self._phase_dir / "eval"
         eval_dir.mkdir(exist_ok=True)
@@ -336,18 +338,26 @@ class StepExecutor:
             fails = rep.get("failures", [])
             return False, "스모크(런타임) 실패:\n- " + "\n- ".join(str(f) for f in fails)
 
-        # 3) 비전 미적 판정 (phase 끝에서만)
+        # 3) 비전 미적 판정
         if vision and judge_visual is not None and os.environ.get("AQUA_EVAL_VISION", "1") != "0":
             ref = ROOT / "reference_image.png"
-            verdict = judge_visual(str(shot_path), str(ref) if ref.exists() else None)
+            verdict = judge_visual(
+                str(shot_path),
+                str(ref) if ref.exists() else None,
+                mode=vision_mode,
+                step_goal=step_goal,
+            )
             if verdict.get("skipped"):
                 print(f"  (비전 판정 건너뜀: {verdict.get('summary','')})")
             elif not verdict.get("pass", True):
                 defects = "; ".join(verdict.get("defects", []))
-                return False, (f"비전 미적 판정 실패 (score={verdict.get('score','?')}): "
-                              f"{verdict.get('summary','')}\n결함: {defects}")
+                score = verdict.get("overallScore", verdict.get("score", "?"))
+                crit = verdict.get("failedCritical")
+                crit_txt = f"\n핵심항목 미달: {', '.join(crit)}" if crit else ""
+                return False, (f"비전 미적 판정 실패 (score={score}, mode={vision_mode}): "
+                              f"{verdict.get('summary','')}{crit_txt}\n결함: {defects}")
 
-        return True, f"eval 통과 (스모크 + 비전), screenshot={shot_path}"
+        return True, f"eval 통과 (스모크{'+비전' if vision else ''}), screenshot={shot_path}"
 
     # --- 헤더 & 검증 ---
 
@@ -410,8 +420,12 @@ class StepExecutor:
                 # 에이전트 self-report를 신뢰하지 않고 런타임 eval로 독립 검증한다.
                 # (build/test/lint 통과해도 실제 렌더가 깨질 수 있으므로 — 이 갭이 과거 사고의 원인)
                 if self._eval_enabled and self._step_needs_eval(step):
-                    with progress_indicator(f"Step {step_num} eval (build+smoke)"):
-                        ok, report = self._run_eval(f"step{step_num}", step_num)
+                    goal = next((s.get("summary") for s in index["steps"] if s["step"] == step_num), None)
+                    with progress_indicator(f"Step {step_num} eval (build+smoke+vision)"):
+                        ok, report = self._run_eval(
+                            f"step{step_num}", step_num,
+                            vision=True, vision_mode="step", step_goal=goal,
+                        )
                     if not ok:
                         index = self._read_json(self._index_file)
                         if attempt < self.MAX_RETRIES:

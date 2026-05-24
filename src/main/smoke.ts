@@ -12,7 +12,7 @@
  *   AQUA_SMOKE_READY_TIMEOUT_MS  ready 대기 한계 (기본 20000)
  *   AQUA_SMOKE_SETTLE_MS         ready 이후 추가 렌더 대기 (기본 2500)
  */
-import { app } from 'electron'
+import { app, nativeImage } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { writeFileSync } from 'fs'
 import {
@@ -28,6 +28,20 @@ const READY_TIMEOUT = Number(process.env['AQUA_SMOKE_READY_TIMEOUT_MS'] || 20000
 const SETTLE = Number(process.env['AQUA_SMOKE_SETTLE_MS'] || 2500)
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+/** BGRA 비트맵을 불투명 배경색(BGR) 위에 알파 합성한다. 반환도 BGRA(알파=255). */
+function compositeOverBackground(bitmap: Buffer, bgBgr: [number, number, number]): Buffer {
+  const out = Buffer.from(bitmap)
+  const [bb, bg, br] = bgBgr
+  for (let i = 0; i < out.length; i += 4) {
+    const a = bitmap[i + 3] / 255
+    out[i] = Math.round(bitmap[i] * a + bb * (1 - a))
+    out[i + 1] = Math.round(bitmap[i + 1] * a + bg * (1 - a))
+    out[i + 2] = Math.round(bitmap[i + 2] * a + br * (1 - a))
+    out[i + 3] = 255
+  }
+  return out
+}
 
 export async function runSmoke(win: BrowserWindow): Promise<void> {
   // 하드 워치독: 어떤 경우에도 행(hang) 없이 종료시킨다.
@@ -62,13 +76,17 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
   const health = await readHealth(win)
 
   // 스크린샷 + 픽셀 분석
+  // 픽셀 분석은 원본 알파(투명도 측정)로, 저장 스크린샷은 데스크톱 대용 배경 위에
+  // 합성한다. (투명 PNG를 그대로 비전이 보면 투명영역이 흰/크림으로 평탄화돼 오판하므로)
   let pixel = evaluatePixels(null, 0, 0)
   try {
     const img = await win.webContents.capturePage()
     const size = img.getSize()
-    const bitmap = img.toBitmap() // BGRA
-    writeFileSync(SHOT, img.toPNG())
+    const bitmap = img.toBitmap() // BGRA (원본 알파 보존)
     pixel = evaluatePixels(bitmap, size.width, size.height)
+    const composited = compositeOverBackground(bitmap, [38, 40, 46]) // 짙은 회색 = 데스크톱 대용
+    const out = nativeImage.createFromBitmap(composited, { width: size.width, height: size.height })
+    writeFileSync(SHOT, out.toPNG())
   } catch (e) {
     fatal = (fatal ? fatal + '; ' : '') + `capturePage 실패: ${String(e)}`
   }

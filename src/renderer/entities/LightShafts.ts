@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { WATER, LIGHT } from '../../shared/config'
+import { WATER, LIGHT, SCENE } from '../../shared/config'
 
 const SHAFT_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -35,6 +35,7 @@ export class LightShafts implements SceneEntity {
   private readonly _materials: THREE.ShaderMaterial[] = []
   private readonly _geometries: THREE.PlaneGeometry[] = []
   private _brightness01: number = LIGHT.default01
+  private _sceneFactor = 1
 
   constructor() {
     this.object3d = new THREE.Group()
@@ -82,7 +83,17 @@ export class LightShafts implements SceneEntity {
 
   setBrightness01(b01: number): void {
     this._brightness01 = Math.max(0, Math.min(1, b01))
-    const opacity = WATER.shaft.baseOpacity * this._brightness01
+    this._applyOpacity()
+  }
+
+  setSceneOpacity(factor: number): void {
+    this._sceneFactor = Math.max(0, Math.min(1, factor))
+    this._applyOpacity()
+    this.object3d.visible = this._sceneFactor > SCENE.invisibleThreshold
+  }
+
+  private _applyOpacity(): void {
+    const opacity = WATER.shaft.baseOpacity * this._brightness01 * this._sceneFactor
     for (const mat of this._materials) {
       mat.uniforms.uOpacity.value = opacity
     }

@@ -7,6 +7,7 @@ export interface ControlPanelCallbacks {
   onBrightnessChange: (b01: number) => void
   onHiddenChange: (hidden: boolean) => void
   onClickThroughChange: (enabled: boolean) => void
+  onSceneTransparencyChange: (t01: number) => void
   onAlwaysOnTopChange: (enabled: boolean) => void
   onMoveWindow: (dx: number, dy: number) => void
   /** 마우스가 컨트롤(버튼+패널) 위에 들어오고/나갈 때. click-through 중 컨트롤 조작용. */
@@ -19,6 +20,7 @@ export interface ControlPanelCallbacks {
 export interface ControlPanelState {
   fishCount: number
   brightness01: number
+  sceneTransparency01: number
   hidden: boolean
   clickThrough: boolean
   alwaysOnTop: boolean
@@ -40,6 +42,8 @@ export class ControlPanel {
   private readonly _fishValue: HTMLSpanElement
   private readonly _brightnessSlider: HTMLInputElement
   private readonly _brightnessValue: HTMLSpanElement
+  private readonly _sceneTransSlider: HTMLInputElement
+  private readonly _sceneTransValue: HTMLSpanElement
   private readonly _hideToggle: HTMLInputElement
   private readonly _clickThroughToggle: HTMLInputElement
   private readonly _alwaysOnTopToggle: HTMLInputElement
@@ -109,6 +113,18 @@ export class ControlPanel {
     this._brightnessSlider = brightSlider
     this._brightnessValue = brightValue
 
+    // ── 배경 투명도 슬라이더 ──
+    const { slider: sceneTransSlider, value: sceneTransValue } = this._createSlider(
+      '배경 투명도',
+      0,
+      100,
+      1,
+      Math.round(state.sceneTransparency01 * 100),
+      (v) => callbacks.onSceneTransparencyChange(v / 100),
+    )
+    this._sceneTransSlider = sceneTransSlider
+    this._sceneTransValue = sceneTransValue
+
     // ── Hide/Show 토글 ──
     this._hideToggle = this._createToggle(
       '수조 숨김',
@@ -163,6 +179,8 @@ export class ControlPanel {
     this._fishValue.textContent = String(state.fishCount)
     this._brightnessSlider.value = String(Math.round(state.brightness01 * 100))
     this._brightnessValue.textContent = `${Math.round(state.brightness01 * 100)}%`
+    this._sceneTransSlider.value = String(Math.round(state.sceneTransparency01 * 100))
+    this._sceneTransValue.textContent = `${Math.round(state.sceneTransparency01 * 100)}%`
     this._hideToggle.checked = state.hidden
     this._clickThroughToggle.checked = state.clickThrough
     this._alwaysOnTopToggle.checked = state.alwaysOnTop
@@ -204,7 +222,8 @@ export class ControlPanel {
     const valueEl = document.createElement('span')
     valueEl.className = 'cp__value'
     valueEl.style.cssText = `font-size:12px;font-weight:600;color:${COLORS.textPrimary};font-variant-numeric:tabular-nums;`
-    valueEl.textContent = label === '밝기' ? `${initial}%` : String(initial)
+    const isPercent = label === '밝기' || label === '배경 투명도'
+    valueEl.textContent = isPercent ? `${initial}%` : String(initial)
 
     labelRow.appendChild(labelEl)
     labelRow.appendChild(valueEl)
@@ -219,7 +238,7 @@ export class ControlPanel {
 
     slider.addEventListener('input', () => {
       const v = Number(slider.value)
-      valueEl.textContent = label === '밝기' ? `${v}%` : String(v)
+      valueEl.textContent = isPercent ? `${v}%` : String(v)
       onChange(v)
     })
 

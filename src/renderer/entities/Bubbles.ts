@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { BUBBLE } from '../../shared/config'
+import { BUBBLE, SCENE } from '../../shared/config'
 import { respawnIfAboveSurface, bubbleWobbleX, bubbleSizeForSeed, bubbleSurfaceFadeAlpha } from './bubblesHelpers'
 
 /* ── 소프트 라디얼 알파 CanvasTexture 생성 ── */
@@ -59,6 +59,7 @@ export class Bubbles implements SceneEntity {
   private readonly _material: THREE.ShaderMaterial
   private readonly _texture: THREE.CanvasTexture
   private _time = 0
+  private _sceneFactor = 1
 
   constructor() {
     const n = BUBBLE.maxParticles
@@ -145,18 +146,23 @@ export class Bubbles implements SceneEntity {
         BUBBLE.wobbleSpeed,
       )
 
-      // 수면 근처 페이드아웃
+      // 수면 근처 페이드아웃 * sceneOpacity factor
       this._alphas[i] = bubbleSurfaceFadeAlpha(
         this._positions[idx + 1],
         BUBBLE.surfaceY,
         BUBBLE.surfaceFadeRange,
-      )
+      ) * this._sceneFactor
     }
 
     const posAttr = this._geometry.getAttribute('position') as THREE.BufferAttribute
     posAttr.needsUpdate = true
     const alphaAttr = this._geometry.getAttribute('aAlpha') as THREE.BufferAttribute
     alphaAttr.needsUpdate = true
+  }
+
+  setSceneOpacity(factor: number): void {
+    this._sceneFactor = Math.max(0, Math.min(1, factor))
+    this.object3d.visible = this._sceneFactor > SCENE.invisibleThreshold
   }
 
   dispose(): void {

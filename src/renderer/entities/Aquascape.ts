@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
 import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
 import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
-import { AQUASCAPE, PLANT, HARDSCAPE } from '../../shared/config'
+import { AQUASCAPE, PLANT, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
 
@@ -70,6 +70,7 @@ const GRASS_CARD_VERT = /* glsl */ `
 const GRASS_CARD_FRAG = /* glsl */ `
   uniform sampler2D uLeafAlpha;
   uniform float uAlphaTest;
+  uniform float uSceneOpacity;
 
   varying vec2 vUv;
   varying vec3 vBaseColor;
@@ -79,7 +80,7 @@ const GRASS_CARD_FRAG = /* glsl */ `
     float alpha = texture2D(uLeafAlpha, vUv).a;
     if (alpha < uAlphaTest) discard;
     vec3 col = mix(vBaseColor, vTipColor, vUv.y);
-    gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, uSceneOpacity);
   }
 `
 
@@ -233,6 +234,10 @@ export class Aquascape implements SceneEntity {
   private _time = 0
   private readonly _grassMaterials: THREE.ShaderMaterial[] = []
   private readonly _disposables: Disposable[] = []
+  /** 불투명 머티리얼(MeshStandard) — baseOpacity=1 고정 */
+  private readonly _opaqueMaterials: THREE.MeshStandardMaterial[] = []
+  /** 유리 엣지 라인 머티리얼 — baseOpacity=glassEdgeOpacity */
+  private _glassEdgeMaterial: THREE.LineBasicMaterial | null = null
 
   constructor() {
     this.object3d = new THREE.Group()
@@ -248,6 +253,35 @@ export class Aquascape implements SceneEntity {
       mat.uniforms.uTime.value = this._time
     }
     updateCausticTime(this._time)
+  }
+
+  /** factor 1=평소(불투명), 0=완전 투명. 물고기 제외, 밝기와 곱연산으로 공존 */
+  setSceneOpacity(factor: number): void {
+    const f = Math.max(0, Math.min(1, factor))
+    const invisible = f <= SCENE.invisibleThreshold
+
+    // 불투명 머티리얼(모래·바위·유목) → transparent + opacity
+    for (const mat of this._opaqueMaterials) {
+      mat.transparent = true
+      mat.opacity = f
+    }
+
+    // 유리 엣지 라인
+    if (this._glassEdgeMaterial) {
+      this._glassEdgeMaterial.opacity = AQUASCAPE.glassEdgeOpacity * f
+    }
+
+    // 수초(ShaderMaterial) — gl_FragColor.a에 factor 곱
+    for (const mat of this._grassMaterials) {
+      if (!mat.uniforms.uSceneOpacity) {
+        mat.uniforms.uSceneOpacity = { value: f }
+      } else {
+        mat.uniforms.uSceneOpacity.value = f
+      }
+    }
+
+    // 드로우 비용 제거: factor≈0이면 그룹 전체 숨김
+    this.object3d.visible = !invisible
   }
 
   dispose(): void {
@@ -300,6 +334,7 @@ export class Aquascape implements SceneEntity {
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(0, AQUASCAPE.sandY, -4)
     this.object3d.add(mesh)
+    this._opaqueMaterials.push(mat)
     this._disposables.push({ geometry: geo, material: mat })
   }
 
@@ -376,7 +411,9 @@ export class Aquascape implements SceneEntity {
           uSwayAmplitude2: { value: PLANT.swayAmplitude2 },
           uLeafAlpha: { value: leafTex },
           uAlphaTest: { value: PLANT.alphaTest },
+          uSceneOpacity: { value: 1.0 },
         },
+        transparent: true,
         side: THREE.DoubleSide,
       })
 
@@ -449,6 +486,7 @@ export class Aquascape implements SceneEntity {
       mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
       mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
+      this._opaqueMaterials.push(mat)
       this._disposables.push({ material: mat })
     }
 
@@ -471,6 +509,7 @@ export class Aquascape implements SceneEntity {
       mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
       mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
+      this._opaqueMaterials.push(mat)
       this._disposables.push({ material: mat })
     }
   }
@@ -487,6 +526,7 @@ export class Aquascape implements SceneEntity {
       opacity: AQUASCAPE.glassEdgeOpacity,
       depthWrite: false,
     })
+    this._glassEdgeMaterial = mat
 
     const topGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-halfW, topY, 0),

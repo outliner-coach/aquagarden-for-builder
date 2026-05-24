@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { GLOW, LIGHT } from '../../shared/config'
+import { GLOW, LIGHT, SCENE } from '../../shared/config'
 import { glowOpacityForBrightness } from './glowHelpers'
 
 /* ── 소프트 라디얼 글로우 CanvasTexture ── */
@@ -71,6 +71,7 @@ export class GlowSprites implements SceneEntity {
   private readonly _texture: THREE.CanvasTexture
   private _time = 0
   private _brightness01: number = LIGHT.default01
+  private _sceneFactor = 1
 
   constructor() {
     const n = GLOW.count
@@ -124,11 +125,21 @@ export class GlowSprites implements SceneEntity {
 
   setBrightness01(b01: number): void {
     this._brightness01 = Math.max(0, Math.min(1, b01))
+    this._applyOpacity()
+  }
+
+  setSceneOpacity(factor: number): void {
+    this._sceneFactor = Math.max(0, Math.min(1, factor))
+    this._applyOpacity()
+    this.object3d.visible = this._sceneFactor > SCENE.invisibleThreshold
+  }
+
+  private _applyOpacity(): void {
     this._material.uniforms.uBaseOpacity.value = glowOpacityForBrightness(
       this._brightness01,
       GLOW.minOpacity,
       GLOW.maxOpacity,
-    )
+    ) * this._sceneFactor
   }
 
   update(dt: number): void {

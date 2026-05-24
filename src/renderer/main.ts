@@ -8,7 +8,8 @@ import { GlowSprites } from './entities/GlowSprites'
 import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
-import { FISH, LIGHT, WATER, WINDOW } from '../shared/config'
+import { sceneOpacityFactor } from './core/sceneOpacity'
+import { FISH, LIGHT, WATER, WINDOW, SCENE } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 
@@ -59,6 +60,7 @@ const settings: AppSettings = {
   brightness01: LIGHT.default01,
   hidden: false,
   clickThrough: false,
+  sceneTransparency01: SCENE.defaultTransparency01,
 }
 
 // 캔버스 참조 (hidden 시 display 제어)
@@ -76,10 +78,12 @@ waterVeil.style.cssText = [
 ].join(';')
 document.body.appendChild(waterVeil)
 
-function setWaterVeil(b01: number): void {
-  // 어두울수록(밤) 살짝 더 짙게, 밝을수록 옅게
+let _veilSceneFactor = 1
+function setWaterVeil(b01: number, sceneFactor?: number): void {
+  if (sceneFactor !== undefined) _veilSceneFactor = sceneFactor
+  // 어두울수록(밤) 살짝 더 짙게, 밝을수록 옅게. sceneOpacity factor로 곱.
   const v = WATER.veil
-  const a = v.maxAlpha - v.brightnessScale * b01
+  const a = (v.maxAlpha - v.brightnessScale * b01) * _veilSceneFactor
   const [tr, tg, tb] = v.topColor
   const [mr, mg, mb] = v.midColor
   const [br, bg, bb] = v.bottomColor
@@ -109,6 +113,7 @@ new ControlPanel(
   {
     fishCount: settings.fishCount,
     brightness01: settings.brightness01,
+    sceneTransparency01: settings.sceneTransparency01,
     hidden: settings.hidden,
     clickThrough: settings.clickThrough,
     alwaysOnTop: true,
@@ -124,6 +129,15 @@ new ControlPanel(
       lightShafts.setBrightness01(b01)
       glowSprites.setBrightness01(b01)
       setWaterVeil(b01)
+    },
+    onSceneTransparencyChange(t01: number) {
+      settings.sceneTransparency01 = t01
+      const factor = sceneOpacityFactor(t01)
+      aquascape.setSceneOpacity(factor)
+      lightShafts.setSceneOpacity(factor)
+      glowSprites.setSceneOpacity(factor)
+      bubbles.setSceneOpacity(factor)
+      setWaterVeil(settings.brightness01, factor)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden

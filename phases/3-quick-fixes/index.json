@@ -23,8 +23,11 @@
     {
       "step": 2,
       "name": "non-fish-opacity-slider",
-      "status": "pending",
-      "eval": true
+      "status": "completed",
+      "eval": true,
+      "started_at": "2026-05-24T21:07:40+0900",
+      "completed_at": "2026-05-24T21:17:00+0900",
+      "summary": "배경 투명도 슬라이더 추가: sceneOpacityFactor 순수 헬퍼(TDD), Aquascape/LightShafts/GlowSprites/Bubbles/수중 베일에 setSceneOpacity 적용, 물고기·UI는 제외"
     },
     {
       "step": 3,

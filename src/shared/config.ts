@@ -217,6 +217,12 @@ export const WATER = {
   },
 } as const
 
+export const SCENE = {
+  /** factor가 이 값 이하이면 Aquascape를 visible=false로 전환해 드로우 비용 제거 */
+  invisibleThreshold: 0.01,
+  defaultTransparency01: 0,
+} as const
+
 export const GLOW = {
   count: 8,
   size: 0.2,

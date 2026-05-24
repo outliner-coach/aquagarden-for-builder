@@ -3,6 +3,7 @@ export interface AppSettings {
   brightness01: number
   hidden: boolean
   clickThrough: boolean
+  sceneTransparency01: number
 }
 
 export interface MoveWindowByPayload {

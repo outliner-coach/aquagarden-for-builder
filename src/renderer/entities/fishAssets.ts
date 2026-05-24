@@ -44,7 +44,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'tetra-a',
     file: tetraAUrl,
     kind: 'schooling',
-    baseScale: 0.72,
+    baseScale: 0.58,
     swimAmplitude: 0.3,
     swimSpeed: 1.2,
   },
@@ -52,7 +52,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'tetra-b',
     file: tetraBUrl,
     kind: 'schooling',
-    baseScale: 0.72,
+    baseScale: 0.58,
     swimAmplitude: 0.25,
     swimSpeed: 1.3,
   },
@@ -61,7 +61,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'clownfish',
     file: clownfishUrl,
     kind: 'individual',
-    baseScale: 1.2,
+    baseScale: 0.85,
     swimAmplitude: 0.4,
     swimSpeed: 0.8,
   },
@@ -69,7 +69,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'butterflyfish',
     file: butterflyfishUrl,
     kind: 'individual',
-    baseScale: 1.25,
+    baseScale: 0.9,
     swimAmplitude: 0.35,
     swimSpeed: 0.7,
   },
@@ -77,7 +77,7 @@ export const FISH_SPECIES: readonly FishSpecies[] = [
     id: 'lionfish',
     file: lionfishUrl,
     kind: 'individual',
-    baseScale: 1.3,
+    baseScale: 0.95,
     swimAmplitude: 0.45,
     swimSpeed: 0.6,
   },
@@ -169,6 +169,10 @@ export async function loadFishPrototypes(): Promise<Map<SpeciesId, FishPrototype
 function extractGeometry(scene: THREE.Group): THREE.BufferGeometry | null {
   const parts: THREE.BufferGeometry[] = []
 
+  // CRITICAL: 노드(scene-graph) 회전을 geometry에 굽는다. 로컬 geometry만 쓰면
+  // Quaternius 모델이 누운/수직(머리 아래) 상태로 나온다. world matrix 적용 필수.
+  scene.updateMatrixWorld(true)
+
   scene.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return // SkinnedMesh도 Mesh의 하위
     const src = child.geometry
@@ -176,6 +180,7 @@ function extractGeometry(scene: THREE.Group): THREE.BufferGeometry | null {
 
     // position/normal만 남긴 깨끗한 비인덱스 geometry (병합 호환)
     const g = src.clone().toNonIndexed()
+    g.applyMatrix4(child.matrixWorld) // 노드 변환을 정점에 적용
     const clean = new THREE.BufferGeometry()
     clean.setAttribute('position', g.attributes.position)
     if (g.attributes.normal) {

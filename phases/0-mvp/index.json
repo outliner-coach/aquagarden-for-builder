@@ -63,7 +63,7 @@
       "name": "boids-school",
       "status": "completed",
       "started_at": "2026-05-24T12:03:35+0900",
-      "completed_at": "2026-05-24T12:08:00+0900",
+      "completed_at": "2026-05-24T12:09:03+0900",
       "summary": "boids.ts 순수 함수(separation/alignment/cohesion/computeBoidsSteer, Vec3/BoidAgent 타입), config.ts BOIDS 상수(separationRadius 1.5/alignmentRadius 3.0/cohesionRadius 3.0/가중치 2:1:1/maxSpeed 2.0/maxSteer 3.0), FishSchool._applyBoids()에서 schooling Fish에만 매 update 적용(applySteer 훅), 21개 단위 테스트 추가(총 90개)"
     },
     {

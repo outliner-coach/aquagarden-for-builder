@@ -37,7 +37,10 @@
     {
       "step": 4,
       "name": "hardscape-sand",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T15:07:28+0900",
+      "completed_at": "2026-05-24T15:14:00+0900",
+      "summary": "모래 색·노멀 변주(절차적 CanvasTexture+버텍스컬러), 바위 군락 확장(10+14개 결정적 배치), 절차적 유목(TubeGeometry 가지) 추가, generateHardscape 순수함수+테스트 10건, 커스틱 주입 대비 모래 MeshStandard 유지"
     },
     {
       "step": 5,

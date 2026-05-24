@@ -99,6 +99,36 @@ export const PLANT = {
   ],
 } as const
 
+export const HARDSCAPE = {
+  seed: 404,
+  rockCount: 10,
+  pebbleCount: 14,
+  driftwoodCount: 2,
+  area: { minX: -12, maxX: 14, minZ: -5, maxZ: -2 },
+  rock: {
+    minScale: 0.08,
+    maxScale: 0.3,
+    maxHeightAboveSand: 0.5,
+    colors: [0x7a7570, 0x6b6560, 0x8a8580, 0x5e5852] as readonly number[],
+  },
+  pebble: {
+    minScale: 0.03,
+    maxScale: 0.08,
+  },
+  driftwood: {
+    minLength: 1.2,
+    maxLength: 2.5,
+    minRadius: 0.03,
+    maxRadius: 0.06,
+    maxHeightAboveSand: 0.8,
+    color: 0x5c3d2e,
+  },
+  sand: {
+    normalStrength: 0.3,
+    colorVariation: 0.06,
+  },
+} as const
+
 export const BOIDS = {
   separationRadius: 1.5,
   alignmentRadius: 3.0,

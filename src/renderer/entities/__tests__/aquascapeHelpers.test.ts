@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { swayOffset, advanceTime, swayHeightFactor, generatePlantInstances } from '../aquascapeHelpers'
+import { swayOffset, advanceTime, swayHeightFactor, generatePlantInstances, generateHardscape } from '../aquascapeHelpers'
 import type { PlantSpeciesParams } from '../aquascapeHelpers'
 
 describe('advanceTime', () => {
@@ -174,6 +174,98 @@ describe('generatePlantInstances', () => {
     for (const inst of instances) {
       expect(inst.baseColor).toHaveLength(3)
       expect(inst.tipColor).toHaveLength(3)
+    }
+  })
+})
+
+describe('generateHardscape', () => {
+  const area = { minX: -12, maxX: 14, minZ: -5, maxZ: -2 }
+  const sandY = -1.8
+
+  it('같은 시드는 같은 결과를 낸다 (결정적)', () => {
+    const a = generateHardscape(42, area, sandY)
+    const b = generateHardscape(42, area, sandY)
+    expect(a).toEqual(b)
+  })
+
+  it('다른 시드는 다른 결과를 낸다', () => {
+    const a = generateHardscape(1, area, sandY)
+    const b = generateHardscape(2, area, sandY)
+    const sameRocks = a.rocks.every(
+      (r, i) => r.x === b.rocks[i]?.x && r.z === b.rocks[i]?.z,
+    )
+    expect(sameRocks).toBe(false)
+  })
+
+  it('rocks 배치가 area 범위 안에 있다', () => {
+    const result = generateHardscape(99, area, sandY)
+    for (const r of result.rocks) {
+      expect(r.x).toBeGreaterThanOrEqual(area.minX)
+      expect(r.x).toBeLessThanOrEqual(area.maxX)
+      expect(r.z).toBeGreaterThanOrEqual(area.minZ)
+      expect(r.z).toBeLessThanOrEqual(area.maxZ)
+    }
+  })
+
+  it('driftwood 배치가 area 범위 안에 있다', () => {
+    const result = generateHardscape(99, area, sandY)
+    for (const d of result.driftwood) {
+      expect(d.x).toBeGreaterThanOrEqual(area.minX)
+      expect(d.x).toBeLessThanOrEqual(area.maxX)
+      expect(d.z).toBeGreaterThanOrEqual(area.minZ)
+      expect(d.z).toBeLessThanOrEqual(area.maxZ)
+    }
+  })
+
+  it('rocks y 위치가 하단에 한정된다 (sandY 기준 낮은 높이)', () => {
+    const result = generateHardscape(55, area, sandY)
+    for (const r of result.rocks) {
+      // y는 sandY 위로 scale 반지름만큼만 올라간다 — 물고기 시야 보존
+      expect(r.y).toBeGreaterThanOrEqual(sandY)
+      expect(r.y).toBeLessThanOrEqual(sandY + 0.6)
+    }
+  })
+
+  it('driftwood y 위치가 하단~중하단에 한정된다', () => {
+    const result = generateHardscape(55, area, sandY)
+    for (const d of result.driftwood) {
+      expect(d.y).toBeGreaterThanOrEqual(sandY)
+      expect(d.y).toBeLessThanOrEqual(sandY + 1.0)
+    }
+  })
+
+  it('rocks 배열이 비어 있지 않다', () => {
+    const result = generateHardscape(10, area, sandY)
+    expect(result.rocks.length).toBeGreaterThan(0)
+  })
+
+  it('driftwood 배열이 비어 있지 않다', () => {
+    const result = generateHardscape(10, area, sandY)
+    expect(result.driftwood.length).toBeGreaterThan(0)
+  })
+
+  it('각 Placement에 position/scale/rotation 값이 있다', () => {
+    const result = generateHardscape(77, area, sandY)
+    for (const r of [...result.rocks, ...result.driftwood]) {
+      expect(typeof r.x).toBe('number')
+      expect(typeof r.y).toBe('number')
+      expect(typeof r.z).toBe('number')
+      expect(typeof r.scaleX).toBe('number')
+      expect(typeof r.scaleY).toBe('number')
+      expect(typeof r.scaleZ).toBe('number')
+      expect(typeof r.rotX).toBe('number')
+      expect(typeof r.rotY).toBe('number')
+      expect(typeof r.rotZ).toBe('number')
+    }
+  })
+
+  it('rocks 스케일이 양수이고 합리적 범위 내에 있다', () => {
+    const result = generateHardscape(33, area, sandY)
+    for (const r of result.rocks) {
+      expect(r.scaleX).toBeGreaterThan(0)
+      expect(r.scaleY).toBeGreaterThan(0)
+      expect(r.scaleZ).toBeGreaterThan(0)
+      expect(r.scaleX).toBeLessThanOrEqual(0.5)
     }
   })
 })

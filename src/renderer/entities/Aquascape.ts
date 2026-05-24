@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { advanceTime, generatePlantInstances } from './aquascapeHelpers'
+import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
 import type { PlantSpeciesParams } from './aquascapeHelpers'
-import { AQUASCAPE, PLANT } from '../../shared/config'
+import { AQUASCAPE, PLANT, HARDSCAPE } from '../../shared/config'
 
 /* ── Grass card vertex shader: height-weighted sway, instanced ── */
 const GRASS_CARD_VERT = /* glsl */ `
@@ -75,21 +75,56 @@ const GRASS_CARD_FRAG = /* glsl */ `
 
 /* ── Layout constants ── */
 const SAND_COLOR = 0xe8dcc8
-const ROCK_COLOR = 0x7a7570
 const GLASS_EDGE_OPACITY = 0.12
 
-const ROCKS: readonly [x: number, z: number, scale: number][] = [
-  [-5,  -2.0, 0.15],
-  [ 3,  -2.5, 0.20],
-  [ 8,  -3.0, 0.12],
-]
+/* ── Procedural sand normal map (CanvasTexture, no external file) ── */
+function createSandNormalTexture(size = 256): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const imgData = ctx.createImageData(size, size)
+  const data = imgData.data
 
-const PEBBLES: readonly [x: number, z: number, scale: number][] = [
-  [-6,  -2.2, 0.06],
-  [ 0,  -2.8, 0.05],
-  [ 6,  -2.4, 0.07],
-  [12,  -3.0, 0.05],
-]
+  // Simple value noise for sand grain normals
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      // Multiple noise octaves for sand grain texture
+      const n1 = Math.sin(x * 0.8 + y * 0.6) * 0.3
+      const n2 = Math.sin(x * 2.3 - y * 1.7) * 0.15
+      const n3 = Math.sin(x * 5.1 + y * 4.3) * 0.08
+      const nx = (n1 + n2 + n3) * HARDSCAPE.sand.normalStrength
+      const ny = (Math.cos(x * 0.9 + y * 1.1) * 0.3 + Math.cos(x * 3.1 - y * 2.2) * 0.12) * HARDSCAPE.sand.normalStrength
+      // Encode normal: (nx, ny, 1) normalized → [0,255]
+      data[i] = Math.floor((nx * 0.5 + 0.5) * 255)
+      data[i + 1] = Math.floor((ny * 0.5 + 0.5) * 255)
+      data[i + 2] = 255 // z always ~1 for subtle normals
+      data[i + 3] = 255
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(8, 4)
+  return tex
+}
+
+/* ── Procedural driftwood mesh (code-generated, no external GLB) ── */
+function createDriftwoodGeometry(segments = 12): THREE.BufferGeometry {
+  const path = new THREE.CurvePath<THREE.Vector3>()
+  // Organic curved branch shape
+  path.add(new THREE.CubicBezierCurve3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.3, 0.15, 0.05),
+    new THREE.Vector3(0.7, 0.08, -0.05),
+    new THREE.Vector3(1, 0.02, 0),
+  ))
+  const tube = new THREE.TubeGeometry(path as unknown as THREE.Curve<THREE.Vector3>, segments, 0.5, 5, false)
+  return tube
+}
 
 /* ── Leaf alpha texture (CanvasTexture, no external file) ── */
 function createLeafAlphaTexture(width = 64, height = 128): THREE.CanvasTexture {
@@ -179,7 +214,7 @@ export class Aquascape implements SceneEntity {
     this.object3d = new THREE.Group()
     this._buildSand()
     this._buildGrassCards()
-    this._buildRocks()
+    this._buildHardscape()
     this._buildGlassEdge()
   }
 
@@ -200,12 +235,37 @@ export class Aquascape implements SceneEntity {
     this._grassMaterials.length = 0
   }
 
-  /* ── Sand floor ── */
+  /* ── Sand floor with procedural color variation + normal map ── */
   private _buildSand(): void {
-    const geo = new THREE.PlaneGeometry(200, 14)
+    const segW = 80
+    const segH = 20
+    const geo = new THREE.PlaneGeometry(200, 14, segW, segH)
     geo.rotateX(-Math.PI / 2)
+
+    // Vertex color variation for subtle sand grain color
+    const count = geo.attributes.position.count
+    const colors = new Float32Array(count * 3)
+    const baseColor = new THREE.Color(SAND_COLOR)
+    const cv = HARDSCAPE.sand.colorVariation
+    for (let i = 0; i < count; i++) {
+      const px = geo.attributes.position.getX(i)
+      const pz = geo.attributes.position.getZ(i)
+      // Deterministic noise based on position
+      const n = Math.sin(px * 1.3 + pz * 0.9) * 0.5 + Math.sin(px * 3.7 - pz * 2.1) * 0.25
+      colors[i * 3] = baseColor.r + n * cv
+      colors[i * 3 + 1] = baseColor.g + n * cv * 0.8
+      colors[i * 3 + 2] = baseColor.b + n * cv * 0.6
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+
+    const normalTex = createSandNormalTexture()
+    this._disposables.push({ texture: normalTex })
+
     const mat = new THREE.MeshStandardMaterial({
       color: SAND_COLOR,
+      vertexColors: true,
+      normalMap: normalTex,
+      normalScale: new THREE.Vector2(HARDSCAPE.sand.normalStrength, HARDSCAPE.sand.normalStrength),
       roughness: 0.9,
       metalness: 0,
       side: THREE.DoubleSide,
@@ -314,28 +374,54 @@ export class Aquascape implements SceneEntity {
     }
   }
 
-  /* ── Rocks & pebbles ── */
-  private _buildRocks(): void {
-    const rockMat = new THREE.MeshStandardMaterial({ color: ROCK_COLOR, roughness: 0.8, metalness: 0 })
+  /* ── Rocks, pebbles & driftwood (generateHardscape 기반) ── */
+  private _buildHardscape(): void {
+    const hs = generateHardscape(
+      HARDSCAPE.seed,
+      HARDSCAPE.area,
+      AQUASCAPE.sandY,
+    )
 
-    for (const [x, z, scale] of ROCKS) {
-      const geo = new THREE.DodecahedronGeometry(scale, 0)
-      const mesh = new THREE.Mesh(geo, rockMat)
-      mesh.position.set(x, AQUASCAPE.sandY + scale * 0.5, z)
-      mesh.rotation.set(Math.random(), Math.random(), Math.random())
+    const rockColors = HARDSCAPE.rock.colors
+    const rockGeoBase = new THREE.DodecahedronGeometry(1, 0)
+    const pebbleGeoBase = new THREE.SphereGeometry(1, 5, 4)
+    this._disposables.push({ geometry: rockGeoBase }, { geometry: pebbleGeoBase })
+
+    // Rocks & pebbles (first ROCK_COUNT are large rocks, rest are pebbles)
+    for (let i = 0; i < hs.rocks.length; i++) {
+      const p = hs.rocks[i]
+      const isLargeRock = i < HARDSCAPE.rockCount
+      const colorHex = rockColors[i % rockColors.length]
+      const mat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.85,
+        metalness: 0,
+      })
+      const geo = isLargeRock ? rockGeoBase : pebbleGeoBase
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.position.set(p.x, p.y, p.z)
+      mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
+      mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
-      this._disposables.push({ geometry: geo })
+      this._disposables.push({ material: mat })
     }
 
-    for (const [x, z, scale] of PEBBLES) {
-      const geo = new THREE.SphereGeometry(scale, 4, 3)
-      const mesh = new THREE.Mesh(geo, rockMat)
-      mesh.position.set(x, AQUASCAPE.sandY + scale * 0.3, z)
-      this.object3d.add(mesh)
-      this._disposables.push({ geometry: geo })
-    }
+    // Driftwood
+    const dwGeo = createDriftwoodGeometry()
+    const dwMat = new THREE.MeshStandardMaterial({
+      color: HARDSCAPE.driftwood.color,
+      roughness: 0.92,
+      metalness: 0,
+    })
+    this._disposables.push({ geometry: dwGeo, material: dwMat })
 
-    this._disposables.push({ material: rockMat })
+    for (const p of hs.driftwood) {
+      const mesh = new THREE.Mesh(dwGeo, dwMat)
+      mesh.position.set(p.x, p.y, p.z)
+      mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
+      mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
+      this.object3d.add(mesh)
+    }
   }
 
   /* ── Subtle glass edge highlights ── */

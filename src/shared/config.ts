@@ -7,6 +7,15 @@ export const FISH = {
   min: 0,
   max: 60,
   default: 18,
+  spawnPerTick: 3,
+  bounds: {
+    minX: -10,
+    maxX: 10,
+    minY: -1.2,
+    maxY: 1.8,
+    minZ: -2.5,
+    maxZ: 0.5,
+  },
 } as const
 
 export const LIGHT = {

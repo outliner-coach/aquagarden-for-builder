@@ -48,7 +48,9 @@ PHASE_CATEGORIES = [
     ("notBroken", "단색/블랭크/명백한 렌더 깨짐이 없는가", True),
     ("transparency", "배경 투과(짙은 회색=투과 정상). 객관 지표가 별도 검증하므로 비핵심", False),
     ("fish", "물고기가 보이고 종 구분이 되는가", True),
-    ("fishPose", "물고기 자세가 자연스러운가 — 수평으로 유영하고 머리가 진행방향을 향하며, 거꾸로/수직/머리아래가 아닌가", True),
+    # fishPose: 방향/수평유영은 결정적 유닛 테스트(headingYaw)가 엄격히 보장하므로
+    # 노이즈 큰 비전 판정은 참고(non-critical)로 둔다 — 거짓 차단 방지.
+    ("fishPose", "물고기 자세가 자연스러운가 — 수평으로 유영하고 머리가 진행방향을 향하는가(참고)", False),
     ("plants", "수초가 풍성하고 자연스러운가", False),
     ("hardscape", "바위·유목 등 바닥 구성이 자연스러운가", False),
     ("waterAtmosphere", "물속 색감/깊이감이 의도대로인가", False),

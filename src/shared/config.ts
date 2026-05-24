@@ -26,6 +26,8 @@ export const LIGHT = {
   maxIntensity: 2.0,
   minAmbient: 0.05,
   maxAmbient: 0.4,
+  minEnvIntensity: 0.15,
+  maxEnvIntensity: 1.2,
   default01: 0.75,
 } as const
 

@@ -15,7 +15,7 @@ container.style.cssText = `width:100%;height:${WINDOW.height}px;`
 
 const sceneRoot = new SceneRoot(container)
 
-const lighting = new Lighting()
+const lighting = new Lighting(sceneRoot.scene)
 sceneRoot.add(lighting)
 
 const aquascape = new Aquascape()

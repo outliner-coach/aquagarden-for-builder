@@ -141,8 +141,10 @@ export class Aquascape implements SceneEntity {
   private _buildSand(): void {
     const geo = new THREE.PlaneGeometry(200, 14)
     geo.rotateX(-Math.PI / 2)
-    const mat = new THREE.MeshBasicMaterial({
+    const mat = new THREE.MeshStandardMaterial({
       color: SAND_COLOR,
+      roughness: 0.9,
+      metalness: 0,
       side: THREE.DoubleSide,
     })
     const mesh = new THREE.Mesh(geo, mat)
@@ -172,7 +174,7 @@ export class Aquascape implements SceneEntity {
 
   /* ── Rocks & pebbles ── */
   private _buildRocks(): void {
-    const rockMat = new THREE.MeshBasicMaterial({ color: ROCK_COLOR })
+    const rockMat = new THREE.MeshStandardMaterial({ color: ROCK_COLOR, roughness: 0.8, metalness: 0 })
 
     for (const [x, z, scale] of ROCKS) {
       const geo = new THREE.DodecahedronGeometry(scale, 0)

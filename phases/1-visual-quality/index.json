@@ -2,13 +2,49 @@
   "project": "Aquagarden Overlay",
   "phase": "1-visual-quality",
   "steps": [
-    { "step": 0, "name": "lit-pipeline", "status": "pending" },
-    { "step": 1, "name": "fish-assets-loader", "status": "pending" },
-    { "step": 2, "name": "fish-pool-swim", "status": "pending" },
-    { "step": 3, "name": "aquascape-plants", "status": "pending" },
-    { "step": 4, "name": "hardscape-sand", "status": "pending" },
-    { "step": 5, "name": "caustics", "status": "pending" },
-    { "step": 6, "name": "water-atmosphere", "status": "pending" },
-    { "step": 7, "name": "effects-polish", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "lit-pipeline",
+      "status": "completed",
+      "started_at": "2026-05-24T14:40:29+0900",
+      "completed_at": "2026-05-24T14:45:00+0900",
+      "summary": "환경맵(PMREM+RoomEnvironment) IBL 도입, scene.environmentIntensity 노출, 밝기 슬라이더가 directional/ambient/env 동시 구동, Aquascape 모래·바위 MeshStandardMaterial lit 전환, brightnessToEnvIntensity 헬퍼+테스트 7건 추가"
+    },
+    {
+      "step": 1,
+      "name": "fish-assets-loader",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "fish-pool-swim",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "aquascape-plants",
+      "status": "pending"
+    },
+    {
+      "step": 4,
+      "name": "hardscape-sand",
+      "status": "pending"
+    },
+    {
+      "step": 5,
+      "name": "caustics",
+      "status": "pending"
+    },
+    {
+      "step": 6,
+      "name": "water-atmosphere",
+      "status": "pending"
+    },
+    {
+      "step": 7,
+      "name": "effects-polish",
+      "status": "pending"
+    }
+  ],
+  "created_at": "2026-05-24T14:40:29+0900"
 }

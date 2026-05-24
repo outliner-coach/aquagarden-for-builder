@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { CAMERA } from '../../shared/config'
 
 export interface SceneEntity {
@@ -13,6 +14,7 @@ export class SceneRoot {
   readonly renderer: THREE.WebGLRenderer
 
   private _entities: SceneEntity[] = []
+  private _envTexture: THREE.Texture | null = null
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene()
@@ -35,7 +37,18 @@ export class SceneRoot {
 
     container.appendChild(this.renderer.domElement)
 
+    // 환경맵(IBL) 생성 — 조명/반사용. background는 null 유지(투명 창 보존)
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    this._envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    pmrem.dispose()
+    this.scene.environment = this._envTexture
+    // CRITICAL: scene.background = null 유지 (투명 창)
+
     window.addEventListener('resize', this._onResize)
+  }
+
+  setEnvironmentIntensity(v: number): void {
+    this.scene.environmentIntensity = v
   }
 
   add(entity: SceneEntity): void {
@@ -67,6 +80,10 @@ export class SceneRoot {
       entity.dispose()
     }
     this._entities = []
+    if (this._envTexture) {
+      this._envTexture.dispose()
+      this._envTexture = null
+    }
     this.renderer.dispose()
   }
 

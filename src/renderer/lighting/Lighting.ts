@@ -1,15 +1,17 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
 import { LIGHT } from '../../shared/config'
-import { brightnessToIntensity, brightnessToAmbient } from './lightingHelpers'
+import { brightnessToIntensity, brightnessToAmbient, brightnessToEnvIntensity } from './lightingHelpers'
 
 export class Lighting implements SceneEntity {
   readonly object3d: THREE.Group
   private readonly _directional: THREE.DirectionalLight
   private readonly _ambient: THREE.AmbientLight
+  private readonly _scene: THREE.Scene
 
-  constructor() {
+  constructor(scene: THREE.Scene) {
     this.object3d = new THREE.Group()
+    this._scene = scene
 
     // 상단에서 아래로 비추는 메인 조명
     this._directional = new THREE.DirectionalLight(0xffffff)
@@ -34,6 +36,11 @@ export class Lighting implements SceneEntity {
       b01,
       LIGHT.minAmbient,
       LIGHT.maxAmbient,
+    )
+    this._scene.environmentIntensity = brightnessToEnvIntensity(
+      b01,
+      LIGHT.minEnvIntensity,
+      LIGHT.maxEnvIntensity,
     )
   }
 

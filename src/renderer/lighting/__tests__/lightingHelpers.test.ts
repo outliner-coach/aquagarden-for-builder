@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { brightnessToIntensity, brightnessToAmbient } from '../lightingHelpers'
+import { brightnessToIntensity, brightnessToAmbient, brightnessToEnvIntensity } from '../lightingHelpers'
 import { LIGHT } from '../../../shared/config'
 
 describe('brightnessToIntensity', () => {
@@ -53,5 +53,36 @@ describe('brightnessToAmbient', () => {
 
   it('b01 > 1 → maxAmbient로 클램프', () => {
     expect(brightnessToAmbient(2, LIGHT.minAmbient, LIGHT.maxAmbient)).toBeCloseTo(LIGHT.maxAmbient, 5)
+  })
+})
+
+describe('brightnessToEnvIntensity', () => {
+  it('b01=0 → minEnvIntensity', () => {
+    expect(brightnessToEnvIntensity(0, LIGHT.minEnvIntensity, LIGHT.maxEnvIntensity)).toBeCloseTo(LIGHT.minEnvIntensity, 5)
+  })
+
+  it('b01=1 → maxEnvIntensity', () => {
+    expect(brightnessToEnvIntensity(1, LIGHT.minEnvIntensity, LIGHT.maxEnvIntensity)).toBeCloseTo(LIGHT.maxEnvIntensity, 5)
+  })
+
+  it('b01=0.5 → 중간값', () => {
+    const expected = (LIGHT.minEnvIntensity + LIGHT.maxEnvIntensity) / 2
+    expect(brightnessToEnvIntensity(0.5, LIGHT.minEnvIntensity, LIGHT.maxEnvIntensity)).toBeCloseTo(expected, 5)
+  })
+
+  it('b01 < 0 → minEnvIntensity로 클램프', () => {
+    expect(brightnessToEnvIntensity(-0.5, LIGHT.minEnvIntensity, LIGHT.maxEnvIntensity)).toBeCloseTo(LIGHT.minEnvIntensity, 5)
+  })
+
+  it('b01 > 1 → maxEnvIntensity로 클램프', () => {
+    expect(brightnessToEnvIntensity(1.5, LIGHT.minEnvIntensity, LIGHT.maxEnvIntensity)).toBeCloseTo(LIGHT.maxEnvIntensity, 5)
+  })
+
+  it('커스텀 min/max 범위에서도 선형 매핑', () => {
+    expect(brightnessToEnvIntensity(0.25, 0, 100)).toBeCloseTo(25, 5)
+  })
+
+  it('min === max이면 항상 같은 값', () => {
+    expect(brightnessToEnvIntensity(0.5, 3, 3)).toBeCloseTo(3, 5)
   })
 })

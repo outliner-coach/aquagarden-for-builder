@@ -86,7 +86,6 @@ const GRASS_CARD_FRAG = /* glsl */ `
 /* ── Layout constants ── */
 // 밝은 크림색은 화면을 지배해 물고기 대비를 떨어뜨린다 → 차분한 탄(tan)으로 낮춤.
 const SAND_COLOR = 0x9c8a6e
-const GLASS_EDGE_OPACITY = 0.12
 
 /* ── Procedural sand normal map (CanvasTexture, no external file) ── */
 function createSandNormalTexture(size = 256): THREE.CanvasTexture {
@@ -485,7 +484,7 @@ export class Aquascape implements SceneEntity {
     const mat = new THREE.LineBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: GLASS_EDGE_OPACITY,
+      opacity: AQUASCAPE.glassEdgeOpacity,
       depthWrite: false,
     })
 

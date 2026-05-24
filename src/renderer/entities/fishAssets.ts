@@ -2,32 +2,15 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { applyCausticToStandardMaterial } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
-import type { FishKind } from './Fish'
 
-/* ── GLB URL imports (Vite ?url) ── */
+/* ── Re-exports from speciesRegistry (기존 import 경로 보존) ── */
 
-import clownfishUrl from '../assets/fish/clownfish.glb?url'
-import butterflyfishUrl from '../assets/fish/butterflyfish.glb?url'
-import lionfishUrl from '../assets/fish/lionfish.glb?url'
-import tetraAUrl from '../assets/fish/tetra-a.glb?url'
-import tetraBUrl from '../assets/fish/tetra-b.glb?url'
+export { FISH_SPECIES, pickSpecies } from './speciesRegistry'
+export type { SpeciesId, FishSpecies } from './speciesRegistry'
+import { FISH_SPECIES } from './speciesRegistry'
+import type { SpeciesId } from './speciesRegistry'
 
 /* ── Types ── */
-
-export type SpeciesId =
-  | 'clownfish'
-  | 'butterflyfish'
-  | 'lionfish'
-  | 'tetra-a'
-  | 'tetra-b'
-
-export interface FishSpecies {
-  id: SpeciesId
-  file: string
-  kind: FishKind
-  baseScale: number
-  swimSpeed: number
-}
 
 export interface FishPrototype {
   /** 원본 GLB 씬(스킨 메시 + 본). Fish가 SkeletonUtils.clone 한다. */
@@ -40,27 +23,6 @@ export interface FishPrototype {
   normScale: number
   /** 모델 로컬 bbox 중심(원점 정렬용). */
   center: THREE.Vector3
-}
-
-/* ── Manifest ── */
-
-export const FISH_SPECIES: readonly FishSpecies[] = [
-  { id: 'tetra-a', file: tetraAUrl, kind: 'schooling', baseScale: 0.58, swimSpeed: 1.2 },
-  { id: 'tetra-b', file: tetraBUrl, kind: 'schooling', baseScale: 0.58, swimSpeed: 1.3 },
-  { id: 'clownfish', file: clownfishUrl, kind: 'individual', baseScale: 0.85, swimSpeed: 0.8 },
-  { id: 'butterflyfish', file: butterflyfishUrl, kind: 'individual', baseScale: 0.9, swimSpeed: 0.7 },
-  { id: 'lionfish', file: lionfishUrl, kind: 'individual', baseScale: 0.95, swimSpeed: 0.6 },
-]
-
-/* ── Pure helpers (TDD) ── */
-
-/** 시드 기반 결정적 종 선택. 해당 kind의 종 중에서. */
-export function pickSpecies(seed: number, kind: FishKind): SpeciesId {
-  const candidates = FISH_SPECIES.filter((s) => s.kind === kind)
-  const hash = Math.sin(seed * 127.1 + 311.7) * 43758.5453
-  const frac = hash - Math.floor(hash)
-  const index = Math.floor(Math.abs(frac) * candidates.length) % candidates.length
-  return candidates[index].id
 }
 
 /** bbox로부터 원점 중심 정렬 scale(1/maxDim)·offset 계산 (순수). */

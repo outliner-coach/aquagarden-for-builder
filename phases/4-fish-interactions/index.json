@@ -2,8 +2,25 @@
   "project": "Aquagarden Overlay",
   "phase": "4-fish-interactions",
   "steps": [
-    { "step": 0, "name": "species-plant-registry", "status": "pending" },
-    { "step": 1, "name": "fish-click-dialogue", "status": "pending", "eval": true },
-    { "step": 2, "name": "feed-and-scare", "status": "pending", "eval": true }
-  ]
+    {
+      "step": 0,
+      "name": "species-plant-registry",
+      "status": "completed",
+      "started_at": "2026-05-24T23:52:04+0900",
+      "summary": "speciesRegistry.ts(어종 5종+displayName+dialogue[]) 및 plantRegistry.ts(PLANT.species 타입드 래퍼) 생성. fishAssets.ts는 re-export로 기존 경로 보존. dialogue는 빈 배열 — step 1에서 >=10개 채움."
+    },
+    {
+      "step": 1,
+      "name": "fish-click-dialogue",
+      "status": "pending",
+      "eval": true
+    },
+    {
+      "step": 2,
+      "name": "feed-and-scare",
+      "status": "pending",
+      "eval": true
+    }
+  ],
+  "created_at": "2026-05-24T23:52:04+0900"
 }

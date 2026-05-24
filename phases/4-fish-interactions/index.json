@@ -16,7 +16,8 @@
       "status": "completed",
       "eval": true,
       "started_at": "2026-05-24T23:57:05+0900",
-      "summary": "어종 5종×대사 10개 채움(힐링·사색·어종특성), dialogueHelpers.ts(pickDialogue 순수함수+TDD), Fish.speciesId getter, FishSchool.raycast, FishDialogue 엔티티(클릭→레이캐스트→말풍선 DOM, 투과OFF에서만), DIALOGUE 상수(config.ts), main.ts 배선 완료."
+      "summary": "어종 5종×대사 10개 채움(힐링·사색·어종특성), dialogueHelpers.ts(pickDialogue 순수함수+TDD), Fish.speciesId getter, FishSchool.raycast, FishDialogue 엔티티(클릭→레이캐스트→말풍선 DOM, 투과OFF에서만), DIALOGUE 상수(config.ts), main.ts 배선 완료.",
+      "completed_at": "2026-05-25T00:04:37+0900"
     },
     {
       "step": 2,

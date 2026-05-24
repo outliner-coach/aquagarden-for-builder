@@ -18,7 +18,7 @@
       "eval": true,
       "started_at": "2026-05-24T18:34:22+0900",
       "summary": "수초 종 3→5개(fine-carpet/carpet/bush/mid-green/tall), 총 인스턴스 225→480, 종별 카드 형태(quadCount/cardHalfWidth) 다양화, 2차 저주파 스웨이로 유기적 흔들림, 잎 알파 텍스처 비대칭 유기 형태로 개선",
-      "completed_at": "2026-05-24T18:42:00+0900"
+      "completed_at": "2026-05-24T18:42:39+0900"
     },
     {
       "step": 2,

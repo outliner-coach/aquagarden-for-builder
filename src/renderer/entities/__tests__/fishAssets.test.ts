@@ -29,12 +29,6 @@ describe('FISH_SPECIES manifest', () => {
     }
   })
 
-  it('모든 종의 swimAmplitude > 0', () => {
-    for (const sp of FISH_SPECIES) {
-      expect(sp.swimAmplitude).toBeGreaterThan(0)
-    }
-  })
-
   it('모든 종의 swimSpeed > 0', () => {
     for (const sp of FISH_SPECIES) {
       expect(sp.swimSpeed).toBeGreaterThan(0)

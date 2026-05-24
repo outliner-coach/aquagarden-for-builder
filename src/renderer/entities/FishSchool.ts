@@ -93,10 +93,16 @@ export class FishSchool implements SceneEntity {
       fish.dispose()
     }
     this._allFish.length = 0
-    // prototype geometry는 여기서 dispose
+    // prototype 씬의 geometry/material을 dispose
     if (this._prototypes) {
       for (const proto of this._prototypes.values()) {
-        proto.geometry.dispose()
+        proto.scene.traverse((o) => {
+          const mesh = o as THREE.Mesh
+          if (mesh.geometry) mesh.geometry.dispose()
+          const mat = mesh.material
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose())
+          else if (mat) mat.dispose()
+        })
       }
       this._prototypes = null
     }

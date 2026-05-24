@@ -6,10 +6,12 @@ import type { FishKind } from './Fish'
 import { nextActiveCount } from './fishHelpers'
 import { computeBoidsSteer } from './boids'
 import type { BoidAgent } from './boids'
-import { FISH, BOIDS } from '../../shared/config'
+import { FISH, BOIDS, LURE, FOOD } from '../../shared/config'
 import { clampFishCount } from '../../shared/clamp'
 import { loadFishPrototypes } from './fishAssets'
 import type { SpeciesId, FishPrototype } from './fishAssets'
+import { attractSteer, fleeSteer, isEaten } from './lureHelpers'
+import type { FoodParticles } from './FoodParticles'
 
 const SCHOOLING_RATIO = 0.6
 
@@ -33,6 +35,11 @@ export class FishSchool implements SceneEntity {
   private readonly _agentBuf: BoidAgent[] = []
   private _prototypes: Map<SpeciesId, FishPrototype> | null = null
   private _ready = false
+
+  /* feed/scare 상태 */
+  private _foodParticles: FoodParticles | null = null
+  private _scarePoint: THREE.Vector3 | null = null
+  private _scareTimer = 0
 
   constructor() {
     this.object3d = new THREE.Group()
@@ -65,6 +72,26 @@ export class FishSchool implements SceneEntity {
     return this._ready
   }
 
+  /** FoodParticles 참조를 설정한다 (먹이 소비 연동용). */
+  setFoodParticles(fp: FoodParticles): void {
+    this._foodParticles = fp
+  }
+
+  /** 먹이주기: 활성 먹이 입자가 있는 동안 물고기가 슬금슬금 모인다. */
+  feedAt(): void {
+    // feed 상태는 foodParticles.hasActive로 판단 — 별도 flag 불필요
+  }
+
+  /** 놀래키기: 클릭 지점에서 일정 시간 물고기가 도망한다. */
+  scareAt(point: THREE.Vector3): void {
+    this._scarePoint = point.clone()
+    this._scareTimer = LURE.scareDurationMs / 1000
+    // 속도 상한 일시 상향
+    if (this._pool) {
+      this._pool.forEachActive((fish) => fish.setSpeedMultiplier(LURE.scareSpeedMultiplier))
+    }
+  }
+
   update(dt: number): void {
     if (!this._ready || !this._pool) return
 
@@ -84,6 +111,9 @@ export class FishSchool implements SceneEntity {
 
     // Boids: schooling 물고기만 조향 적용
     this._applyBoids()
+
+    // Feed/Scare: 외부 조향을 합산 (boids 이후, update 이전)
+    this._applyLureSteer(dt)
 
     this._pool.forEachActive((fish) => fish.update(dt))
   }
@@ -123,6 +153,87 @@ export class FishSchool implements SceneEntity {
       }
       this._prototypes = null
     }
+  }
+
+  private _applyLureSteer(dt: number): void {
+    if (!this._pool) return
+
+    const steer = new THREE.Vector3()
+
+    // Scare 타이머 감소
+    if (this._scareTimer > 0) {
+      this._scareTimer -= dt
+      if (this._scareTimer <= 0) {
+        this._scarePoint = null
+        this._scareTimer = 0
+        // 속도 배율 복귀
+        this._pool.forEachActive((fish) => fish.setSpeedMultiplier(1))
+      }
+    }
+
+    // Feed: 활성 먹이 입자가 있으면 attract 적용 + 섭취 판정
+    const foodActive = this._foodParticles?.hasActive ?? false
+    const foodPositions = foodActive ? this._foodParticles!.activePositions() : []
+
+    // Scare/Feed 어느 것도 없으면 스킵
+    if (!this._scarePoint && foodPositions.length === 0) return
+
+    this._pool.forEachActive((fish) => {
+      steer.set(0, 0, 0)
+      const pos = fish.position
+
+      // Feed attract: 가장 가까운 먹이 입자로 조향
+      if (foodPositions.length > 0) {
+        let closestIdx = 0
+        let closestDist = Infinity
+        for (let i = 0; i < foodPositions.length; i++) {
+          const fp = foodPositions[i]
+          const dx = pos.x - fp.x
+          const dy = pos.y - fp.y
+          const dz = pos.z - fp.z
+          const d2 = dx * dx + dy * dy + dz * dz
+          if (d2 < closestDist) {
+            closestDist = d2
+            closestIdx = i
+          }
+        }
+
+        const target = foodPositions[closestIdx]
+        const a = attractSteer(
+          { x: pos.x, y: pos.y, z: pos.z },
+          { x: target.x, y: target.y, z: target.z },
+          LURE.attractWeight,
+          LURE.attractRadius,
+        )
+        steer.x += a.x
+        steer.y += a.y
+        steer.z += a.z
+
+        // 섭취 판정
+        if (isEaten({ x: pos.x, y: pos.y, z: pos.z }, target, FOOD.eatRadius)) {
+          this._foodParticles!.consume(target.index)
+          // 소비된 입자를 목록에서 제거 (다른 물고기가 동시 소비 방지)
+          foodPositions.splice(closestIdx, 1)
+        }
+      }
+
+      // Scare flee
+      if (this._scarePoint) {
+        const f = fleeSteer(
+          { x: pos.x, y: pos.y, z: pos.z },
+          { x: this._scarePoint.x, y: this._scarePoint.y, z: this._scarePoint.z },
+          LURE.fleeWeight,
+          LURE.fleeRadius,
+        )
+        steer.x += f.x
+        steer.y += f.y
+        steer.z += f.z
+      }
+
+      if (steer.x !== 0 || steer.y !== 0 || steer.z !== 0) {
+        fish.applySteer(steer)
+      }
+    })
   }
 
   private _applyBoids(): void {

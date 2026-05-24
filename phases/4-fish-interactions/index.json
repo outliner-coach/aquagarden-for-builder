@@ -22,8 +22,11 @@
     {
       "step": 2,
       "name": "feed-and-scare",
-      "status": "pending",
-      "eval": true
+      "status": "completed",
+      "eval": true,
+      "started_at": "2026-05-25T00:05:04+0900",
+      "summary": "lureHelpers.ts(attractSteer/fleeSteer/foodFallDelta/isEaten TDD 21테스트), FoodParticles(풀링 먹이 입자), FishSchool.feedAt/scareAt(외부 steer 합산+속도배율), FoodLure(armed 모드+화면→월드 변환), ControlPanel 먹이주기/놀래키기 버튼, LURE/FOOD config 상수, main.ts 배선 완료.",
+      "completed_at": "2026-05-25T00:14:00+0900"
     }
   ],
   "created_at": "2026-05-24T23:52:04+0900"

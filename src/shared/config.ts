@@ -256,6 +256,42 @@ export const DIALOGUE = {
   edgePadding: 12,
 } as const
 
+export const LURE = {
+  /** attract 조향 가중치 (부드럽게 모임) */
+  attractWeight: 0.8,
+  /** attract 유효 반경 */
+  attractRadius: 8,
+  /** flee 조향 가중치 (잽싸게 도망) */
+  fleeWeight: 5.0,
+  /** flee 유효 반경 */
+  fleeRadius: 6,
+  /** 놀래키기 지속 시간 (ms) */
+  scareDurationMs: 1200,
+  /** 놀래키기 동안 최대 속도 배율 */
+  scareSpeedMultiplier: 2.5,
+} as const
+
+export const FOOD = {
+  /** 한 번 클릭 시 생성되는 먹이 수 */
+  spawnCount: 5,
+  /** 먹이 낙하 속도 (units/s) */
+  fallSpeed: 1.2,
+  /** 먹이 입자 최대 풀 크기 */
+  maxParticles: 20,
+  /** 먹이 입자 수명 (초) */
+  lifetime: 6,
+  /** 먹이 입자 크기 */
+  size: 0.06,
+  /** 섭취 판정 반경 */
+  eatRadius: 0.5,
+  /** 스폰 위치 Y 오프셋 (수면 근처에서 떨어짐) */
+  spawnYOffset: 1.5,
+  /** 스폰 XZ 산포 */
+  spawnSpread: 0.4,
+  /** 먹이 색상 */
+  color: [0.9, 0.6, 0.2] as readonly [number, number, number],
+} as const
+
 export const COLORS = {
   point: '#4fd1c5',
   panelBg: 'rgba(15, 23, 28, 0.82)',

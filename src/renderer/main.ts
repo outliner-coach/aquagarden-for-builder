@@ -6,6 +6,8 @@ import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
 import { GlowSprites } from './entities/GlowSprites'
 import { FishDialogue } from './entities/FishDialogue'
+import { FoodParticles } from './entities/FoodParticles'
+import { FoodLure } from './entities/FoodLure'
 import { ControlPanel } from './ui/ControlPanel'
 import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
@@ -50,6 +52,12 @@ sceneRoot.add(bubbles)
 
 const glowSprites = new GlowSprites()
 sceneRoot.add(glowSprites)
+
+const foodParticles = new FoodParticles()
+sceneRoot.add(foodParticles)
+
+// FishSchool에 FoodParticles 참조 연결 (먹이 소비 연동)
+fishSchool.setFoodParticles(foodParticles)
 
 const loop = new RenderLoop((dt) => {
   sceneRoot.update(dt)
@@ -126,8 +134,17 @@ function syncWindowSize(): void {
   window.aqua.setWindowSize(currentBarWidth, winH)
 }
 
+// ── FoodLure 컨트롤러 (먹이주기/놀래키기) ──
+const foodLure = new FoodLure(
+  sceneRoot.camera,
+  canvas!,
+  fishSchool,
+  foodParticles,
+  () => !settings.clickThrough && !settings.hidden,
+)
+
 // ── ControlPanel 배선 ──
-new ControlPanel(
+const controlPanel = new ControlPanel(
   document.body,
   {
     fishCount: settings.fishCount,
@@ -189,8 +206,16 @@ new ControlPanel(
       panelExpanded = expanded
       syncWindowSize()
     },
+    onLureModeChange(mode) {
+      foodLure.setMode(mode)
+    },
   },
 )
+
+// FoodLure → ControlPanel 모드 동기화 (토글 해제 시 UI 반영)
+foodLure.onModeChange = (mode) => {
+  controlPanel.setLureMode(mode)
+}
 
 // ── 물고기 클릭 대사 ──
 new FishDialogue(

@@ -1,5 +1,6 @@
 import { FISH, COLORS } from '../../shared/config'
 import { setupButtonDrag, setupPanelDrag } from './drag'
+import type { LureMode } from '../entities/FoodLure'
 
 /** ControlPanel이 외부에 알려주는 콜백 인터페이스 */
 export interface ControlPanelCallbacks {
@@ -14,6 +15,8 @@ export interface ControlPanelCallbacks {
   onControlsHoverChange: (hovering: boolean) => void
   /** 패널 확장/축소 시. 창 높이 조정용(잘림 방지). */
   onExpandedChange: (expanded: boolean) => void
+  /** 먹이주기/놀래키기 모드 변경. */
+  onLureModeChange: (mode: LureMode) => void
 }
 
 /** 초기 상태 */
@@ -47,6 +50,8 @@ export class ControlPanel {
   private readonly _hideToggle: HTMLInputElement
   private readonly _clickThroughToggle: HTMLInputElement
   private readonly _alwaysOnTopToggle: HTMLInputElement
+  private readonly _feedBtn: HTMLButtonElement
+  private readonly _scareBtn: HTMLButtonElement
 
   constructor(
     container: HTMLElement,
@@ -147,6 +152,24 @@ export class ControlPanel {
       (checked) => callbacks.onAlwaysOnTopChange(checked),
     )
 
+    // ── 먹이주기 / 놀래키기 버튼 ──
+    const lureRow = document.createElement('div')
+    lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;'
+
+    this._feedBtn = document.createElement('button')
+    this._feedBtn.className = 'cp__lure-btn'
+    this._feedBtn.textContent = '먹이주기'
+    this._feedBtn.addEventListener('click', () => callbacks.onLureModeChange('feed'))
+
+    this._scareBtn = document.createElement('button')
+    this._scareBtn.className = 'cp__lure-btn'
+    this._scareBtn.textContent = '놀래키기'
+    this._scareBtn.addEventListener('click', () => callbacks.onLureModeChange('scare'))
+
+    lureRow.appendChild(this._feedBtn)
+    lureRow.appendChild(this._scareBtn)
+    this._panel.appendChild(lureRow)
+
     this._root.appendChild(this._panel)
     container.appendChild(this._root)
 
@@ -172,6 +195,12 @@ export class ControlPanel {
     this._root.addEventListener('mouseleave', () => {
       this._callbacks.onControlsHoverChange(false)
     })
+  }
+
+  /** 외부에서 lure 모드 상태를 UI에 반영 */
+  setLureMode(mode: LureMode): void {
+    this._feedBtn.classList.toggle('cp__lure-btn--active', mode === 'feed')
+    this._scareBtn.classList.toggle('cp__lure-btn--active', mode === 'scare')
   }
 
   /** 외부에서 상태를 갱신하면 UI를 동기화 */
@@ -337,6 +366,25 @@ export class ControlPanel {
       }
       .cp__toggle input:checked + .cp__toggle-track::after {
         transform:translateX(16px);
+      }
+
+      .cp__lure-btn {
+        flex:1;
+        padding:6px 0;
+        border:1px solid ${COLORS.border};
+        border-radius:6px;
+        background:${COLORS.buttonBg};
+        color:${COLORS.textSecondary};
+        font-size:12px;font-weight:500;
+        cursor:pointer;
+        transition:background 150ms,color 150ms,border-color 150ms;
+      }
+      .cp__lure-btn:hover {
+        background:rgba(15,23,28,0.76);
+      }
+      .cp__lure-btn--active {
+        border-color:${COLORS.point};
+        color:${COLORS.point};
       }
     `
     document.head.appendChild(style)

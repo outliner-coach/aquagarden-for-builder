@@ -40,6 +40,7 @@ export class Fish {
   private readonly _velocity = new THREE.Vector3()
   private _wanderPhase = 0
   private readonly _steer = new THREE.Vector3()
+  private _speedMultiplier = 1
 
   constructor(prototypes: Map<SpeciesId, FishPrototype>) {
     this._prototypes = prototypes
@@ -123,6 +124,11 @@ export class Fish {
     this._steer.add(v)
   }
 
+  /** 일시적 속도 배율 (놀래키기). 1=평상시. */
+  setSpeedMultiplier(m: number): void {
+    this._speedMultiplier = m
+  }
+
   setVisible(visible: boolean): void {
     this.mesh.visible = visible
   }
@@ -162,7 +168,7 @@ export class Fish {
 
     // 속도 범위 유지
     const speed = this._velocity.length()
-    const maxSpeed = this._baseSpeed * 1.5
+    const maxSpeed = this._baseSpeed * 1.5 * this._speedMultiplier
     const minSpeed = this._baseSpeed * 0.3
     if (speed > maxSpeed) {
       this._velocity.multiplyScalar(maxSpeed / speed)

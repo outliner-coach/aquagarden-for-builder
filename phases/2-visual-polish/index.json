@@ -1,0 +1,9 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "2-visual-polish",
+  "steps": [
+    { "step": 0, "name": "hardscape-richness", "status": "pending", "eval": true },
+    { "step": 1, "name": "plants-richness", "status": "pending", "eval": true },
+    { "step": 2, "name": "atmosphere-tuning", "status": "pending", "eval": true }
+  ]
+}

@@ -8,7 +8,8 @@
       "status": "completed",
       "started_at": "2026-05-24T14:40:29+0900",
       "completed_at": "2026-05-24T14:46:41+0900",
-      "summary": "환경맵(PMREM+RoomEnvironment) IBL 도입, scene.environmentIntensity 노출, 밝기 슬라이더가 directional/ambient/env 동시 구동, Aquascape 모래·바위 MeshStandardMaterial lit 전환, brightnessToEnvIntensity 헬퍼+테스트 7건 추가"
+      "summary": "환경맵(PMREM+RoomEnvironment) IBL 도입, scene.environmentIntensity 노출, 밝기 슬라이더가 directional/ambient/env 동시 구동, Aquascape 모래·바위 MeshStandardMaterial lit 전환, brightnessToEnvIntensity 헬퍼+테스트 7건 추가",
+      "eval": true
     },
     {
       "step": 1,
@@ -24,7 +25,8 @@
       "status": "completed",
       "started_at": "2026-05-24T14:52:53+0900",
       "completed_at": "2026-05-24T15:01:07+0900",
-      "summary": "Fish를 GLB 클론(geometry 공유)+MeshStandard로 교체, onBeforeCompile 바디 벤딩 헤엄+림라이트, FishSchool 비동기 프로토타입 로딩·분할 생성, seedToPhase/swimAmplitudeFor 순수함수+테스트 10건, boids/풀링 보존"
+      "summary": "Fish를 GLB 클론(geometry 공유)+MeshStandard로 교체, onBeforeCompile 바디 벤딩 헤엄+림라이트, FishSchool 비동기 프로토타입 로딩·분할 생성, seedToPhase/swimAmplitudeFor 순수함수+테스트 10건, boids/풀링 보존",
+      "eval": true
     },
     {
       "step": 3,
@@ -32,7 +34,8 @@
       "status": "completed",
       "started_at": "2026-05-24T15:01:07+0900",
       "completed_at": "2026-05-24T15:07:28+0900",
-      "summary": "삼각 블레이드→알파컷아웃 그래스 카드(CanvasTexture, alphaTest), InstancedMesh 3종 레이어드(carpet/bush/tall), 높이가중 버텍스 스웨이, generatePlantInstances/swayHeightFactor 순수함수+테스트 17건 추가"
+      "summary": "삼각 블레이드→알파컷아웃 그래스 카드(CanvasTexture, alphaTest), InstancedMesh 3종 레이어드(carpet/bush/tall), 높이가중 버텍스 스웨이, generatePlantInstances/swayHeightFactor 순수함수+테스트 17건 추가",
+      "eval": true
     },
     {
       "step": 4,
@@ -40,7 +43,8 @@
       "status": "completed",
       "started_at": "2026-05-24T15:07:28+0900",
       "completed_at": "2026-05-24T15:14:09+0900",
-      "summary": "모래 색·노멀 변주(절차적 CanvasTexture+버텍스컬러), 바위 군락 확장(10+14개 결정적 배치), 절차적 유목(TubeGeometry 가지) 추가, generateHardscape 순수함수+테스트 10건, 커스틱 주입 대비 모래 MeshStandard 유지"
+      "summary": "모래 색·노멀 변주(절차적 CanvasTexture+버텍스컬러), 바위 군락 확장(10+14개 결정적 배치), 절차적 유목(TubeGeometry 가지) 추가, generateHardscape 순수함수+테스트 10건, 커스틱 주입 대비 모래 MeshStandard 유지",
+      "eval": true
     },
     {
       "step": 5,
@@ -48,7 +52,8 @@
       "status": "completed",
       "started_at": "2026-05-24T15:14:09+0900",
       "completed_at": "2026-05-24T15:26:56+0900",
-      "summary": "절차적 Voronoi CanvasTexture 커스틱 2중 UV 스크롤, 모래+물고기+바위+유목 top-down 투사(공유 GLSL 청크+uniform 싱글턴), causticUvOffset 순수함수+테스트 10건, 밝기 연동 세기(config 상수)"
+      "summary": "절차적 Voronoi CanvasTexture 커스틱 2중 UV 스크롤, 모래+물고기+바위+유목 top-down 투사(공유 GLSL 청크+uniform 싱글턴), causticUvOffset 순수함수+테스트 10건, 밝기 연동 세기(config 상수)",
+      "eval": true
     },
     {
       "step": 6,
@@ -56,7 +61,8 @@
       "status": "completed",
       "started_at": "2026-05-24T15:26:56+0900",
       "completed_at": "2026-05-24T15:41:07+0900",
-      "summary": "깊이 기반 틸 틴트+알파 페이드(onBeforeCompile, Fog 미사용), additive 라이트 샤프트 3장(밝기 연동, CustomBlending+depthWrite:false), depthToWaterTint 순수함수+테스트 11건"
+      "summary": "깊이 기반 틸 틴트+알파 페이드(onBeforeCompile, Fog 미사용), additive 라이트 샤프트 3장(밝기 연동, CustomBlending+depthWrite:false), depthToWaterTint 순수함수+테스트 11건",
+      "eval": true
     },
     {
       "step": 7,
@@ -64,7 +70,8 @@
       "status": "completed",
       "started_at": "2026-05-24T15:41:07+0900",
       "completed_at": "2026-05-24T15:50:38+0900",
-      "summary": "기포 소프트 additive 스프라이트 업그레이드(라디얼 알파 CanvasTexture+ShaderMaterial, 수면 페이드+크기 변주), 가짜 블룸 글로우 스프라이트(풀스크린 블룸 미사용, 밝기 연동 드리프트+펄스), 공유 update 통합으로 hidden 정지 보존, bubbleSizeForSeed/bubbleSurfaceFadeAlpha/glowOpacityForBrightness/glowPulse 순수함수+테스트 19건"
+      "summary": "기포 소프트 additive 스프라이트 업그레이드(라디얼 알파 CanvasTexture+ShaderMaterial, 수면 페이드+크기 변주), 가짜 블룸 글로우 스프라이트(풀스크린 블룸 미사용, 밝기 연동 드리프트+펄스), 공유 update 통합으로 hidden 정지 보존, bubbleSizeForSeed/bubbleSurfaceFadeAlpha/glowOpacityForBrightness/glowPulse 순수함수+테스트 19건",
+      "eval": true
     }
   ],
   "created_at": "2026-05-24T14:40:29+0900",

@@ -11,3 +11,8 @@ phases/**/step*-output.json
 
 # brainstorming visual companion
 .superpowers/
+
+# 런타임 eval 산출물 (스모크 스크린샷·리포트)
+phases/**/eval/
+eval-report.json
+eval-screenshot.png

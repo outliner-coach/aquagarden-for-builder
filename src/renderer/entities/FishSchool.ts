@@ -57,6 +57,14 @@ export class FishSchool implements SceneEntity {
     this._targetCount = clampFishCount(n)
   }
 
+  get activeCount(): number {
+    return this._pool?.activeCount ?? 0
+  }
+
+  get ready(): boolean {
+    return this._ready
+  }
+
   update(dt: number): void {
     if (!this._ready || !this._pool) return
 

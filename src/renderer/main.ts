@@ -10,6 +10,7 @@ import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
 import { FISH, LIGHT, WINDOW } from '../shared/config'
 import type { AppSettings } from '../shared/types'
+import { markReady, setFishActive, tickFrame } from './health'
 
 const container = document.getElementById('app')!
 // 캔버스를 바 높이에 고정한다. 패널 확장 시 창이 커져도 수조는 리프레임되지 않는다.
@@ -27,9 +28,12 @@ const fishSchool = new FishSchool()
 sceneRoot.add(fishSchool)
 
 // 비동기 GLB 프로토타입 로딩 — 렌더 루프는 즉시 시작, 물고기는 로드 후 등장
-fishSchool.init().catch((err) => {
-  console.error('[FishSchool] 초기화 실패:', err)
-})
+fishSchool
+  .init()
+  .then(() => markReady())
+  .catch((err) => {
+    console.error('[FishSchool] 초기화 실패:', err)
+  })
 
 const lightShafts = new LightShafts()
 sceneRoot.add(lightShafts)
@@ -43,6 +47,8 @@ sceneRoot.add(glowSprites)
 const loop = new RenderLoop((dt) => {
   sceneRoot.update(dt)
   sceneRoot.render()
+  setFishActive(fishSchool.activeCount)
+  tickFrame()
 })
 
 loop.start()

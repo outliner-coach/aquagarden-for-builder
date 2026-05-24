@@ -6,6 +6,8 @@ Usage:
     python3 scripts/execute.py <phase-dir> [--push]
 """
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import json
@@ -20,6 +22,12 @@ from pathlib import Path
 from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# 비전 판정(선택) — 없으면 스모크만으로 진행
+try:
+    from eval_vision import judge_visual  # type: ignore
+except Exception:  # pragma: no cover
+    judge_visual = None  # type: ignore
 
 
 @contextlib.contextmanager
@@ -58,13 +66,15 @@ class StepExecutor:
     CHORE_MSG = "chore({phase}): step {num} output"
     TZ = timezone(timedelta(hours=9))
 
-    def __init__(self, phase_dir_name: str, *, auto_push: bool = False):
+    def __init__(self, phase_dir_name: str, *, auto_push: bool = False,
+                 eval_enabled: bool = True):
         self._root = str(ROOT)
         self._phases_dir = ROOT / "phases"
         self._phase_dir = self._phases_dir / phase_dir_name
         self._phase_dir_name = phase_dir_name
         self._top_index_file = self._phases_dir / "index.json"
         self._auto_push = auto_push
+        self._eval_enabled = eval_enabled and os.environ.get("AQUA_EVAL", "1") != "0"
 
         if not self._phase_dir.is_dir():
             print(f"ERROR: {self._phase_dir} not found")
@@ -87,7 +97,26 @@ class StepExecutor:
         guardrails = self._load_guardrails()
         self._ensure_created_at()
         self._execute_all_steps(guardrails)
+        self._phase_eval_gate()
         self._finalize()
+
+    def _phase_eval_gate(self):
+        """phase 끝 최종 런타임 eval 게이트. 실패 시 phase를 error로 표시하고 중단한다."""
+        if not self._eval_enabled:
+            return
+        index = self._read_json(self._index_file)
+        if not any(self._step_needs_eval(s) for s in index["steps"]) and not index.get("eval"):
+            return
+        with progress_indicator("Phase 최종 eval (build+smoke+vision)"):
+            ok, report = self._run_eval("phase", vision=True)
+        if ok:
+            print(f"  ✓ Phase eval 통과: {report}")
+            return
+        print(f"\n  ✗ Phase 최종 eval 실패 — 목표 수준 미달:")
+        print(f"    {report[:600]}")
+        print(f"  해당 렌더 step의 status를 'pending'으로 되돌리고 다시 실행하세요.")
+        self._update_top_index("error")
+        sys.exit(1)
 
     # --- timestamps ---
 
@@ -256,6 +285,70 @@ class StepExecutor:
 
         return output
 
+    # --- 런타임 eval 게이트 ---
+
+    @staticmethod
+    def _step_needs_eval(step: dict) -> bool:
+        """index.json step 항목에 "eval": true 가 있으면 런타임 eval 대상."""
+        return bool(step.get("eval"))
+
+    def _run_eval(self, label: str, step_num: Optional[int] = None,
+                  *, vision: bool = False) -> tuple[bool, str]:
+        """빌드 → 스모크(headless 런타임) → (vision=True 시) 비전 미적 판정. (통과여부, 리포트).
+
+        에이전트의 self-report를 신뢰하지 않고 실제 렌더링을 독립 검증한다.
+        per-step은 스모크(깨짐 게이트)만, phase 끝은 비전 미적 판정까지 수행한다.
+        """
+        eval_dir = self._phase_dir / "eval"
+        eval_dir.mkdir(exist_ok=True)
+        tag = f"step{step_num}" if step_num is not None else "phase"
+        report_path = eval_dir / f"{tag}-smoke.json"
+        shot_path = eval_dir / f"{tag}-shot.png"
+
+        # 1) 빌드 (tsc + electron-vite build)
+        b = subprocess.run(["npm", "run", "build"], cwd=self._root,
+                           capture_output=True, text=True, timeout=600)
+        if b.returncode != 0:
+            return False, "build 실패:\n" + (b.stdout + b.stderr)[-1500:]
+
+        # 2) 스모크 — Electron을 headless로 띄워 콘솔 에러·헬스·픽셀 검증
+        electron = ROOT / "node_modules" / ".bin" / "electron"
+        if not electron.exists():
+            return False, "electron 바이너리를 찾을 수 없음 (npm install 필요)"
+        env = {
+            **os.environ,
+            "AQUA_SMOKE": "1",
+            "AQUA_SMOKE_REPORT": str(report_path),
+            "AQUA_SMOKE_SHOT": str(shot_path),
+        }
+        try:
+            s = subprocess.run([str(electron), "."], cwd=self._root,
+                              capture_output=True, text=True, timeout=120, env=env)
+        except subprocess.TimeoutExpired:
+            return False, "스모크 타임아웃 (electron이 120s 내 종료 못함)"
+
+        try:
+            rep = json.loads(report_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return False, f"스모크 리포트 없음 (electron exit {s.returncode}):\n{s.stderr[-800:]}"
+
+        if not rep.get("pass"):
+            fails = rep.get("failures", [])
+            return False, "스모크(런타임) 실패:\n- " + "\n- ".join(str(f) for f in fails)
+
+        # 3) 비전 미적 판정 (phase 끝에서만)
+        if vision and judge_visual is not None and os.environ.get("AQUA_EVAL_VISION", "1") != "0":
+            ref = ROOT / "reference_image.png"
+            verdict = judge_visual(str(shot_path), str(ref) if ref.exists() else None)
+            if verdict.get("skipped"):
+                print(f"  (비전 판정 건너뜀: {verdict.get('summary','')})")
+            elif not verdict.get("pass", True):
+                defects = "; ".join(verdict.get("defects", []))
+                return False, (f"비전 미적 판정 실패 (score={verdict.get('score','?')}): "
+                              f"{verdict.get('summary','')}\n결함: {defects}")
+
+        return True, f"eval 통과 (스모크 + 비전), screenshot={shot_path}"
+
     # --- 헤더 & 검증 ---
 
     def _print_header(self):
@@ -314,6 +407,37 @@ class StepExecutor:
             ts = self._stamp()
 
             if status == "completed":
+                # 에이전트 self-report를 신뢰하지 않고 런타임 eval로 독립 검증한다.
+                # (build/test/lint 통과해도 실제 렌더가 깨질 수 있으므로 — 이 갭이 과거 사고의 원인)
+                if self._eval_enabled and self._step_needs_eval(step):
+                    with progress_indicator(f"Step {step_num} eval (build+smoke)"):
+                        ok, report = self._run_eval(f"step{step_num}", step_num)
+                    if not ok:
+                        index = self._read_json(self._index_file)
+                        if attempt < self.MAX_RETRIES:
+                            for s in index["steps"]:
+                                if s["step"] == step_num:
+                                    s["status"] = "pending"
+                                    s.pop("error_message", None)
+                            self._write_json(self._index_file, index)
+                            prev_error = "런타임 eval 실패 — 실제로 동작/표시되지 않음:\n" + report
+                            print(f"  ↻ Step {step_num}: eval 실패 → retry {attempt}/{self.MAX_RETRIES}")
+                            print(f"    {report.splitlines()[0] if report else ''}")
+                            continue
+                        ts = self._stamp()
+                        for s in index["steps"]:
+                            if s["step"] == step_num:
+                                s["status"] = "error"
+                                s["error_message"] = f"[{self.MAX_RETRIES}회 시도 후 eval 실패] {report}"
+                                s["failed_at"] = ts
+                        self._write_json(self._index_file, index)
+                        self._commit_step(step_num, step_name)
+                        print(f"  ✗ Step {step_num}: 런타임 eval 실패 (최대 시도 초과)")
+                        print(f"    {report[:400]}")
+                        self._update_top_index("error")
+                        sys.exit(1)
+                    print(f"  ✓ eval 통과: {report}")
+
                 for s in index["steps"]:
                     if s["step"] == step_num:
                         s["completed_at"] = ts
@@ -408,9 +532,11 @@ def main():
     parser = argparse.ArgumentParser(description="Harness Step Executor")
     parser.add_argument("phase_dir", help="Phase directory name (e.g. 0-mvp)")
     parser.add_argument("--push", action="store_true", help="Push branch after completion")
+    parser.add_argument("--no-eval", action="store_true",
+                        help="런타임 eval 게이트(빌드+스모크+비전) 비활성화")
     args = parser.parse_args()
 
-    StepExecutor(args.phase_dir, auto_push=args.push).run()
+    StepExecutor(args.phase_dir, auto_push=args.push, eval_enabled=not args.no_eval).run()
 
 
 if __name__ == "__main__":

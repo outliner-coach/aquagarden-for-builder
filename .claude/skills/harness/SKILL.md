@@ -52,17 +52,18 @@ version: 0.1.0
   "phase": "<task-name>",
   "steps": [
     { "step": 0, "name": "project-setup", "status": "pending" },
-    { "step": 1, "name": "core-types", "status": "pending" }
+    { "step": 1, "name": "render-core", "status": "pending", "eval": true }
   ]
 }
 ```
 - `phase`는 디렉토리명과 일치. `step`은 0부터. `status` 초기값 전부 `pending`.
 - `created_at`(task), `started_at`(step), 각종 타임스탬프는 execute.py가 자동 기록 — 생성 시 넣지 않는다.
+- **`"eval": true`** — 실제로 **앱을 띄워 화면이 동작/표시되어야 의미가 있는 step**(렌더링·UI·시각 효과 등)에 붙인다. 이 플래그가 있으면 execute.py가 에이전트의 self-report를 신뢰하지 않고 **런타임 eval(빌드+스모크)** 로 독립 검증한다(§F). 순수 로직/설정 step에는 붙이지 않는다.
 
 **D-3. `phases/{task-name}/step{N}.md`** (step마다 1개) — 다음 섹션 구성:
 - `## 읽어야 할 파일` — 관련 docs + 이전 step 산출 파일 경로. (이미지 등 참고자료도 명시)
 - `## 작업` — 구체적 지시. 파일 경로·시그니처·로직. 구현체는 에이전트에 위임하되 핵심 규칙은 박아넣는다.
-- `## Acceptance Criteria` — 실행 가능한 커맨드 (```bash 블록).
+- `## Acceptance Criteria` — 실행 가능한 커맨드 (```bash 블록). **CRITICAL: `build/test/lint`만으로는 부족하다.** 그것들은 순수 로직만 검증하며, 실제 렌더링/동작이 깨져도 통과할 수 있다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 화면에 보여야 하는 step은 **런타임 검증**(예: `npm run smoke`)을 AC에 포함하고 `index.json`에 `"eval": true`를 둔다(§F).
 - `## 검증 절차` — AC 실행 → 아키텍처 체크리스트 → `index.json` step status 갱신 규칙:
   - 성공 → `completed` + `summary`(다음 step에 유용한 산출물 한 줄 요약)
   - 3회 시도 후 실패 → `error` + `error_message`
@@ -79,6 +80,17 @@ python3 scripts/execute.py {task-name} --push  # 완료 후 push
 execute.py가 자동 처리: `feat-{task-name}` 브랜치 생성/checkout, 가드레일 주입(CLAUDE.md + docs/*.md를 매 step 프롬프트에 포함), 컨텍스트 누적(완료 step의 summary 전달), 자가교정(실패 시 최대 3회 재시도, 이전 에러 피드백), 2단계 커밋(코드 `feat` / 메타데이터 `chore`), 타임스탬프 기록.
 
 기본적으로 사용자가 직접 실행하게 두고, 실행 전 step 파일을 검토하게 한다. (실행은 비용·시간이 크므로 자동 실행을 강요하지 않는다.)
+
+### F. 런타임 eval 게이트 (자기보고 불신 + 자동 반복)
+
+빌드/테스트/린트가 모두 통과해도 실제 화면이 깨질 수 있다(셰이더 컴파일 오류, 블랭크, 무물고기 등). 이를 막기 위해 execute.py는 **에이전트의 `completed` 자기보고를 그대로 믿지 않고**, `"eval": true` step과 phase 끝에서 **실제 앱을 띄워 독립 검증**한다. 실패하면 step을 `pending`으로 되돌리고 eval 리포트를 다음 시도의 피드백으로 주입해, **목표 수준으로 동작·표시될 때까지 자가 반복**한다(최대 3회). 구성:
+
+- **스모크 하니스** (`src/main/smoke.ts` + `smokeEval.ts`, `AQUA_SMOKE=1`로 `npm run smoke`): Electron을 headless(숨김)로 띄워 ① 콘솔의 셰이더/런타임 에러·`useProgram` 무효 수집, ② `window.__AQUA_HEALTH__`(ready·활성 개체 수·errors·frames) 확인, ③ `capturePage` 스크린샷의 블랭크/단색/투명보존 픽셀 분석. 객관적 "깨짐 게이트"이며, 판정 로직은 순수 함수로 단위 테스트됨.
+- **렌더러 헬스 훅** (`src/renderer/health.ts`): `console.error`/예외를 수집하고 ready·활성 개체 수를 노출. 신규 렌더 기능은 적절히 헬스에 연결한다.
+- **비전 미적 판정** (`scripts/eval_vision.py`): **phase 끝에서만** 스크린샷을 `reference_image.png`·설계 의도와 비교해 "보여지는 수준"을 판정(claude 멀티모달). 깨짐은 스모크가, 미적 수준은 비전이 담당. claude CLI/이미지 없으면 자동 건너뜀.
+- per-step = 스모크(깨짐)만, phase 끝 = 스모크 + 비전.
+- 끄기: `python3 scripts/execute.py {task} --no-eval` 또는 `AQUA_EVAL=0`. 비전만 끄기: `AQUA_EVAL_VISION=0`.
+- 주의: eval은 GPU/디스플레이가 필요하다(로컬 macOS OK, headless CI는 xvfb 등 필요).
 
 ### 에러 복구
 - **error**: 해당 step의 `status`를 `pending`으로, `error_message` 삭제 후 재실행.

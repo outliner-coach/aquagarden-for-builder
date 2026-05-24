@@ -28,7 +28,7 @@ export function computeBarBounds(workArea: WorkArea, cfg: BarConfig): BarBounds 
   }
 }
 
-export function createOverlayWindow(): BrowserWindow {
+export function createOverlayWindow(opts?: { show?: boolean }): BrowserWindow {
   const workArea = screen.getPrimaryDisplay().workAreaSize
   const bounds = computeBarBounds(workArea, WINDOW)
 
@@ -37,11 +37,14 @@ export function createOverlayWindow(): BrowserWindow {
     height: bounds.height,
     x: bounds.x,
     y: bounds.y,
+    show: opts?.show ?? true,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: false,
+    // 스모크(headless eval) 시 숨김 창도 페인트되도록 — capturePage용
+    paintWhenInitiallyHidden: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

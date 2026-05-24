@@ -63,7 +63,7 @@
       "name": "effects-polish",
       "status": "completed",
       "started_at": "2026-05-24T15:41:07+0900",
-      "completed_at": "2026-05-24T15:52:00+0900",
+      "completed_at": "2026-05-24T15:50:38+0900",
       "summary": "기포 소프트 additive 스프라이트 업그레이드(라디얼 알파 CanvasTexture+ShaderMaterial, 수면 페이드+크기 변주), 가짜 블룸 글로우 스프라이트(풀스크린 블룸 미사용, 밝기 연동 드리프트+펄스), 공유 update 통합으로 hidden 정지 보존, bubbleSizeForSeed/bubbleSurfaceFadeAlpha/glowOpacityForBrightness/glowPulse 순수함수+테스트 19건"
     }
   ],

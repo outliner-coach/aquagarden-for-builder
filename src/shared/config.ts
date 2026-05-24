@@ -38,6 +38,17 @@ export const AQUASCAPE = {
   sandY: -1.8,
 } as const
 
+export const BOIDS = {
+  separationRadius: 1.5,
+  alignmentRadius: 3.0,
+  cohesionRadius: 3.0,
+  separationWeight: 2.0,
+  alignmentWeight: 1.0,
+  cohesionWeight: 1.0,
+  maxSpeed: 2.0,
+  maxSteer: 3.0,
+} as const
+
 export const COLORS = {
   point: '#4fd1c5',
   panelBg: 'rgba(15, 23, 28, 0.82)',

@@ -54,6 +54,9 @@ export const WATER_DEPTH_FRAG_MAIN = /* glsl */ `
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uWaterTintColor, tintT * uWaterMaxTint);
   // 알파 페이드는 더 먼 거리(uWaterAlphaFar)까지 램프 → 모래 먼 가장자리에서 0으로 용해(하드 컷 제거)
   float alphaT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterAlphaFar - uWaterDepthNear), 0.0, 1.0);
+  // smoothstep ease-out: 먼 가장자리에서 알파가 '기울기 0'으로 0에 도달 → 지평선 근처
+  // 원근 압축(깊이가 1~2px에 몰림)에도 마지막 픽셀에서 알파가 급강하하지 않아 수평선이 안 생김.
+  alphaT = alphaT * alphaT * (3.0 - 2.0 * alphaT);
   gl_FragColor.a *= 1.0 - alphaT * uWaterMaxFade;
 }`
 

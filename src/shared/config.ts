@@ -61,7 +61,6 @@ export const CAMERA = {
 
 export const AQUASCAPE = {
   sandY: -1.8,
-  glassEdgeOpacity: 0.05,
 } as const
 
 export const PLANT = {

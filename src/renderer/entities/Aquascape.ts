@@ -236,15 +236,12 @@ export class Aquascape implements SceneEntity {
   private readonly _disposables: Disposable[] = []
   /** 불투명 머티리얼(MeshStandard) — baseOpacity=1 고정 */
   private readonly _opaqueMaterials: THREE.MeshStandardMaterial[] = []
-  /** 유리 엣지 라인 머티리얼 — baseOpacity=glassEdgeOpacity */
-  private _glassEdgeMaterial: THREE.LineBasicMaterial | null = null
 
   constructor() {
     this.object3d = new THREE.Group()
     this._buildSand()
     this._buildGrassCards()
     this._buildHardscape()
-    this._buildGlassEdge()
   }
 
   update(dt: number): void {
@@ -264,11 +261,6 @@ export class Aquascape implements SceneEntity {
     for (const mat of this._opaqueMaterials) {
       mat.transparent = true
       mat.opacity = f
-    }
-
-    // 유리 엣지 라인
-    if (this._glassEdgeMaterial) {
-      this._glassEdgeMaterial.opacity = AQUASCAPE.glassEdgeOpacity * f
     }
 
     // 수초(ShaderMaterial) — gl_FragColor.a에 factor 곱
@@ -514,32 +506,4 @@ export class Aquascape implements SceneEntity {
     }
   }
 
-  /* ── Subtle glass edge highlights ── */
-  private _buildGlassEdge(): void {
-    const topY = 2.2
-    const bottomY = AQUASCAPE.sandY + 0.05
-    const halfW = 30
-
-    const mat = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: AQUASCAPE.glassEdgeOpacity,
-      depthWrite: false,
-    })
-    this._glassEdgeMaterial = mat
-
-    const topGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-halfW, topY, 0),
-      new THREE.Vector3(halfW, topY, 0),
-    ])
-    this.object3d.add(new THREE.Line(topGeo, mat))
-    this._disposables.push({ geometry: topGeo })
-
-    const bottomGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-halfW, bottomY, 0),
-      new THREE.Vector3(halfW, bottomY, 0),
-    ])
-    this.object3d.add(new THREE.Line(bottomGeo, mat))
-    this._disposables.push({ geometry: bottomGeo, material: mat })
-  }
 }

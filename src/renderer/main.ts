@@ -1,34 +1,26 @@
 import * as THREE from 'three'
+import { SceneRoot } from './core/SceneRoot'
+import { RenderLoop } from './core/RenderLoop'
 
-const canvas = document.createElement('canvas')
-const app = document.getElementById('app')!
-app.appendChild(canvas)
+const container = document.getElementById('app')!
 
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true })
-renderer.setClearColor(0x000000, 0)
-renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(window.devicePixelRatio)
+const sceneRoot = new SceneRoot(container)
 
-const scene = new THREE.Scene()
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100)
-camera.position.z = 3
+// 검증용 임시 와이어프레임 (step 5에서 제거)
+const geo = new THREE.IcosahedronGeometry(0.3, 0)
+const mat = new THREE.MeshBasicMaterial({ wireframe: true, color: 0x4fd1c5, transparent: true, opacity: 0.4 })
+const marker = new THREE.Mesh(geo, mat)
+sceneRoot.scene.add(marker)
 
-const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6)
-const material = new THREE.MeshNormalMaterial()
-const cube = new THREE.Mesh(geometry, material)
-scene.add(cube)
-
-function animate(): void {
-  requestAnimationFrame(animate)
-  cube.rotation.x += 0.01
-  cube.rotation.y += 0.01
-  renderer.render(scene, camera)
-}
-
-animate()
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight
-  camera.updateProjectionMatrix()
-  renderer.setSize(window.innerWidth, window.innerHeight)
+const loop = new RenderLoop((dt) => {
+  marker.rotation.y += dt * 0.5
+  sceneRoot.update(dt)
+  sceneRoot.render()
 })
+
+loop.start()
+
+// TODO(step-9): hidden 시 loop.stop(), 표시 시 loop.start() 배선
+// document.addEventListener('visibilitychange', () => {
+//   document.hidden ? loop.stop() : loop.start()
+// })

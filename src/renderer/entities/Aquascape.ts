@@ -4,6 +4,7 @@ import { advanceTime, generatePlantInstances, generateHardscape } from './aquasc
 import type { PlantSpeciesParams } from './aquascapeHelpers'
 import { AQUASCAPE, PLANT, HARDSCAPE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
+import { applyWaterDepthToMaterial } from './waterDepth'
 
 /* ── Grass card vertex shader: height-weighted sway, instanced ── */
 const GRASS_CARD_VERT = /* glsl */ `
@@ -273,6 +274,7 @@ export class Aquascape implements SceneEntity {
       side: THREE.DoubleSide,
     })
     applyCausticToStandardMaterial(mat, 'sand-caustic')
+    applyWaterDepthToMaterial(mat)
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(0, AQUASCAPE.sandY, -4)
     this.object3d.add(mesh)
@@ -401,6 +403,7 @@ export class Aquascape implements SceneEntity {
         metalness: 0,
       })
       applyCausticToStandardMaterial(mat, 'rock-caustic')
+      applyWaterDepthToMaterial(mat)
       const geo = isLargeRock ? rockGeoBase : pebbleGeoBase
       const mesh = new THREE.Mesh(geo, mat)
       mesh.position.set(p.x, p.y, p.z)
@@ -418,6 +421,7 @@ export class Aquascape implements SceneEntity {
       metalness: 0,
     })
     applyCausticToStandardMaterial(dwMat, 'driftwood-caustic')
+    applyWaterDepthToMaterial(dwMat)
     this._disposables.push({ geometry: dwGeo, material: dwMat })
 
     for (const p of hs.driftwood) {

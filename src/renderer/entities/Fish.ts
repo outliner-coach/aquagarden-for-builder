@@ -10,6 +10,13 @@ import {
   CAUSTIC_FRAG_DECLARE,
   CAUSTIC_FRAG_MAIN,
 } from './caustics'
+import {
+  attachWaterDepthUniforms,
+  WATER_DEPTH_VERT_DECLARE,
+  WATER_DEPTH_VERT_MAIN,
+  WATER_DEPTH_FRAG_DECLARE,
+  WATER_DEPTH_FRAG_MAIN,
+} from './waterDepth'
 
 /* ── Types ── */
 
@@ -74,6 +81,7 @@ export class Fish {
     this._material = new THREE.MeshStandardMaterial({
       roughness: 0.4,
       metalness: 0.1,
+      transparent: true,
     })
     this._setupShader()
 
@@ -250,8 +258,9 @@ export class Fish {
       shader.uniforms.uRimColor = uRimColor
       shader.uniforms.uRimPower = uRimPower
       attachCausticUniforms(shader)
+      attachWaterDepthUniforms(shader)
 
-      /* ── Vertex: 바디 벤딩 + 커스틱 world XZ ── */
+      /* ── Vertex: 바디 벤딩 + 커스틱 world XZ + 물 깊이 ── */
       shader.vertexShader = shader.vertexShader.replace(
         'void main() {',
         `uniform float uTime;
@@ -259,6 +268,7 @@ uniform float uSwimAmp;
 uniform float uSwimSpeed;
 uniform float uPhase;
 ${CAUSTIC_VERT_DECLARE}
+${WATER_DEPTH_VERT_DECLARE}
 void main() {`,
       )
 
@@ -273,17 +283,24 @@ transformed.z += wave * uSwimAmp * bendWeight;`,
       )
 
       shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+${WATER_DEPTH_VERT_MAIN}`,
+      )
+
+      shader.vertexShader = shader.vertexShader.replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
 ${CAUSTIC_VERT_MAIN}`,
       )
 
-      /* ── Fragment: 림라이트/프레넬 + 커스틱 ── */
+      /* ── Fragment: 림라이트/프레넬 + 커스틱 + 물 깊이 틴트 ── */
       shader.fragmentShader = shader.fragmentShader.replace(
         'void main() {',
         `uniform vec3 uRimColor;
 uniform float uRimPower;
 ${CAUSTIC_FRAG_DECLARE}
+${WATER_DEPTH_FRAG_DECLARE}
 void main() {`,
       )
 
@@ -297,8 +314,14 @@ float rimFactor = pow(1.0 - rimNdotV, uRimPower);
 totalEmissiveRadiance += uRimColor * rimFactor * 0.5;
 ${CAUSTIC_FRAG_MAIN}`,
       )
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <output_fragment>',
+        `#include <output_fragment>
+${WATER_DEPTH_FRAG_MAIN}`,
+      )
     }
 
-    this._material.customProgramCacheKey = () => 'fish-swim-rimlight-caustic'
+    this._material.customProgramCacheKey = () => 'fish-swim-rimlight-caustic-waterdepth'
   }
 }

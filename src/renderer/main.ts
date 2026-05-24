@@ -4,6 +4,7 @@ import { Aquascape } from './entities/Aquascape'
 import { FishSchool } from './entities/FishSchool'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
+import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
 import { FISH, LIGHT, WINDOW } from '../shared/config'
@@ -28,6 +29,9 @@ sceneRoot.add(fishSchool)
 fishSchool.init().catch((err) => {
   console.error('[FishSchool] 초기화 실패:', err)
 })
+
+const lightShafts = new LightShafts()
+sceneRoot.add(lightShafts)
 
 const bubbles = new Bubbles()
 sceneRoot.add(bubbles)
@@ -80,6 +84,7 @@ new ControlPanel(
     onBrightnessChange(b01: number) {
       settings.brightness01 = b01
       lighting.setBrightness01(b01)
+      lightShafts.setBrightness01(b01)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden

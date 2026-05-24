@@ -138,6 +138,25 @@ export const CAUSTIC = {
   gridCells: 6,
 } as const
 
+export const WATER = {
+  tintColor: [0.15, 0.55, 0.52] as readonly [number, number, number],
+  depthNear: 4.0,
+  depthFar: 10.0,
+  maxTintStrength: 0.3,
+  maxAlphaFade: 0.45,
+  shaft: {
+    baseOpacity: 0.07,
+    driftSpeed: 0.15,
+    height: 4.0,
+    topY: 2.2,
+    color: [1.0, 0.97, 0.9] as readonly [number, number, number],
+    zPos: -1.0,
+    xPositions: [-4, 2, 7] as readonly number[],
+    widths: [1.5, 1.8, 1.2] as readonly number[],
+    angles: [0.12, -0.08, 0.15] as readonly number[],
+  },
+} as const
+
 export const BOIDS = {
   separationRadius: 1.5,
   alignmentRadius: 3.0,

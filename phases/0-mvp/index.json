@@ -31,7 +31,7 @@
       "name": "overlay-ipc",
       "status": "completed",
       "started_at": "2026-05-24T11:30:18+0900",
-      "completed_at": "2026-05-24T11:33:00+0900",
+      "completed_at": "2026-05-24T11:33:33+0900",
       "summary": "overlay.ts(applyDelta순수함수·setClickThrough·moveWindowBy), ipc.ts(registerIpcHandlers 4채널), preload contextBridge로 window.aqua API 4종(moveWindowBy/setClickThrough/toggleVisibility/setAlwaysOnTop) 노출, global.d.ts 타입 선언. 6개 단위 테스트 추가(총 31개)"
     },
     {

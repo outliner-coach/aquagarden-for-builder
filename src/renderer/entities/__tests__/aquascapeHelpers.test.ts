@@ -181,16 +181,26 @@ describe('generatePlantInstances', () => {
 describe('generateHardscape', () => {
   const area = { minX: -12, maxX: 14, minZ: -5, maxZ: -2 }
   const sandY = -1.8
+  const config = {
+    rockCount: 12,
+    pebbleCount: 16,
+    driftwoodCount: 4,
+    clusterCount: 3,
+    clusterSpread: 3.5,
+    rock: { minScale: 0.18, maxScale: 0.55, maxHeightAboveSand: 0.7 },
+    pebble: { minScale: 0.04, maxScale: 0.12 },
+    driftwood: { minLength: 1.8, maxLength: 3.5, minRadius: 0.07, maxRadius: 0.13, maxHeightAboveSand: 0.9 },
+  }
 
   it('같은 시드는 같은 결과를 낸다 (결정적)', () => {
-    const a = generateHardscape(42, area, sandY)
-    const b = generateHardscape(42, area, sandY)
+    const a = generateHardscape(42, area, sandY, config)
+    const b = generateHardscape(42, area, sandY, config)
     expect(a).toEqual(b)
   })
 
   it('다른 시드는 다른 결과를 낸다', () => {
-    const a = generateHardscape(1, area, sandY)
-    const b = generateHardscape(2, area, sandY)
+    const a = generateHardscape(1, area, sandY, config)
+    const b = generateHardscape(2, area, sandY, config)
     const sameRocks = a.rocks.every(
       (r, i) => r.x === b.rocks[i]?.x && r.z === b.rocks[i]?.z,
     )
@@ -198,7 +208,7 @@ describe('generateHardscape', () => {
   })
 
   it('rocks 배치가 area 범위 안에 있다', () => {
-    const result = generateHardscape(99, area, sandY)
+    const result = generateHardscape(99, area, sandY, config)
     for (const r of result.rocks) {
       expect(r.x).toBeGreaterThanOrEqual(area.minX)
       expect(r.x).toBeLessThanOrEqual(area.maxX)
@@ -208,7 +218,7 @@ describe('generateHardscape', () => {
   })
 
   it('driftwood 배치가 area 범위 안에 있다', () => {
-    const result = generateHardscape(99, area, sandY)
+    const result = generateHardscape(99, area, sandY, config)
     for (const d of result.driftwood) {
       expect(d.x).toBeGreaterThanOrEqual(area.minX)
       expect(d.x).toBeLessThanOrEqual(area.maxX)
@@ -217,35 +227,34 @@ describe('generateHardscape', () => {
     }
   })
 
-  it('rocks y 위치가 하단에 한정된다 (sandY 기준 낮은 높이)', () => {
-    const result = generateHardscape(55, area, sandY)
+  it('rocks y 위치가 하단에 한정된다 (sandY + maxHeight 이내)', () => {
+    const result = generateHardscape(55, area, sandY, config)
     for (const r of result.rocks) {
-      // y는 sandY 위로 scale 반지름만큼만 올라간다 — 물고기 시야 보존
       expect(r.y).toBeGreaterThanOrEqual(sandY)
-      expect(r.y).toBeLessThanOrEqual(sandY + 0.6)
+      expect(r.y).toBeLessThanOrEqual(sandY + config.rock.maxHeightAboveSand)
     }
   })
 
   it('driftwood y 위치가 하단~중하단에 한정된다', () => {
-    const result = generateHardscape(55, area, sandY)
+    const result = generateHardscape(55, area, sandY, config)
     for (const d of result.driftwood) {
       expect(d.y).toBeGreaterThanOrEqual(sandY)
-      expect(d.y).toBeLessThanOrEqual(sandY + 1.0)
+      expect(d.y).toBeLessThanOrEqual(sandY + config.driftwood.maxHeightAboveSand)
     }
   })
 
-  it('rocks 배열이 비어 있지 않다', () => {
-    const result = generateHardscape(10, area, sandY)
-    expect(result.rocks.length).toBeGreaterThan(0)
+  it('rocks 배열 크기가 rockCount + pebbleCount와 일치한다', () => {
+    const result = generateHardscape(10, area, sandY, config)
+    expect(result.rocks.length).toBe(config.rockCount + config.pebbleCount)
   })
 
-  it('driftwood 배열이 비어 있지 않다', () => {
-    const result = generateHardscape(10, area, sandY)
-    expect(result.driftwood.length).toBeGreaterThan(0)
+  it('driftwood 배열 크기가 driftwoodCount와 일치한다', () => {
+    const result = generateHardscape(10, area, sandY, config)
+    expect(result.driftwood.length).toBe(config.driftwoodCount)
   })
 
   it('각 Placement에 position/scale/rotation 값이 있다', () => {
-    const result = generateHardscape(77, area, sandY)
+    const result = generateHardscape(77, area, sandY, config)
     for (const r of [...result.rocks, ...result.driftwood]) {
       expect(typeof r.x).toBe('number')
       expect(typeof r.y).toBe('number')
@@ -259,13 +268,32 @@ describe('generateHardscape', () => {
     }
   })
 
-  it('rocks 스케일이 양수이고 합리적 범위 내에 있다', () => {
-    const result = generateHardscape(33, area, sandY)
+  it('rocks 스케일이 양수이고 config 범위 내에 있다', () => {
+    const result = generateHardscape(33, area, sandY, config)
     for (const r of result.rocks) {
       expect(r.scaleX).toBeGreaterThan(0)
       expect(r.scaleY).toBeGreaterThan(0)
       expect(r.scaleZ).toBeGreaterThan(0)
-      expect(r.scaleX).toBeLessThanOrEqual(0.5)
+      // maxScale * max variation(1.2)
+      expect(r.scaleX).toBeLessThanOrEqual(config.rock.maxScale * 1.2)
     }
+  })
+
+  it('클러스터 배치로 바위들이 군집을 이룬다 (표준편차 < 완전 랜덤)', () => {
+    const result = generateHardscape(42, area, sandY, config)
+    const largeRocks = result.rocks.slice(0, config.rockCount)
+    // 평균 x 좌표
+    const avgX = largeRocks.reduce((s, r) => s + r.x, 0) / largeRocks.length
+    const variance = largeRocks.reduce((s, r) => s + (r.x - avgX) ** 2, 0) / largeRocks.length
+    // 완전 균일 랜덤의 분산 대비 클러스터는 더 작거나 특정 범위에 밀집
+    // area width = 26, uniform variance ≈ (26^2)/12 ≈ 56.3
+    const uniformVariance = ((area.maxX - area.minX) ** 2) / 12
+    expect(variance).toBeLessThan(uniformVariance)
+  })
+
+  it('config 없이 호출해도 기본값으로 동작한다', () => {
+    const result = generateHardscape(42, area, sandY)
+    expect(result.rocks.length).toBeGreaterThan(0)
+    expect(result.driftwood.length).toBeGreaterThan(0)
   })
 })

@@ -2,8 +2,26 @@
   "project": "Aquagarden Overlay",
   "phase": "2-visual-polish",
   "steps": [
-    { "step": 0, "name": "hardscape-richness", "status": "pending", "eval": true },
-    { "step": 1, "name": "plants-richness", "status": "pending", "eval": true },
-    { "step": 2, "name": "atmosphere-tuning", "status": "pending", "eval": true }
-  ]
+    {
+      "step": 0,
+      "name": "hardscape-richness",
+      "status": "completed",
+      "eval": true,
+      "started_at": "2026-05-24T18:27:57+0900",
+      "summary": "바위 크기·개수 증가(12+16), 유목 4개로 확대·두께 보강, 클러스터 배치로 자연 군락화, 색 대비 강화, config 기반 매직넘버 제거"
+    },
+    {
+      "step": 1,
+      "name": "plants-richness",
+      "status": "pending",
+      "eval": true
+    },
+    {
+      "step": 2,
+      "name": "atmosphere-tuning",
+      "status": "pending",
+      "eval": true
+    }
+  ],
+  "created_at": "2026-05-24T18:27:57+0900"
 }

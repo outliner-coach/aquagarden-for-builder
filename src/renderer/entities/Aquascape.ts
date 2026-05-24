@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
 import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
-import type { PlantSpeciesParams } from './aquascapeHelpers'
+import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
 import { AQUASCAPE, PLANT, HARDSCAPE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
@@ -116,16 +116,22 @@ function createSandNormalTexture(size = 256): THREE.CanvasTexture {
 }
 
 /* ── Procedural driftwood mesh (code-generated, no external GLB) ── */
-function createDriftwoodGeometry(segments = 12): THREE.BufferGeometry {
+function createDriftwoodGeometry(segments = 18): THREE.BufferGeometry {
   const path = new THREE.CurvePath<THREE.Vector3>()
-  // Organic curved branch shape
+  // Multi-segment organic curved branch — thicker and more sinuous
   path.add(new THREE.CubicBezierCurve3(
     new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0.3, 0.15, 0.05),
-    new THREE.Vector3(0.7, 0.08, -0.05),
-    new THREE.Vector3(1, 0.02, 0),
+    new THREE.Vector3(0.15, 0.12, 0.06),
+    new THREE.Vector3(0.35, 0.18, -0.04),
+    new THREE.Vector3(0.5, 0.1, 0.02),
   ))
-  const tube = new THREE.TubeGeometry(path as unknown as THREE.Curve<THREE.Vector3>, segments, 0.5, 5, false)
+  path.add(new THREE.CubicBezierCurve3(
+    new THREE.Vector3(0.5, 0.1, 0.02),
+    new THREE.Vector3(0.65, 0.02, 0.08),
+    new THREE.Vector3(0.8, -0.05, -0.06),
+    new THREE.Vector3(1, 0.04, 0),
+  ))
+  const tube = new THREE.TubeGeometry(path as unknown as THREE.Curve<THREE.Vector3>, segments, 1.0, 6, false)
   return tube
 }
 
@@ -382,10 +388,34 @@ export class Aquascape implements SceneEntity {
 
   /* ── Rocks, pebbles & driftwood (generateHardscape 기반) ── */
   private _buildHardscape(): void {
+    const hsConfig: HardscapeConfig = {
+      rockCount: HARDSCAPE.rockCount,
+      pebbleCount: HARDSCAPE.pebbleCount,
+      driftwoodCount: HARDSCAPE.driftwoodCount,
+      clusterCount: HARDSCAPE.clusterCount,
+      clusterSpread: HARDSCAPE.clusterSpread,
+      rock: {
+        minScale: HARDSCAPE.rock.minScale,
+        maxScale: HARDSCAPE.rock.maxScale,
+        maxHeightAboveSand: HARDSCAPE.rock.maxHeightAboveSand,
+      },
+      pebble: {
+        minScale: HARDSCAPE.pebble.minScale,
+        maxScale: HARDSCAPE.pebble.maxScale,
+      },
+      driftwood: {
+        minLength: HARDSCAPE.driftwood.minLength,
+        maxLength: HARDSCAPE.driftwood.maxLength,
+        minRadius: HARDSCAPE.driftwood.minRadius,
+        maxRadius: HARDSCAPE.driftwood.maxRadius,
+        maxHeightAboveSand: HARDSCAPE.driftwood.maxHeightAboveSand,
+      },
+    }
     const hs = generateHardscape(
       HARDSCAPE.seed,
       HARDSCAPE.area,
       AQUASCAPE.sandY,
+      hsConfig,
     )
 
     const rockColors = HARDSCAPE.rock.colors
@@ -414,23 +444,26 @@ export class Aquascape implements SceneEntity {
       this._disposables.push({ material: mat })
     }
 
-    // Driftwood
+    // Driftwood — alternate between two tones for variety
     const dwGeo = createDriftwoodGeometry()
-    const dwMat = new THREE.MeshStandardMaterial({
-      color: HARDSCAPE.driftwood.color,
-      roughness: 0.92,
-      metalness: 0,
-    })
-    applyCausticToStandardMaterial(dwMat, 'driftwood-caustic')
-    applyWaterDepthToMaterial(dwMat)
-    this._disposables.push({ geometry: dwGeo, material: dwMat })
+    const dwColors = [HARDSCAPE.driftwood.color, HARDSCAPE.driftwood.colorAlt]
+    this._disposables.push({ geometry: dwGeo })
 
-    for (const p of hs.driftwood) {
-      const mesh = new THREE.Mesh(dwGeo, dwMat)
+    for (let i = 0; i < hs.driftwood.length; i++) {
+      const p = hs.driftwood[i]
+      const mat = new THREE.MeshStandardMaterial({
+        color: dwColors[i % dwColors.length],
+        roughness: 0.92,
+        metalness: 0,
+      })
+      applyCausticToStandardMaterial(mat, 'driftwood-caustic')
+      applyWaterDepthToMaterial(mat)
+      const mesh = new THREE.Mesh(dwGeo, mat)
       mesh.position.set(p.x, p.y, p.z)
       mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
       mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
+      this._disposables.push({ material: mat })
     }
   }
 

@@ -47,43 +47,89 @@ export interface HardscapeResult {
   driftwood: Placement[]
 }
 
+/** generateHardscape에 전달할 설정. config.ts HARDSCAPE에서 유래한다. */
+export interface HardscapeConfig {
+  rockCount: number
+  pebbleCount: number
+  driftwoodCount: number
+  clusterCount: number
+  clusterSpread: number
+  rock: {
+    minScale: number
+    maxScale: number
+    maxHeightAboveSand: number
+  }
+  pebble: {
+    minScale: number
+    maxScale: number
+  }
+  driftwood: {
+    minLength: number
+    maxLength: number
+    minRadius: number
+    maxRadius: number
+    maxHeightAboveSand: number
+  }
+}
+
 /**
  * 결정적 시드 기반으로 바위·유목 배치를 생성한다.
+ * 클러스터 기반 배치: 2~3개 군락 중심을 먼저 잡고 그 주변에 바위를 분포.
  * 모든 배치는 하단(sandY 기준 낮은 높이)에 한정되어 물고기 시야를 보존한다.
  */
 export function generateHardscape(
   seed: number,
   area: { minX: number; maxX: number; minZ: number; maxZ: number },
   sandY: number,
+  config?: HardscapeConfig,
 ): HardscapeResult {
   const rng = mulberry32(seed)
   const TWO_PI = Math.PI * 2
 
-  // config에서 가져올 수도 있지만 순수함수 테스트를 위해 내부 상수 사용
-  const ROCK_COUNT = 10
-  const PEBBLE_COUNT = 14
-  const DRIFTWOOD_COUNT = 2
-  const ROCK_MIN_SCALE = 0.08
-  const ROCK_MAX_SCALE = 0.3
-  const PEBBLE_MIN_SCALE = 0.03
-  const PEBBLE_MAX_SCALE = 0.08
-  const ROCK_MAX_HEIGHT = 0.5
-  const DRIFTWOOD_MAX_HEIGHT = 0.8
-  const DW_MIN_LEN = 1.2
-  const DW_MAX_LEN = 2.5
+  const cfg: HardscapeConfig = config ?? {
+    rockCount: 12,
+    pebbleCount: 16,
+    driftwoodCount: 4,
+    clusterCount: 3,
+    clusterSpread: 3.5,
+    rock: { minScale: 0.18, maxScale: 0.55, maxHeightAboveSand: 0.7 },
+    pebble: { minScale: 0.04, maxScale: 0.12 },
+    driftwood: { minLength: 1.8, maxLength: 3.5, minRadius: 0.07, maxRadius: 0.13, maxHeightAboveSand: 0.9 },
+  }
+
+  const areaW = area.maxX - area.minX
+  const areaD = area.maxZ - area.minZ
+
+  // Generate cluster centers within the area
+  const clusters: { cx: number; cz: number }[] = []
+  for (let i = 0; i < cfg.clusterCount; i++) {
+    clusters.push({
+      cx: area.minX + areaW * (0.15 + rng() * 0.7),
+      cz: area.minZ + areaD * (0.2 + rng() * 0.6),
+    })
+  }
+
+  /** Place an item near a cluster center, clamped to area bounds. */
+  function clusterPos(spread: number): { x: number; z: number } {
+    const cluster = clusters[Math.floor(rng() * clusters.length)]
+    const angle = rng() * TWO_PI
+    const dist = rng() * spread
+    const x = Math.max(area.minX, Math.min(area.maxX, cluster.cx + Math.cos(angle) * dist))
+    const z = Math.max(area.minZ, Math.min(area.maxZ, cluster.cz + Math.sin(angle) * dist))
+    return { x, z }
+  }
 
   const rocks: Placement[] = []
 
-  // Large rocks
-  for (let i = 0; i < ROCK_COUNT; i++) {
-    const x = area.minX + rng() * (area.maxX - area.minX)
-    const z = area.minZ + rng() * (area.maxZ - area.minZ)
-    const baseScale = ROCK_MIN_SCALE + rng() * (ROCK_MAX_SCALE - ROCK_MIN_SCALE)
+  // Large rocks — clustered
+  for (let i = 0; i < cfg.rockCount; i++) {
+    const { x, z } = clusterPos(cfg.clusterSpread)
+    const baseScale = cfg.rock.minScale + rng() * (cfg.rock.maxScale - cfg.rock.minScale)
     const scaleX = baseScale * (0.8 + rng() * 0.4)
     const scaleY = baseScale * (0.6 + rng() * 0.6)
     const scaleZ = baseScale * (0.8 + rng() * 0.4)
-    const y = sandY + scaleY * 0.5 + rng() * (ROCK_MAX_HEIGHT - scaleY)
-    const clampedY = Math.min(y, sandY + ROCK_MAX_HEIGHT)
+    const y = sandY + scaleY * 0.5 + rng() * (cfg.rock.maxHeightAboveSand - scaleY)
+    const clampedY = Math.min(y, sandY + cfg.rock.maxHeightAboveSand)
     rocks.push({
       x, y: Math.max(sandY, clampedY), z,
       scaleX, scaleY, scaleZ,
@@ -93,11 +139,10 @@ export function generateHardscape(
     })
   }
 
-  // Pebbles (small rocks)
-  for (let i = 0; i < PEBBLE_COUNT; i++) {
-    const x = area.minX + rng() * (area.maxX - area.minX)
-    const z = area.minZ + rng() * (area.maxZ - area.minZ)
-    const baseScale = PEBBLE_MIN_SCALE + rng() * (PEBBLE_MAX_SCALE - PEBBLE_MIN_SCALE)
+  // Pebbles — scattered around clusters with wider spread
+  for (let i = 0; i < cfg.pebbleCount; i++) {
+    const { x, z } = clusterPos(cfg.clusterSpread * 1.5)
+    const baseScale = cfg.pebble.minScale + rng() * (cfg.pebble.maxScale - cfg.pebble.minScale)
     const y = sandY + baseScale * 0.3
     rocks.push({
       x, y, z,
@@ -110,19 +155,19 @@ export function generateHardscape(
     })
   }
 
-  // Driftwood
+  // Driftwood — placed near clusters, angled naturally
   const driftwood: Placement[] = []
-  for (let i = 0; i < DRIFTWOOD_COUNT; i++) {
-    const x = area.minX + rng() * (area.maxX - area.minX)
-    const z = area.minZ + rng() * (area.maxZ - area.minZ)
-    const length = DW_MIN_LEN + rng() * (DW_MAX_LEN - DW_MIN_LEN)
-    const heightOffset = rng() * DRIFTWOOD_MAX_HEIGHT * 0.4
+  for (let i = 0; i < cfg.driftwoodCount; i++) {
+    const { x, z } = clusterPos(cfg.clusterSpread * 1.2)
+    const length = cfg.driftwood.minLength + rng() * (cfg.driftwood.maxLength - cfg.driftwood.minLength)
+    const radius = cfg.driftwood.minRadius + rng() * (cfg.driftwood.maxRadius - cfg.driftwood.minRadius)
+    const heightOffset = rng() * cfg.driftwood.maxHeightAboveSand * 0.4
     const y = sandY + heightOffset
     driftwood.push({
-      x, y: Math.min(y, sandY + DRIFTWOOD_MAX_HEIGHT), z,
+      x, y: Math.min(y, sandY + cfg.driftwood.maxHeightAboveSand), z,
       scaleX: length,
-      scaleY: 0.03 + rng() * 0.04,
-      scaleZ: 0.03 + rng() * 0.04,
+      scaleY: radius,
+      scaleZ: radius * (0.8 + rng() * 0.4),
       rotX: (rng() - 0.5) * 0.4,
       rotY: rng() * TWO_PI,
       rotZ: (rng() - 0.5) * 0.3,

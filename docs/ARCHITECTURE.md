@@ -33,7 +33,15 @@ src/
 │   │   ├── waterDepth.ts # 깊이 틴트+알파 페이드 onBeforeCompile (THREE.Fog 미사용)
 │   │   ├── LightShafts.ts# additive 라이트 샤프트 (알파 누적 블렌드)
 │   │   ├── GlowSprites.ts# 하이라이트 글로우(가짜 블룸, 풀스크린 블룸 미사용)
-│   │   └── Bubbles.ts    # 소프트 additive 기포 스프라이트
+│   │   ├── Bubbles.ts    # 소프트 additive 기포 스프라이트
+│   │   ├── speciesRegistry.ts # 어종 메타데이터(표시명·대사·렌더 파라미터) 단일 레지스트리 — 확장 진입점
+│   │   ├── plantRegistry.ts   # 수초 메타데이터 레지스트리(PLANT.species를 타입드 레지스트리로) — 확장 진입점
+│   │   ├── FishDialogue.ts    # 클릭 레이캐스트 → 어종별 랜덤 대사 말풍선(DOM). 투과 OFF에서만
+│   │   ├── dialogueHelpers.ts # 순수: pickDialogue(seed/random→대사 인덱스) 등
+│   │   ├── FoodLure.ts        # 먹이주기/놀래키기 armed 모드 + 클릭 지점 → 끌림/도망 조향 브로드캐스트
+│   │   ├── lureHelpers.ts     # 순수: attractSteer/fleeSteer 벡터(거리 감쇠), 먹이 낙하 위치
+│   │   └── FoodParticles.ts   # 떨어지는 먹이 입자(풀링, 바닥/소비 시 소멸)
+│   │   # sceneOpacity.ts(아래 core 또는 entities 공유) — 비-물고기 요소 일괄 투명 페이드
 │   ├── lighting/
 │   │   ├── Lighting.ts   # directional+ambient+scene.environmentIntensity, 밝기 매핑
 │   │   └── lightingHelpers.ts # 순수: brightnessTo{Intensity,Ambient,EnvIntensity}
@@ -63,6 +71,9 @@ src/
             → ipcRenderer.invoke/send
             → ipcMain 핸들러(src/main/ipc.ts)
             → window.ts / overlay.ts 가 BrowserWindow 제어
+       (창 크기 슬라이더는 SET_WINDOW_SIZE IPC로 main이 bounds.width/height 조정,
+        renderer는 캔버스를 새 크기로 리프레임. 인터랙션(클릭 대사·먹이/놀래키기)은
+        clickThrough===false일 때만 캔버스 pointer 이벤트를 받는다 — 투과 중엔 무시.)
 
 [프레임 루프]
   RenderLoop(rAF) → SceneRoot.update(dt) → 각 엔티티.update(dt) → renderer.render()

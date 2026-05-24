@@ -3,6 +3,7 @@ import type { SceneEntity } from '../core/SceneRoot'
 import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
 import type { PlantSpeciesParams } from './aquascapeHelpers'
 import { AQUASCAPE, PLANT, HARDSCAPE } from '../../shared/config'
+import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 
 /* ── Grass card vertex shader: height-weighted sway, instanced ── */
 const GRASS_CARD_VERT = /* glsl */ `
@@ -223,6 +224,7 @@ export class Aquascape implements SceneEntity {
     for (const mat of this._grassMaterials) {
       mat.uniforms.uTime.value = this._time
     }
+    updateCausticTime(this._time)
   }
 
   dispose(): void {
@@ -270,6 +272,7 @@ export class Aquascape implements SceneEntity {
       metalness: 0,
       side: THREE.DoubleSide,
     })
+    applyCausticToStandardMaterial(mat, 'sand-caustic')
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(0, AQUASCAPE.sandY, -4)
     this.object3d.add(mesh)
@@ -397,6 +400,7 @@ export class Aquascape implements SceneEntity {
         roughness: 0.85,
         metalness: 0,
       })
+      applyCausticToStandardMaterial(mat, 'rock-caustic')
       const geo = isLargeRock ? rockGeoBase : pebbleGeoBase
       const mesh = new THREE.Mesh(geo, mat)
       mesh.position.set(p.x, p.y, p.z)
@@ -413,6 +417,7 @@ export class Aquascape implements SceneEntity {
       roughness: 0.92,
       metalness: 0,
     })
+    applyCausticToStandardMaterial(dwMat, 'driftwood-caustic')
     this._disposables.push({ geometry: dwGeo, material: dwMat })
 
     for (const p of hs.driftwood) {

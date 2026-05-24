@@ -129,6 +129,15 @@ export const HARDSCAPE = {
   },
 } as const
 
+export const CAUSTIC = {
+  intensity: 0.35,
+  scale: 0.15,
+  scroll1: { speed: 0.08, angle: 0.3 },
+  scroll2: { speed: 0.06, angle: 2.1 },
+  textureSize: 256,
+  gridCells: 6,
+} as const
+
 export const BOIDS = {
   separationRadius: 1.5,
   alignmentRadius: 3.0,

@@ -3,6 +3,13 @@ import { FISH } from '../../shared/config'
 import type { FishPrototype, SpeciesId } from './fishAssets'
 import { FISH_SPECIES, pickSpecies } from './fishAssets'
 import { seedToPhase, swimAmplitudeFor } from './fishHelpers'
+import {
+  attachCausticUniforms,
+  CAUSTIC_VERT_DECLARE,
+  CAUSTIC_VERT_MAIN,
+  CAUSTIC_FRAG_DECLARE,
+  CAUSTIC_FRAG_MAIN,
+} from './caustics'
 
 /* ── Types ── */
 
@@ -242,14 +249,16 @@ export class Fish {
       shader.uniforms.uPhase = uPhase
       shader.uniforms.uRimColor = uRimColor
       shader.uniforms.uRimPower = uRimPower
+      attachCausticUniforms(shader)
 
-      /* ── Vertex: 바디 벤딩 (yaw 사인파) ── */
+      /* ── Vertex: 바디 벤딩 + 커스틱 world XZ ── */
       shader.vertexShader = shader.vertexShader.replace(
         'void main() {',
         `uniform float uTime;
 uniform float uSwimAmp;
 uniform float uSwimSpeed;
 uniform float uPhase;
+${CAUSTIC_VERT_DECLARE}
 void main() {`,
       )
 
@@ -263,11 +272,18 @@ float wave = sin(uTime * uSwimSpeed * 6.0 + uPhase + transformed.x * 5.0);
 transformed.z += wave * uSwimAmp * bendWeight;`,
       )
 
-      /* ── Fragment: 림라이트/프레넬 ── */
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+${CAUSTIC_VERT_MAIN}`,
+      )
+
+      /* ── Fragment: 림라이트/프레넬 + 커스틱 ── */
       shader.fragmentShader = shader.fragmentShader.replace(
         'void main() {',
         `uniform vec3 uRimColor;
 uniform float uRimPower;
+${CAUSTIC_FRAG_DECLARE}
 void main() {`,
       )
 
@@ -278,10 +294,11 @@ void main() {`,
 vec3 rimViewDir = normalize(vViewPosition);
 float rimNdotV = abs(dot(normal, rimViewDir));
 float rimFactor = pow(1.0 - rimNdotV, uRimPower);
-totalEmissiveRadiance += uRimColor * rimFactor * 0.5;`,
+totalEmissiveRadiance += uRimColor * rimFactor * 0.5;
+${CAUSTIC_FRAG_MAIN}`,
       )
     }
 
-    this._material.customProgramCacheKey = () => 'fish-swim-rimlight'
+    this._material.customProgramCacheKey = () => 'fish-swim-rimlight-caustic'
   }
 }

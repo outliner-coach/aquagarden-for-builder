@@ -1,9 +1,15 @@
 export const WINDOW = {
   height: 220,
   topMargin: 0,
-  // 패널 확장 시 창 높이. 패널이 바(height)보다 길어 잘리는 것을 막기 위해
-  // 펼칠 때만 이 높이로 키우고, 접으면 height로 되돌린다. (캔버스는 height에 고정)
+  // 패널 확장 시 창 높이 여유분. 바 height + panelAllowance = 확장 높이.
+  panelAllowance: 140,
+  // 패널 확장 시 창 높이 (기본 바 높이 기준, 하위 호환)
   expandedHeight: 360,
+  // 창 크기 슬라이더 범위
+  minWidth: 400,
+  minHeight: 80,
+  maxHeight: 350,
+  defaultScale01: 1,
 } as const
 
 export const FISH = {

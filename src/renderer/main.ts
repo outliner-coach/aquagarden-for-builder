@@ -9,13 +9,17 @@ import { LightShafts } from './entities/LightShafts'
 import { ControlPanel } from './ui/ControlPanel'
 import { computeMouseIgnore } from './ui/passthrough'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WATER, WINDOW, SCENE } from '../shared/config'
+import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 
 const container = document.getElementById('app')!
+
+// 현재 바 높이 (슬라이더로 변경 가능)
+let currentBarHeight: number = WINDOW.height
+
 // 캔버스를 바 높이에 고정한다. 패널 확장 시 창이 커져도 수조는 리프레임되지 않는다.
-container.style.cssText = `width:100%;height:${WINDOW.height}px;`
+container.style.cssText = `width:100%;height:${currentBarHeight}px;`
 
 const sceneRoot = new SceneRoot(container)
 
@@ -61,6 +65,7 @@ const settings: AppSettings = {
   hidden: false,
   clickThrough: false,
   sceneTransparency01: SCENE.defaultTransparency01,
+  windowScale01: WINDOW.defaultScale01,
 }
 
 // 캔버스 참조 (hidden 시 display 제어)
@@ -73,7 +78,7 @@ const waterVeil = document.createElement('div')
 waterVeil.id = 'water-veil'
 waterVeil.style.cssText = [
   'position:fixed', 'top:0', 'left:0', 'width:100%',
-  `height:${WINDOW.height}px`,
+  `height:${currentBarHeight}px`,
   'pointer-events:none', 'z-index:1',
 ].join(';')
 document.body.appendChild(waterVeil)
@@ -114,6 +119,7 @@ new ControlPanel(
     fishCount: settings.fishCount,
     brightness01: settings.brightness01,
     sceneTransparency01: settings.sceneTransparency01,
+    windowScale01: settings.windowScale01,
     hidden: settings.hidden,
     clickThrough: settings.clickThrough,
     alwaysOnTop: true,
@@ -138,6 +144,24 @@ new ControlPanel(
       glowSprites.setSceneOpacity(factor)
       bubbles.setSceneOpacity(factor)
       setWaterVeil(settings.brightness01, factor)
+    },
+    onWindowScaleChange(t01: number) {
+      settings.windowScale01 = t01
+      // barSizeForScale 인라인: t∈[0,1] → width/height 선형 매핑
+      const clamped = Math.max(0, Math.min(1, t01))
+      const screenW = window.innerWidth
+      const newWidth = Math.round(WINDOW.minWidth + (screenW - WINDOW.minWidth) * clamped)
+      const newHeight = Math.round(WINDOW.minHeight + (WINDOW.maxHeight - WINDOW.minHeight) * clamped)
+
+      currentBarHeight = newHeight
+
+      // OS 창 크기 변경 (main에서 가로 중앙 정렬)
+      window.aqua.setWindowSize(newWidth, newHeight)
+
+      // 캔버스 리프레임 (비축소 크롭: FOV 재계산으로 오브제 픽셀 크기 유지)
+      container.style.height = `${newHeight}px`
+      waterVeil.style.height = `${newHeight}px`
+      sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden
@@ -168,7 +192,9 @@ new ControlPanel(
       applyMouseIgnore()
     },
     onExpandedChange(expanded: boolean) {
-      window.aqua.setWindowHeight(expanded ? WINDOW.expandedHeight : WINDOW.height)
+      // 현재 바 height 기준으로 확장 높이 계산 (고정값 대신 일반화)
+      const expandedH = currentBarHeight + WINDOW.panelAllowance
+      window.aqua.setWindowHeight(expanded ? expandedH : currentBarHeight)
     },
   },
 )

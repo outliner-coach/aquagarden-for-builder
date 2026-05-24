@@ -15,6 +15,9 @@ const bridge: AquaBridge = {
   setAlwaysOnTop(enabled: boolean): void {
     ipcRenderer.send(IPC.SET_ALWAYS_ON_TOP, { enabled })
   },
+  setWindowSize(width: number, height: number): void {
+    ipcRenderer.send(IPC.SET_WINDOW_SIZE, { width, height })
+  },
 }
 
 contextBridge.exposeInMainWorld('aqua', bridge)

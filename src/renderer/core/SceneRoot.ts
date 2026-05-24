@@ -74,6 +74,23 @@ export class SceneRoot {
     this.renderer.setSize(width, height)
   }
 
+  /**
+   * 창이 리사이즈되어도 world↔pixel 배율을 보존하는 리사이즈.
+   * FOV를 재계산해 오브제 픽셀 크기를 유지(중앙 크롭).
+   */
+  resizePreservingScale(baseFov: number, baseHeightPx: number): void {
+    const width = this.renderer.domElement.parentElement?.clientWidth ?? window.innerWidth
+    const height = this.renderer.domElement.parentElement?.clientHeight ?? window.innerHeight
+    // fovForHeight 인라인: fov = degrees(2 * atan(tan(radians(baseFov)/2) * (height / baseHeightPx)))
+    const baseRad = (baseFov * Math.PI) / 180
+    const halfTan = Math.tan(baseRad / 2)
+    const newHalfTan = halfTan * (height / baseHeightPx)
+    this.camera.fov = (2 * Math.atan(newHalfTan) * 180) / Math.PI
+    this.camera.aspect = width / height
+    this.camera.updateProjectionMatrix()
+    this.renderer.setSize(width, height)
+  }
+
   dispose(): void {
     window.removeEventListener('resize', this._onResize)
     for (const entity of this._entities) {

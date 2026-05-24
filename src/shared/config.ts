@@ -52,6 +52,53 @@ export const AQUASCAPE = {
   sandY: -1.8,
 } as const
 
+export const PLANT = {
+  alphaTest: 0.5,
+  swaySpeed: 1.2,
+  swayAmplitude: 0.08,
+  species: [
+    {
+      name: 'carpet',
+      count: 120,
+      minHeight: 0.08,
+      maxHeight: 0.18,
+      minScale: 0.7,
+      maxScale: 1.0,
+      baseColor: [0.2, 0.52, 0.15] as [number, number, number],
+      tipColor: [0.32, 0.68, 0.24] as [number, number, number],
+      colorVariation: 0.06,
+      area: { minX: -12, maxX: 14, minZ: -4.5, maxZ: -2.0 },
+      seed: 101,
+    },
+    {
+      name: 'bush',
+      count: 70,
+      minHeight: 0.2,
+      maxHeight: 0.38,
+      minScale: 0.85,
+      maxScale: 1.3,
+      baseColor: [0.18, 0.44, 0.14] as [number, number, number],
+      tipColor: [0.3, 0.62, 0.22] as [number, number, number],
+      colorVariation: 0.08,
+      area: { minX: -10, maxX: 12, minZ: -4.0, maxZ: -2.5 },
+      seed: 202,
+    },
+    {
+      name: 'tall',
+      count: 35,
+      minHeight: 0.35,
+      maxHeight: 0.55,
+      minScale: 0.9,
+      maxScale: 1.4,
+      baseColor: [0.15, 0.4, 0.12] as [number, number, number],
+      tipColor: [0.28, 0.58, 0.2] as [number, number, number],
+      colorVariation: 0.1,
+      area: { minX: -11, maxX: 13, minZ: -5.0, maxZ: -3.2 },
+      seed: 303,
+    },
+  ],
+} as const
+
 export const BOIDS = {
   separationRadius: 1.5,
   alignmentRadius: 3.0,

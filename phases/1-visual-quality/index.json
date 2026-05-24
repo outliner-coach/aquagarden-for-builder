@@ -29,7 +29,10 @@
     {
       "step": 3,
       "name": "aquascape-plants",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T15:01:07+0900",
+      "completed_at": "2026-05-24T15:06:30+0900",
+      "summary": "삼각 블레이드→알파컷아웃 그래스 카드(CanvasTexture, alphaTest), InstancedMesh 3종 레이어드(carpet/bush/tall), 높이가중 버텍스 스웨이, generatePlantInstances/swayHeightFactor 순수함수+테스트 17건 추가"
     },
     {
       "step": 4,

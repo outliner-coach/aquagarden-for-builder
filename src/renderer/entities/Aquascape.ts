@@ -1,30 +1,75 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { advanceTime } from './aquascapeHelpers'
-import { AQUASCAPE } from '../../shared/config'
+import { advanceTime, generatePlantInstances } from './aquascapeHelpers'
+import type { PlantSpeciesParams } from './aquascapeHelpers'
+import { AQUASCAPE, PLANT } from '../../shared/config'
 
-/* ── Grass vertex shader: sin-based sway, tip only ── */
-const GRASS_VERT = /* glsl */ `
+/* ── Grass card vertex shader: height-weighted sway, instanced ── */
+const GRASS_CARD_VERT = /* glsl */ `
   uniform float uTime;
+  uniform float uSwaySpeed;
+  uniform float uSwayAmplitude;
+
+  attribute vec3 instanceOffset;   // x, y(=sandY), z
+  attribute float instanceYaw;
+  attribute float instanceScale;
+  attribute float instanceHeight;
+  attribute float instancePhase;
+  attribute vec3 instanceBaseColor;
+  attribute vec3 instanceTipColor;
+
   varying vec2 vUv;
+  varying vec3 vBaseColor;
+  varying vec3 vTipColor;
+
   void main() {
     vUv = uv;
+    vBaseColor = instanceBaseColor;
+    vTipColor = instanceTipColor;
+
+    // Scale card by instance height/scale
     vec3 pos = position;
-    float h = uv.y;
-    float phase = pos.x * 3.0 + pos.z * 2.5;
-    pos.x += sin(uTime * 1.2 + phase) * h * h * 0.08;
-    pos.z += cos(uTime * 0.9 + phase * 0.7) * h * h * 0.04;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    pos.y *= instanceHeight;
+    pos.x *= instanceScale;
+    pos.z *= instanceScale;
+
+    // Rotate around Y by instanceYaw
+    float c = cos(instanceYaw);
+    float s = sin(instanceYaw);
+    vec3 rotated = vec3(
+      pos.x * c - pos.z * s,
+      pos.y,
+      pos.x * s + pos.z * c
+    );
+
+    // Height-weighted sway: root fixed, tip sways
+    float h01 = uv.y;  // 0 at base, 1 at tip
+    float heightFactor = h01 * h01;  // quadratic falloff
+    float worldX = instanceOffset.x + rotated.x;
+    float swayX = sin(uTime * uSwaySpeed + worldX * 3.0 + instancePhase) * heightFactor * uSwayAmplitude;
+    float swayZ = cos(uTime * uSwaySpeed * 0.75 + worldX * 2.5 + instancePhase * 0.7) * heightFactor * uSwayAmplitude * 0.5;
+
+    vec3 worldPos = rotated + instanceOffset;
+    worldPos.x += swayX;
+    worldPos.z += swayZ;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos, 1.0);
   }
 `
 
-const GRASS_FRAG = /* glsl */ `
+const GRASS_CARD_FRAG = /* glsl */ `
+  uniform sampler2D uLeafAlpha;
+  uniform float uAlphaTest;
+
   varying vec2 vUv;
+  varying vec3 vBaseColor;
+  varying vec3 vTipColor;
+
   void main() {
-    vec3 base = vec3(0.22, 0.48, 0.18);
-    vec3 tip  = vec3(0.35, 0.68, 0.28);
-    vec3 col  = mix(base, tip, vUv.y);
-    gl_FragColor = vec4(col, 0.9);
+    float alpha = texture2D(uLeafAlpha, vUv).a;
+    if (alpha < uAlphaTest) discard;
+    vec3 col = mix(vBaseColor, vTipColor, vUv.y);
+    gl_FragColor = vec4(col, 1.0);
   }
 `
 
@@ -32,16 +77,6 @@ const GRASS_FRAG = /* glsl */ `
 const SAND_COLOR = 0xe8dcc8
 const ROCK_COLOR = 0x7a7570
 const GLASS_EDGE_OPACITY = 0.12
-const BLADE_HEIGHT = 0.3
-
-const CLUSTERS: readonly [x: number, z: number, count: number, radius: number][] = [
-  [-8,  -2.5, 25, 0.6],
-  [-3,  -3.0, 30, 0.7],
-  [ 1,  -2.0, 20, 0.5],
-  [ 5,  -2.8, 28, 0.65],
-  [10,  -3.5, 22, 0.55],
-  [14,  -2.2, 18, 0.5],
-]
 
 const ROCKS: readonly [x: number, z: number, scale: number][] = [
   [-5,  -2.0, 0.15],
@@ -56,41 +91,67 @@ const PEBBLES: readonly [x: number, z: number, scale: number][] = [
   [12,  -3.0, 0.05],
 ]
 
-/* ── Grass blade geometry builder ── */
-function createGrassClusterGeometry(
-  bladeCount: number,
-  clusterRadius: number,
-  bladeHeight: number,
-): THREE.BufferGeometry {
+/* ── Leaf alpha texture (CanvasTexture, no external file) ── */
+function createLeafAlphaTexture(width = 64, height = 128): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+
+  // Clear to transparent
+  ctx.clearRect(0, 0, width, height)
+
+  // Draw a tapered leaf shape: wide at bottom, pointed at top
+  const cx = width / 2
+  ctx.beginPath()
+  ctx.moveTo(cx - width * 0.35, height)         // base left
+  ctx.quadraticCurveTo(cx - width * 0.4, height * 0.5, cx, 0) // left edge to tip
+  ctx.quadraticCurveTo(cx + width * 0.4, height * 0.5, cx + width * 0.35, height) // tip to right base
+  ctx.closePath()
+
+  // Gradient fill: subtle green tint for more natural alpha
+  const grad = ctx.createLinearGradient(0, height, 0, 0)
+  grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)')
+  grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.95)')
+  grad.addColorStop(1, 'rgba(255, 255, 255, 0.6)')
+  ctx.fillStyle = grad
+  ctx.fill()
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.magFilter = THREE.LinearFilter
+  tex.minFilter = THREE.LinearMipMapLinearFilter
+  tex.wrapS = THREE.ClampToEdgeWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  return tex
+}
+
+/* ── Crossed grass card geometry (2-3 quads intersecting) ── */
+function createGrassCardGeometry(quadCount = 2): THREE.BufferGeometry {
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
+  const halfW = 0.12
 
-  for (let i = 0; i < bladeCount; i++) {
-    const angle = (i / bladeCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.8
-    const dist = Math.random() * clusterRadius
-    const cx = Math.cos(angle) * dist
-    const cz = Math.sin(angle) * dist
-    const h = bladeHeight * (0.5 + Math.random() * 0.5)
-    const halfW = 0.015 + Math.random() * 0.015
+  for (let q = 0; q < quadCount; q++) {
+    const angle = (q / quadCount) * Math.PI // spread quads evenly across 180°
+    const c = Math.cos(angle)
+    const s = Math.sin(angle)
+    const base = q * 4
 
-    const base = i * 3
-
-    // base left
-    positions.push(cx - halfW, 0, cz)
+    // bottom-left
+    positions.push(-halfW * c, 0, -halfW * s)
     uvs.push(0, 0)
-    // base right
-    positions.push(cx + halfW, 0, cz)
+    // bottom-right
+    positions.push(halfW * c, 0, halfW * s)
     uvs.push(1, 0)
-    // tip
-    positions.push(
-      cx + (Math.random() - 0.5) * 0.01,
-      h,
-      cz + (Math.random() - 0.5) * 0.01,
-    )
-    uvs.push(0.5, 1)
+    // top-right
+    positions.push(halfW * c, 1, halfW * s) // height=1, scaled by instance
+    uvs.push(1, 1)
+    // top-left
+    positions.push(-halfW * c, 1, -halfW * s)
+    uvs.push(0, 1)
 
-    indices.push(base, base + 1, base + 2)
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3)
   }
 
   const geo = new THREE.BufferGeometry()
@@ -105,6 +166,7 @@ function createGrassClusterGeometry(
 interface Disposable {
   geometry?: THREE.BufferGeometry
   material?: THREE.Material
+  texture?: THREE.Texture
 }
 
 export class Aquascape implements SceneEntity {
@@ -116,7 +178,7 @@ export class Aquascape implements SceneEntity {
   constructor() {
     this.object3d = new THREE.Group()
     this._buildSand()
-    this._buildGrass()
+    this._buildGrassCards()
     this._buildRocks()
     this._buildGlassEdge()
   }
@@ -132,6 +194,7 @@ export class Aquascape implements SceneEntity {
     for (const d of this._disposables) {
       d.geometry?.dispose()
       d.material?.dispose()
+      d.texture?.dispose()
     }
     this._disposables.length = 0
     this._grassMaterials.length = 0
@@ -153,22 +216,101 @@ export class Aquascape implements SceneEntity {
     this._disposables.push({ geometry: geo, material: mat })
   }
 
-  /* ── Grass clusters with vertex shader sway ── */
-  private _buildGrass(): void {
-    for (const [x, z, count, radius] of CLUSTERS) {
-      const geo = createGrassClusterGeometry(count, radius, BLADE_HEIGHT)
+  /* ── Grass cards with InstancedMesh + vertex shader sway ── */
+  private _buildGrassCards(): void {
+    const leafTex = createLeafAlphaTexture()
+    this._disposables.push({ texture: leafTex })
+
+    // Shared base card geometry (2 crossed quads)
+    const cardGeo = createGrassCardGeometry(2)
+    this._disposables.push({ geometry: cardGeo })
+
+    for (const speciesCfg of PLANT.species) {
+      const params: PlantSpeciesParams = {
+        minHeight: speciesCfg.minHeight,
+        maxHeight: speciesCfg.maxHeight,
+        minScale: speciesCfg.minScale,
+        maxScale: speciesCfg.maxScale,
+        baseColor: [...speciesCfg.baseColor] as [number, number, number],
+        tipColor: [...speciesCfg.tipColor] as [number, number, number],
+        colorVariation: speciesCfg.colorVariation,
+      }
+
+      const instances = generatePlantInstances(
+        speciesCfg.seed,
+        speciesCfg.count,
+        speciesCfg.area,
+        params,
+      )
+
+      const count = instances.length
+      const iMesh = new THREE.InstancedMesh(cardGeo, undefined as unknown as THREE.Material, count)
+
+      // Prepare instanced attributes
+      const offsets = new Float32Array(count * 3)
+      const yaws = new Float32Array(count)
+      const scales = new Float32Array(count)
+      const heights = new Float32Array(count)
+      const phases = new Float32Array(count)
+      const baseColors = new Float32Array(count * 3)
+      const tipColors = new Float32Array(count * 3)
+
+      for (let i = 0; i < count; i++) {
+        const inst = instances[i]
+        offsets[i * 3] = inst.x
+        offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+        offsets[i * 3 + 2] = inst.z
+        yaws[i] = inst.yaw
+        scales[i] = inst.scale
+        heights[i] = inst.height
+        phases[i] = inst.phase
+        baseColors[i * 3] = inst.baseColor[0]
+        baseColors[i * 3 + 1] = inst.baseColor[1]
+        baseColors[i * 3 + 2] = inst.baseColor[2]
+        tipColors[i * 3] = inst.tipColor[0]
+        tipColors[i * 3 + 1] = inst.tipColor[1]
+        tipColors[i * 3 + 2] = inst.tipColor[2]
+      }
+
+      // Set dummy identity matrices for all instances
+      const identity = new THREE.Matrix4()
+      for (let i = 0; i < count; i++) {
+        iMesh.setMatrixAt(i, identity)
+      }
+
+      // Attach instanced buffer attributes to the geometry clone
+      const iGeo = cardGeo.clone()
+      iGeo.setAttribute('instanceOffset', new THREE.InstancedBufferAttribute(offsets, 3))
+      iGeo.setAttribute('instanceYaw', new THREE.InstancedBufferAttribute(yaws, 1))
+      iGeo.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scales, 1))
+      iGeo.setAttribute('instanceHeight', new THREE.InstancedBufferAttribute(heights, 1))
+      iGeo.setAttribute('instancePhase', new THREE.InstancedBufferAttribute(phases, 1))
+      iGeo.setAttribute('instanceBaseColor', new THREE.InstancedBufferAttribute(baseColors, 3))
+      iGeo.setAttribute('instanceTipColor', new THREE.InstancedBufferAttribute(tipColors, 3))
+
       const mat = new THREE.ShaderMaterial({
-        vertexShader: GRASS_VERT,
-        fragmentShader: GRASS_FRAG,
-        uniforms: { uTime: { value: 0 } },
+        vertexShader: GRASS_CARD_VERT,
+        fragmentShader: GRASS_CARD_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uSwaySpeed: { value: PLANT.swaySpeed },
+          uSwayAmplitude: { value: PLANT.swayAmplitude },
+          uLeafAlpha: { value: leafTex },
+          uAlphaTest: { value: PLANT.alphaTest },
+        },
         side: THREE.DoubleSide,
-        transparent: true,
       })
-      const mesh = new THREE.Mesh(geo, mat)
-      mesh.position.set(x, AQUASCAPE.sandY + 0.005, z)
+
+      const mesh = new THREE.InstancedMesh(iGeo, mat, count)
+      for (let i = 0; i < count; i++) {
+        mesh.setMatrixAt(i, identity)
+      }
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.frustumCulled = false
+
       this.object3d.add(mesh)
       this._grassMaterials.push(mat)
-      this._disposables.push({ geometry: geo, material: mat })
+      this._disposables.push({ geometry: iGeo, material: mat })
     }
   }
 

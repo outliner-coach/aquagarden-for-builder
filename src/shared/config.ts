@@ -243,6 +243,19 @@ export const BOIDS = {
   maxSteer: 3.0,
 } as const
 
+export const DIALOGUE = {
+  /** 말풍선 표시 유지 시간 (ms) */
+  holdMs: 3000,
+  /** 말풍선 페이드아웃 시간 (ms) */
+  fadeMs: 150,
+  /** 클릭 지점으로부터 말풍선 Y 오프셋 (px, 위로) */
+  offsetY: -40,
+  /** 말풍선 최대 폭 (px) */
+  maxWidth: 220,
+  /** 화면 경계 여백 (px) */
+  edgePadding: 12,
+} as const
+
 export const COLORS = {
   point: '#4fd1c5',
   panelBg: 'rgba(15, 23, 28, 0.82)',

@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { FISH } from '../../shared/config'
-import type { FishPrototype, SpeciesId } from './fishAssets'
+import type { FishPrototype } from './fishAssets'
+import type { SpeciesId } from './speciesRegistry'
 import { pickSpecies } from './fishAssets'
 import { headingYaw } from './fishHelpers'
 
@@ -51,6 +52,10 @@ export class Fish {
 
   get kind(): FishKind {
     return this._kind
+  }
+
+  get speciesId(): SpeciesId | null {
+    return this._species
   }
 
   get position(): THREE.Vector3 {

@@ -88,6 +88,23 @@ export class FishSchool implements SceneEntity {
     this._pool.forEachActive((fish) => fish.update(dt))
   }
 
+  /** 레이캐스트로 활성 물고기 중 가장 가까운 교차를 찾아 반환한다. 없으면 null. */
+  raycast(raycaster: THREE.Raycaster): Fish | null {
+    if (!this._pool) return null
+    let closest: Fish | null = null
+    let closestDist = Infinity
+
+    this._pool.forEachActive((fish) => {
+      const intersects = raycaster.intersectObject(fish.mesh, true)
+      if (intersects.length > 0 && intersects[0].distance < closestDist) {
+        closestDist = intersects[0].distance
+        closest = fish
+      }
+    })
+
+    return closest
+  }
+
   dispose(): void {
     for (const fish of this._allFish) {
       fish.dispose()

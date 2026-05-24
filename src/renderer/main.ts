@@ -5,6 +5,7 @@ import { FishSchool } from './entities/FishSchool'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
 import { GlowSprites } from './entities/GlowSprites'
+import { FishDialogue } from './entities/FishDialogue'
 import { ControlPanel } from './ui/ControlPanel'
 import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
@@ -189,6 +190,15 @@ new ControlPanel(
       syncWindowSize()
     },
   },
+)
+
+// ── 물고기 클릭 대사 ──
+new FishDialogue(
+  document.body,
+  sceneRoot.camera,
+  canvas!,
+  fishSchool,
+  () => !settings.clickThrough && !settings.hidden,
 )
 
 // ── 모서리 드래그 리사이즈 핸들 ──

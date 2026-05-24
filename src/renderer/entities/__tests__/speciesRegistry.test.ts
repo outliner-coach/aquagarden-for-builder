@@ -22,9 +22,21 @@ describe('SPECIES_REGISTRY', () => {
     }
   })
 
-  it('모든 종에 dialogue 배열이 존재한다', () => {
+  it('모든 종에 dialogue 배열이 존재하고 ≥10개이며 비어있지 않다', () => {
     for (const sp of SPECIES_REGISTRY) {
       expect(Array.isArray(sp.dialogue)).toBe(true)
+      expect(sp.dialogue.length).toBeGreaterThanOrEqual(10)
+      for (const line of sp.dialogue) {
+        expect(typeof line).toBe('string')
+        expect(line.trim().length).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('같은 어종 내 대사에 과도한 중복이 없다', () => {
+    for (const sp of SPECIES_REGISTRY) {
+      const unique = new Set(sp.dialogue)
+      expect(unique.size).toBe(sp.dialogue.length)
     }
   })
 

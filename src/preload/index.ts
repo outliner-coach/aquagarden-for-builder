@@ -6,11 +6,11 @@ const bridge: AquaBridge = {
   moveWindowBy(dx: number, dy: number): void {
     ipcRenderer.send(IPC.MOVE_WINDOW_BY, { dx, dy })
   },
-  setClickThrough(enabled: boolean): void {
-    ipcRenderer.send(IPC.SET_CLICK_THROUGH, { enabled })
+  setMouseIgnore(ignore: boolean): void {
+    ipcRenderer.send(IPC.SET_MOUSE_IGNORE, { ignore })
   },
-  toggleVisibility(hidden: boolean): void {
-    ipcRenderer.send(IPC.TOGGLE_VISIBILITY, { hidden })
+  setWindowHeight(height: number): void {
+    ipcRenderer.send(IPC.SET_WINDOW_HEIGHT, { height })
   },
   setAlwaysOnTop(enabled: boolean): void {
     ipcRenderer.send(IPC.SET_ALWAYS_ON_TOP, { enabled })

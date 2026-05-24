@@ -61,12 +61,13 @@ export function createOverlayWindow(): BrowserWindow {
   return win
 }
 
-export function setOverlayVisible(win: BrowserWindow, hidden: boolean): void {
-  if (hidden) {
-    win.hide()
-  } else {
-    win.show()
-  }
+/**
+ * 패널 확장/축소에 맞춰 창 높이만 조정한다. x/y/width는 유지.
+ * (수조 캔버스는 renderer에서 바 높이에 고정되므로 늘어난 영역은 투명 패널 공간)
+ */
+export function setWindowHeight(win: BrowserWindow, height: number): void {
+  const b = win.getBounds()
+  win.setBounds({ x: b.x, y: b.y, width: b.width, height })
 }
 
 export function setAlwaysOnTop(win: BrowserWindow, enabled: boolean): void {

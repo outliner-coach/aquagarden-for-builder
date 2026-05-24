@@ -17,9 +17,13 @@ export function applyDelta(bounds: Bounds, dx: number, dy: number): Bounds {
   }
 }
 
-/** click-through 설정. forward:true로 hover 이벤트는 계속 수신한다. */
-export function setClickThrough(win: BrowserWindow, enabled: boolean): void {
-  win.setIgnoreMouseEvents(enabled, { forward: true })
+/**
+ * 마우스 이벤트 무시(click-through) 설정.
+ * forward:true로 hover(mousemove)는 계속 renderer에 전달되어, 컨트롤 위에서
+ * renderer가 다시 ignore=false로 복원할 수 있게 한다. (수조만 통과, 버튼은 조작)
+ */
+export function setMouseIgnore(win: BrowserWindow, ignore: boolean): void {
+  win.setIgnoreMouseEvents(ignore, { forward: true })
 }
 
 /** 플로팅 버튼 드래그로 창 전체를 dx/dy만큼 이동한다. */

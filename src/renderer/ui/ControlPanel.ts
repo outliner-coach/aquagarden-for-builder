@@ -9,6 +9,10 @@ export interface ControlPanelCallbacks {
   onClickThroughChange: (enabled: boolean) => void
   onAlwaysOnTopChange: (enabled: boolean) => void
   onMoveWindow: (dx: number, dy: number) => void
+  /** 마우스가 컨트롤(버튼+패널) 위에 들어오고/나갈 때. click-through 중 컨트롤 조작용. */
+  onControlsHoverChange: (hovering: boolean) => void
+  /** 패널 확장/축소 시. 창 높이 조정용(잘림 방지). */
+  onExpandedChange: (expanded: boolean) => void
 }
 
 /** 초기 상태 */
@@ -28,6 +32,7 @@ export class ControlPanel {
   private readonly _root: HTMLElement
   private readonly _button: HTMLElement
   private readonly _panel: HTMLElement
+  private readonly _callbacks: ControlPanelCallbacks
   private _expanded = false
 
   // 슬라이더/토글 참조
@@ -44,10 +49,12 @@ export class ControlPanel {
     state: ControlPanelState,
     callbacks: ControlPanelCallbacks,
   ) {
-    // 루트 컨테이너
+    this._callbacks = callbacks
+
+    // 루트 컨테이너 — 상단 우측 고정(메뉴바를 피하도록 top:36). 패널은 아래로 펼친다.
     this._root = document.createElement('div')
     this._root.className = 'cp'
-    this._root.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:9999;'
+    this._root.style.cssText = 'position:fixed;top:36px;right:12px;z-index:9999;'
 
     // ── 플로팅 버튼 (40px 원형) ──
     this._button = document.createElement('div')
@@ -59,11 +66,11 @@ export class ControlPanel {
     this._panel = document.createElement('div')
     this._panel.className = 'cp__panel'
     this._panel.style.cssText = `
-      position:absolute;bottom:48px;right:0;
+      position:absolute;top:48px;right:0;
       width:220px;border-radius:12px;padding:14px 16px;
       background:${COLORS.panelBg};border:1px solid ${COLORS.border};
       opacity:0;pointer-events:none;
-      transform:translateY(4px);
+      transform:translateY(-4px);
       transition:opacity 150ms ease-out,transform 150ms ease-out;
     `
 
@@ -139,6 +146,15 @@ export class ControlPanel {
 
     // 패널 헤더 드래그 → 패널만 이동
     setupPanelDrag(header, this._panel)
+
+    // 컨트롤(버튼+패널) hover 감지 → click-through 중에도 컨트롤은 조작 가능하게.
+    // (root의 자손인 패널 위도 'inside'로 간주되어 mouseleave가 먼저 발생하지 않는다)
+    this._root.addEventListener('mouseenter', () => {
+      this._callbacks.onControlsHoverChange(true)
+    })
+    this._root.addEventListener('mouseleave', () => {
+      this._callbacks.onControlsHoverChange(false)
+    })
   }
 
   /** 외부에서 상태를 갱신하면 UI를 동기화 */
@@ -154,6 +170,8 @@ export class ControlPanel {
 
   private _togglePanel(): void {
     this._expanded = !this._expanded
+    // 펼칠 때는 잘리지 않도록 먼저 창 높이를 키운다.
+    this._callbacks.onExpandedChange(this._expanded)
     if (this._expanded) {
       this._panel.style.opacity = '1'
       this._panel.style.pointerEvents = 'auto'
@@ -161,7 +179,7 @@ export class ControlPanel {
     } else {
       this._panel.style.opacity = '0'
       this._panel.style.pointerEvents = 'none'
-      this._panel.style.transform = 'translateY(4px)'
+      this._panel.style.transform = 'translateY(-4px)'
     }
   }
 

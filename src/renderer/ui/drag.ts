@@ -1,0 +1,123 @@
+/** 좌표 포인트 */
+export interface Point {
+  x: number
+  y: number
+}
+
+/** 뷰포트/패널 크기 */
+export interface Size {
+  width: number
+  height: number
+}
+
+/** 두 포인트 간 이동 델타를 계산하는 순수 함수 */
+export function dragDelta(prev: Point, cur: Point): { dx: number; dy: number } {
+  return { dx: cur.x - prev.x, dy: cur.y - prev.y }
+}
+
+/** 패널 위치를 뷰포트 안에 클램프하는 순수 함수 */
+export function clampPanelPos(
+  pos: Point,
+  viewport: Size,
+  panelSize: Size,
+): Point {
+  const maxX = Math.max(0, viewport.width - panelSize.width)
+  const maxY = Math.max(0, viewport.height - panelSize.height)
+  return {
+    x: Math.max(0, Math.min(pos.x, maxX)),
+    y: Math.max(0, Math.min(pos.y, maxY)),
+  }
+}
+
+/**
+ * 플로팅 버튼 드래그 → 창 전체 이동.
+ * pointer 이벤트의 이동 델타를 window.aqua.moveWindowBy로 보낸다.
+ */
+export function setupButtonDrag(
+  button: HTMLElement,
+  onMove: (dx: number, dy: number) => void,
+  onClick: () => void,
+): void {
+  let dragging = false
+  let moved = false
+  let prev: Point = { x: 0, y: 0 }
+
+  button.addEventListener('pointerdown', (e: PointerEvent) => {
+    dragging = true
+    moved = false
+    prev = { x: e.screenX, y: e.screenY }
+    button.setPointerCapture(e.pointerId)
+    button.style.cursor = 'grabbing'
+  })
+
+  button.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!dragging) return
+    const delta = dragDelta(prev, { x: e.screenX, y: e.screenY })
+    prev = { x: e.screenX, y: e.screenY }
+    if (delta.dx !== 0 || delta.dy !== 0) {
+      moved = true
+      onMove(delta.dx, delta.dy)
+    }
+  })
+
+  const endDrag = () => {
+    if (!dragging) return
+    dragging = false
+    button.style.cursor = 'grab'
+    if (!moved) {
+      onClick()
+    }
+  }
+
+  button.addEventListener('pointerup', endDrag)
+  button.addEventListener('pointercancel', endDrag)
+}
+
+/**
+ * 패널 드래그 → 패널만 이동 (CSS transform).
+ * 창은 그대로, 패널 DOM의 위치만 갱신.
+ */
+export function setupPanelDrag(
+  handle: HTMLElement,
+  panel: HTMLElement,
+): void {
+  let dragging = false
+  let prev: Point = { x: 0, y: 0 }
+
+  handle.addEventListener('pointerdown', (e: PointerEvent) => {
+    dragging = true
+    prev = { x: e.clientX, y: e.clientY }
+    handle.setPointerCapture(e.pointerId)
+    handle.style.cursor = 'grabbing'
+    e.stopPropagation()
+  })
+
+  handle.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!dragging) return
+    const delta = dragDelta(prev, { x: e.clientX, y: e.clientY })
+    prev = { x: e.clientX, y: e.clientY }
+
+    const rect = panel.getBoundingClientRect()
+    const newX = rect.left + delta.dx
+    const newY = rect.top + delta.dy
+
+    const viewport: Size = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }
+    const panelSize: Size = { width: rect.width, height: rect.height }
+    const clamped = clampPanelPos({ x: newX, y: newY }, viewport, panelSize)
+
+    panel.style.left = `${clamped.x}px`
+    panel.style.top = `${clamped.y}px`
+  })
+
+  const endDrag = () => {
+    if (!dragging) return
+    dragging = false
+    handle.style.cursor = 'grab'
+  }
+
+  handle.addEventListener('pointerup', endDrag)
+  handle.addEventListener('pointercancel', endDrag)
+}

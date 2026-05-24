@@ -77,7 +77,10 @@
     {
       "step": 9,
       "name": "control-panel",
-      "status": "pending"
+      "status": "completed",
+      "started_at": "2026-05-24T12:15:38+0900",
+      "completed_at": "2026-05-24T12:22:00+0900",
+      "summary": "ControlPanel(플로팅버튼40px+확장패널: 개체수/밝기 슬라이더, Hide/ClickThrough/AlwaysOnTop 토글, UI_GUIDE 색상·안티슬롭 준수), drag.ts(dragDelta/clampPanelPos 순수헬퍼+setupButtonDrag→창이동+setupPanelDrag→패널이동 독립분리), main.ts AppSettings 단일객체 배선(hidden→renderLoop.stop+canvas숨김, show→start), 모든 OS동작 window.aqua 경유. 12개 단위 테스트 추가(총 126개)"
     }
   ],
   "created_at": "2026-05-24T11:18:24+0900"

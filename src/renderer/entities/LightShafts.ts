@@ -52,10 +52,13 @@ export class LightShafts implements SceneEntity {
           uOpacity: { value: cfg.baseOpacity * this._brightness01 },
           uColor: { value: new THREE.Vector3(...cfg.color) },
         },
+        // 색은 가산(글로우)하되, 알파도 누적해야 투명 캔버스에서 OS 합성 시 보인다.
+        // (blendSrcAlpha=Zero면 알파가 0으로 남아 premultiplied 합성에서 사라짐 — 버그였음)
         blending: THREE.CustomBlending,
+        blendEquation: THREE.AddEquation,
         blendSrc: THREE.SrcAlphaFactor,
         blendDst: THREE.OneFactor,
-        blendSrcAlpha: THREE.ZeroFactor,
+        blendSrcAlpha: THREE.OneFactor,
         blendDstAlpha: THREE.OneFactor,
         depthWrite: false,
         transparent: true,

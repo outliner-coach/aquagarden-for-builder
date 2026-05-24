@@ -21,11 +21,20 @@ export const FISH = {
 export const LIGHT = {
   minIntensity: 0.1,
   maxIntensity: 2.0,
+  minAmbient: 0.05,
+  maxAmbient: 0.4,
   default01: 0.75,
 } as const
 
 export const BUBBLE = {
   maxParticles: 80,
+  surfaceY: 2.0,
+  floorY: -1.8,
+  riseSpeed: 0.6,
+  wobbleAmplitude: 0.15,
+  wobbleSpeed: 2.0,
+  size: 0.08,
+  spreadX: 20,
 } as const
 
 export const CAMERA = {

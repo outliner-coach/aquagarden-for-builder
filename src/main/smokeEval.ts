@@ -80,7 +80,8 @@ export function evaluatePixels(
     const r = bitmap[i + 2]
     const a = bitmap[i + 3]
     sampled++
-    if (a < 8) {
+    // a < 128: 충분히 투과(완전투명 + 수중 베일 같은 반투명 포함) → 바탕화면 비침
+    if (a < 128) {
       transparent++
       continue
     }

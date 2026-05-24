@@ -64,6 +64,29 @@ const settings: AppSettings = {
 // 캔버스 참조 (hidden 시 display 제어)
 const canvas = container.querySelector('canvas')
 
+// ── 수중 분위기 베일 ──
+// 투명 오버레이라 '물 부피' 색이 없으므로, 화면 상단이 살짝 푸르게 물드는 은은한
+// 반투명 그라디언트를 덧씌워 수중 느낌을 준다(바탕화면은 여전히 비침). 밝기와 연동.
+const waterVeil = document.createElement('div')
+waterVeil.id = 'water-veil'
+waterVeil.style.cssText = [
+  'position:fixed', 'top:0', 'left:0', 'width:100%',
+  `height:${WINDOW.height}px`,
+  'pointer-events:none', 'z-index:1',
+].join(';')
+document.body.appendChild(waterVeil)
+
+function setWaterVeil(b01: number): void {
+  // 어두울수록(밤) 살짝 더 짙게, 밝을수록 옅게
+  const a = 0.2 - 0.08 * b01
+  waterVeil.style.background =
+    `linear-gradient(180deg,` +
+    ` rgba(40,96,134,${(a).toFixed(3)}) 0%,` +
+    ` rgba(32,104,118,${(a * 0.55).toFixed(3)}) 55%,` +
+    ` rgba(26,92,92,${(a * 0.25).toFixed(3)}) 100%)`
+}
+setWaterVeil(LIGHT.default01)
+
 // 컨트롤(버튼/패널) 위에 마우스가 있는지. click-through 중에도 컨트롤 조작을 위해 추적.
 let hoveringControls = false
 
@@ -96,6 +119,7 @@ new ControlPanel(
       lighting.setBrightness01(b01)
       lightShafts.setBrightness01(b01)
       glowSprites.setBrightness01(b01)
+      setWaterVeil(b01)
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden

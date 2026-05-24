@@ -1,5 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { nextActiveCount, seedToPhase, swimAmplitudeFor } from '../fishHelpers'
+import {
+  nextActiveCount,
+  seedToPhase,
+  swimAmplitudeFor,
+  headingYaw,
+  forwardDirAfterYaw,
+} from '../fishHelpers'
+
+describe('headingYaw / forwardDirAfterYaw — 머리가 진행 방향을 앞서가는가 (꼬리-앞 회귀 방지)', () => {
+  const cases: Array<[number, number]> = [
+    [1, 0],   // +X
+    [-1, 0],  // -X
+    [0, 1],   // +Z
+    [0, -1],  // -Z
+    [1, 1],
+    [-2, 0.5],
+    [0.3, -1.7],
+  ]
+  for (const [vx, vz] of cases) {
+    it(`속도(${vx}, ${vz})에서 머리(+X)가 속도와 같은 방향을 가리킨다`, () => {
+      const yaw = headingYaw(vx, vz)
+      const fwd = forwardDirAfterYaw(yaw)
+      const len = Math.hypot(vx, vz)
+      // 머리 방향과 속도 방향의 내적이 +|v| 이어야 한다(반대=꼬리앞이면 음수)
+      const dot = fwd.x * vx + fwd.z * vz
+      expect(dot).toBeCloseTo(len, 5)
+      expect(dot).toBeGreaterThan(0)
+    })
+  }
+})
 
 describe('nextActiveCount', () => {
   it('목표가 현재보다 크면 perTick만큼 증가', () => {

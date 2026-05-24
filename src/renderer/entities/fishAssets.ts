@@ -233,8 +233,9 @@ function normalizeAndAlignGeometry(geometry: THREE.BufferGeometry): void {
   // 스케일링 (가장 긴 축 = 1)
   geometry.scale(scale, scale, scale)
 
-  // +Z 정면 → +X 정면: Y축 -90도 회전
-  geometry.rotateY(-Math.PI / 2)
+  // 머리가 +X(진행 방향)를 향하도록 정렬. (world-matrix 적용 후 머리가 -X였으므로 +90도)
+  // Fish.update의 헤딩 공식은 +X를 정면으로 가정한다 — 어긋나면 꼬리가 앞서 헤엄친다.
+  geometry.rotateY(Math.PI / 2)
 
   // 변환 후 bounding box 재계산
   geometry.computeBoundingBox()

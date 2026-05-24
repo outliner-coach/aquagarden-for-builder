@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { FISH } from '../../shared/config'
 import type { FishPrototype, SpeciesId } from './fishAssets'
 import { FISH_SPECIES, pickSpecies } from './fishAssets'
-import { seedToPhase, swimAmplitudeFor } from './fishHelpers'
+import { seedToPhase, swimAmplitudeFor, headingYaw } from './fishHelpers'
 import {
   attachCausticUniforms,
   CAUSTIC_VERT_DECLARE,
@@ -209,9 +209,9 @@ export class Fish {
     p.y = Math.max(b.minY, Math.min(b.maxY, p.y))
     p.z = Math.max(b.minZ, Math.min(b.maxZ, p.z))
 
-    // 진행 방향으로 회전
+    // 진행 방향으로 회전 (머리 +X가 속도를 향함 — headingYaw 규약)
     if (speed > 0.01) {
-      this.mesh.rotation.y = -Math.atan2(this._velocity.z, this._velocity.x)
+      this.mesh.rotation.y = headingYaw(this._velocity.x, this._velocity.z)
       this.mesh.rotation.z = Math.atan2(this._velocity.y, speed) * 0.3
     }
 

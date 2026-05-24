@@ -36,3 +36,20 @@ export function swimAmplitudeFor(
   const ratio = Math.max(0.3, Math.min(currentSpeed / baseSpeed, 2.0))
   return baseAmp * ratio
 }
+
+/**
+ * 속도(vx, vz)를 바라보는 mesh의 Y축 회전(yaw)을 계산한다.
+ * 물고기 geometry는 머리가 +X를 향하도록 정렬돼 있다는 규약을 가정한다.
+ */
+export function headingYaw(vx: number, vz: number): number {
+  return -Math.atan2(vz, vx)
+}
+
+/**
+ * 주어진 yaw로 회전했을 때 mesh 로컬 +X(머리)가 가리키는 월드 XZ 방향.
+ * THREE rotation.y=θ 는 (1,0,0) → (cosθ, 0, -sinθ) 로 매핑한다.
+ * (테스트용: 머리가 진행 방향을 앞서가는지 — 꼬리-앞 회귀 방지 — 검증)
+ */
+export function forwardDirAfterYaw(yaw: number): { x: number; z: number } {
+  return { x: Math.cos(yaw), z: -Math.sin(yaw) }
+}

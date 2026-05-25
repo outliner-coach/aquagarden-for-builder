@@ -18,7 +18,7 @@
 - **인터랙션 비활성 UX**: 투과/숨김 ON이면 먹이주기·놀래키기·확대 슬라이더를 흐리게+클릭불가 처리하고
   그 아래 안내문 표시. armed lure 모드는 해제. 단일 진실 원천 `computeInteractive`(순수·테스트)로
   FoodLure/FishDialogue 게이트·휠·패널 표시를 통일.
-- 검증: `npm run test`(394)·`lint`·`build`·`smoke`(pass=true) 통과. ⚠ **휠 줌 체감·비활성 시각
+- 검증: `npm run test`(387)·`lint`·`build`·`smoke`(pass=true) 통과. ⚠ **휠 줌 체감·비활성 시각
   표시·확대 상태 픽킹 정확도는 dev 라이브 QA 미완료** — 계획 Task 8 Step 2 체크리스트 참고.
 
 ## 후속 세션 작업 (2026-05-25, 추가) — 버그 3건 + 신규 기능 2건

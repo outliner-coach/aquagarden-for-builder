@@ -51,6 +51,12 @@ export class SceneRoot {
     this.scene.environmentIntensity = v
   }
 
+  /** 카메라 줌 배율 설정(1.0=기본). camera.zoom은 fov 재계산(resize)과 독립이라 리사이즈해도 유지된다. */
+  setZoom(factor: number): void {
+    this.camera.zoom = factor
+    this.camera.updateProjectionMatrix()
+  }
+
   add(entity: SceneEntity): void {
     this._entities.push(entity)
     this.scene.add(entity.object3d)

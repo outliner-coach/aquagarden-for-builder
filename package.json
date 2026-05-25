@@ -8,7 +8,25 @@
     "build": "tsc --noEmit && electron-vite build",
     "lint": "eslint . --ext .ts",
     "test": "vitest run",
-    "smoke": "electron-vite build && AQUA_SMOKE=1 electron ."
+    "smoke": "electron-vite build && AQUA_SMOKE=1 electron .",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always"
+  },
+  "build": {
+    "appId": "com.aquagarden.overlay",
+    "productName": "Aquagarden",
+    "directories": { "output": "dist" },
+    "files": ["out/**/*", "package.json"],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "category": "public.app-category.entertainment",
+      "identity": null
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "publish": [{ "provider": "github", "owner": "jha0313", "repo": "harness_framework" }]
   },
   "dependencies": {
     "three": "^0.184.0"
@@ -20,6 +38,7 @@
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "electron": "^35.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "eslint": "^8.57.0",
     "typescript": "^5.7.0",

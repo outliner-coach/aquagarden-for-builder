@@ -1,0 +1,38 @@
+name: Release
+
+# v로 시작하는 태그를 push하면 macOS·Windows 러너에서 각각 빌드해
+# 같은 GitHub Release에 설치 파일(.dmg / .exe)을 첨부한다.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # 순수 로직 게이트(렌더 깨짐은 못 잡지만 회귀 방지)
+      - run: npm test
+
+      # 빌드 + GitHub Release에 게시. mac은 미서명(CSC_IDENTITY_AUTO_DISCOVERY=false).
+      - name: Build & publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run release

@@ -55,6 +55,7 @@ export class ControlPanel {
   private readonly _feedBtn: HTMLButtonElement
   private readonly _scareBtn: HTMLButtonElement
   private _lureHint!: HTMLDivElement
+  private _statusHint!: HTMLDivElement
   private _quitBtn!: HTMLButtonElement
   private _quitArmed = false
   private _quitTimer: ReturnType<typeof setTimeout> | null = null
@@ -176,6 +177,14 @@ export class ControlPanel {
       (checked) => callbacks.onAlwaysOnTopChange(checked),
     )
 
+    // ── 상태 힌트 (마우스 투과/수조 숨김이 켜졌을 때 무슨 일이 일어나는지 안내) ──
+    this._statusHint = document.createElement('div')
+    this._statusHint.style.cssText =
+      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin-bottom:12px;display:none;`
+    this._panel.appendChild(this._statusHint)
+    this._hideToggle.addEventListener('change', () => this._updateStatusHint())
+    this._clickThroughToggle.addEventListener('change', () => this._updateStatusHint())
+
     // ── 먹이주기 / 놀래키기 버튼 ──
     const lureRow = document.createElement('div')
     lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;'
@@ -235,6 +244,9 @@ export class ControlPanel {
     this._root.addEventListener('mouseleave', () => {
       this._callbacks.onControlsHoverChange(false)
     })
+
+    // 초기 상태 힌트(복원된 hidden/clickThrough 반영)
+    this._updateStatusHint()
   }
 
   /**
@@ -285,6 +297,16 @@ export class ControlPanel {
     this._hideToggle.checked = state.hidden
     this._clickThroughToggle.checked = state.clickThrough
     this._alwaysOnTopToggle.checked = state.alwaysOnTop
+    this._updateStatusHint()
+  }
+
+  /** 마우스 투과/수조 숨김이 켜졌을 때, 무슨 일이 일어나는지 안내 문구를 표시한다. */
+  private _updateStatusHint(): void {
+    const msgs: string[] = []
+    if (this._hideToggle.checked) msgs.push('수조 숨김 — 우상단 버튼만 표시 중')
+    if (this._clickThroughToggle.checked) msgs.push('마우스 투과 — 수조 클릭이 뒤 화면으로 통과')
+    this._statusHint.textContent = msgs.join('  ·  ')
+    this._statusHint.style.display = msgs.length > 0 ? 'block' : 'none'
   }
 
   /** 종료 버튼: 한 번 누르면 무장(확인 문구), 3초 내 다시 누르면 실제 종료. 오클릭 방지. */

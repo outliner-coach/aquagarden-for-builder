@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyDelta } from '../overlay'
+import { applyDelta, clampPositionToDisplay } from '../overlay'
 
 interface Bounds {
   x: number
@@ -42,5 +42,40 @@ describe('applyDelta', () => {
     const result = applyDelta(base, 5000, -3000)
     expect(result.x).toBe(5100)
     expect(result.y).toBe(-2950)
+  })
+})
+
+describe('clampPositionToDisplay — 창이 화면 밖으로 사라지는 것 방지', () => {
+  const area = { x: 0, y: 25, width: 1728, height: 1055 } // 메뉴바 25px 가정
+
+  it('영역 안이면 그대로 둔다', () => {
+    const r = clampPositionToDisplay({ x: 100, y: 100, width: 400, height: 220 }, area)
+    expect(r).toEqual({ x: 100, y: 100, width: 400, height: 220 })
+  })
+
+  it('위로 넘으면 work area 상단(메뉴바 아래)으로', () => {
+    const r = clampPositionToDisplay({ x: 0, y: -300, width: 400, height: 220 }, area)
+    expect(r.y).toBe(25)
+  })
+
+  it('아래로 넘으면 하단 안쪽으로(하단 가장자리 보존)', () => {
+    const r = clampPositionToDisplay({ x: 0, y: 5000, width: 400, height: 220 }, area)
+    expect(r.y).toBe(25 + 1055 - 220) // 860
+  })
+
+  it('오른쪽으로 넘으면 우측 안쪽으로', () => {
+    const r = clampPositionToDisplay({ x: 9999, y: 100, width: 400, height: 220 }, area)
+    expect(r.x).toBe(1728 - 400) // 1328
+  })
+
+  it('전폭 바(영역보다 넓음)는 x=area.x로 맞춘다', () => {
+    const r = clampPositionToDisplay({ x: -50, y: 100, width: 1728, height: 220 }, area)
+    expect(r.x).toBe(0)
+  })
+
+  it('크기는 보존한다', () => {
+    const r = clampPositionToDisplay({ x: -999, y: 9999, width: 400, height: 220 }, area)
+    expect(r.width).toBe(400)
+    expect(r.height).toBe(220)
   })
 })

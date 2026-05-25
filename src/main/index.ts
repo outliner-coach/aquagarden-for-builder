@@ -15,6 +15,8 @@ app.whenReady().then(async () => {
 
   const win = createOverlayWindow()
   registerIpcHandlers(win)
+  const { createTray } = await import('./tray')
+  createTray(win)
 })
 
 app.on('window-all-closed', () => {

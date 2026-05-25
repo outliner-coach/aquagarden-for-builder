@@ -46,6 +46,18 @@
    - 알려진 잔여: `moveWindowBy`(overlay.ts)는 클램프가 없어 버튼을 화면 밖으로 드래그하면 사라질 수 있음
      (별도 후속 — 화면 안으로 클램프 검토).
 
+### 사용자 관점 QA 개선 (2026-05-25, v0.2.0) — 화면 잠금으로 라이브 검증 일부 보류
+- **창 화면 밖 이탈 방지**: `moveWindowBy`가 `clampPositionToDisplay`(순수, 테스트)로 디스플레이
+  work area 안에 머묾. 버튼째 사라져 복구 불가 되던 문제 차단.
+- **메뉴바 트레이**(`src/main/tray.ts`): 보이기/숨기기·위치 초기화(상단 전폭)·로그인 시 시작·종료.
+  mac은 `setTitle('🐠')`. 버튼 분실 시 유일 복구·종료 경로. (clean 기동 확인, 트레이 메뉴 동작은 라이브 미검증)
+- **설정·창 영속화**(`src/renderer/persistence.ts`, localStorage): settings+alwaysOnTop+barW/H+창 위치.
+  startup 복원(설정 적용 + `setWindowBounds`로 창 복원, main이 화면 안 클램프). 접힌(resting) 위치만
+  저장(펼친 좌표 저장 안 함). 변경 시 디바운스 저장. **재시작 복원은 라이브 미검증(잠금).**
+- **마우스 투과/수조 숨김 상태 힌트**: ControlPanel에 활성 시 안내 문구.
+- 검증: test 371·lint·build·smoke pass + 트레이 포함 clean 기동 확인. ⚠ 영속 복원/트레이 메뉴/힌트
+  표시는 화면 잠금 해제 후 dev 라이브 QA 필요.
+
 ### 신규 기능 (완료, dev 실기기 확인)
 3. **패널 자동 위/아래 열기** — 패널 펼침 시 하단 공간이 부족하면 창을 강제 이동하던 것을, **위로 펼침**으로
    전환. `panelLayout.choosePanelDirection`(순수, 테스트)으로 방향 결정. 'up'이면 `setWindowSize(...,

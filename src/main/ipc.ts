@@ -6,8 +6,9 @@ import type {
   SetWindowHeightPayload,
   SetAlwaysOnTopPayload,
   SetWindowSizePayload,
+  SetWindowBoundsPayload,
 } from '../shared/types'
-import { setAlwaysOnTop, setWindowHeight, setWindowSize } from './window'
+import { setAlwaysOnTop, setWindowHeight, setWindowSize, setWindowBounds } from './window'
 import { setMouseIgnore, moveWindowBy } from './overlay'
 
 /** 화이트리스트 IPC 채널을 등록한다. */
@@ -30,6 +31,10 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   ipcMain.on(IPC.SET_WINDOW_SIZE, (_event, payload: SetWindowSizePayload) => {
     setWindowSize(win, payload.width, payload.height, payload.anchorBottom ?? false)
+  })
+
+  ipcMain.on(IPC.SET_WINDOW_BOUNDS, (_event, payload: SetWindowBoundsPayload) => {
+    setWindowBounds(win, payload.x, payload.y, payload.width, payload.height)
   })
 
   // OS 제어(앱 종료)는 main에서만. renderer는 종료 버튼에서 IPC 요청만 보낸다.

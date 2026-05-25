@@ -30,6 +30,13 @@ export interface SetWindowSizePayload {
   anchorBottom?: boolean
 }
 
+export interface SetWindowBoundsPayload {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface AquaBridge {
   moveWindowBy(dx: number, dy: number): void
   /** 수조 영역 클릭 통과 on/off (forward:true로 컨트롤 hover는 계속 감지) */
@@ -42,6 +49,8 @@ export interface AquaBridge {
    * anchorBottom=true면 하단 가장자리를 고정(위로 펼침) — 기본은 좌상단 앵커.
    */
   setWindowSize(width: number, height: number, anchorBottom?: boolean): void
+  /** 저장된 절대 위치/크기로 창을 복원한다(화면 안으로 클램프). 재시작 시 영속 복원용. */
+  setWindowBounds(x: number, y: number, width: number, height: number): void
   /** 앱 종료. frameless·always-on-top 오버레이라 메뉴/X가 없으므로 패널의 종료 버튼이 호출. (main에서 app.quit) */
   quitApp(): void
 }

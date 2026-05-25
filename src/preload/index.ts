@@ -18,6 +18,9 @@ const bridge: AquaBridge = {
   setWindowSize(width: number, height: number, anchorBottom = false): void {
     ipcRenderer.send(IPC.SET_WINDOW_SIZE, { width, height, anchorBottom })
   },
+  setWindowBounds(x: number, y: number, width: number, height: number): void {
+    ipcRenderer.send(IPC.SET_WINDOW_BOUNDS, { x, y, width, height })
+  },
   quitApp(): void {
     ipcRenderer.send(IPC.QUIT_APP)
   },

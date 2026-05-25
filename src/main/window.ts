@@ -133,6 +133,26 @@ export function setWindowSize(
 }
 
 /**
+ * 저장된 절대 위치/크기로 창을 복원한다. 창이 놓일 디스플레이의 work area 안으로 클램프해
+ * 화면 밖(저장 당시와 모니터 구성이 달라진 경우 등)으로 복원되지 않게 한다. (재시작 영속 복원용)
+ */
+export function setWindowBounds(
+  win: BrowserWindow,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const desired = { x, y, width, height }
+  const area = screen.getDisplayMatching(desired).workArea
+  const next = clampSizeToDisplay(desired, { width, height }, area, {
+    minWidth: WINDOW.minWidth,
+    minHeight: WINDOW.minHeight,
+  })
+  win.setBounds(next)
+}
+
+/**
  * 세로 픽셀이 줄어도 world↔pixel 배율을 보존하도록 카메라 수직 FOV를 재계산.
  * fov = degrees( 2 * atan( tan(radians(baseFov)/2) * (heightPx / baseHeightPx) ) )
  */

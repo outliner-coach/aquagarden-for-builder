@@ -16,13 +16,17 @@ import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
+import { loadPersisted, savePersisted, type PersistedState } from './persistence'
 
 const container = document.getElementById('app')!
 
+// 재시작 간 유지된 상태(있으면) — 설정·바 크기·창 위치 복원.
+const persisted = loadPersisted()
+
 // 현재 바(수조 캔버스) 크기 — 모서리 드래그 리사이즈로 변경된다.
 // 시작 시 창은 work-area 전폭으로 생성되므로 innerWidth가 곧 전폭이다.
-let currentBarWidth: number = window.innerWidth
-let currentBarHeight: number = WINDOW.height
+let currentBarWidth: number = persisted?.barWidth ?? window.innerWidth
+let currentBarHeight: number = persisted?.barHeight ?? WINDOW.height
 // 패널 확장 여부 — 확장 시 창 높이를 패널 전체가 담기도록 키운다(잘림 방지).
 let panelExpanded = false
 
@@ -70,13 +74,41 @@ const loop = new RenderLoop((dt) => {
 
 loop.start()
 
-// ── AppSettings: 단일 런타임 상태 ──
-const settings: AppSettings = {
+// ── AppSettings: 단일 런타임 상태 (저장된 값이 있으면 복원) ──
+const settings: AppSettings = persisted?.settings ?? {
   fishCount: FISH.default,
   brightness01: LIGHT.default01,
   hidden: false,
   clickThrough: false,
   sceneTransparency01: SCENE.defaultTransparency01,
+}
+let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
+
+// ── 영속화 ──
+// 펼친 상태(패널 open/'up' 이동)의 좌표를 저장하지 않도록, 접힌(resting) 상태 창 위치만 추적한다.
+let restingWinX = persisted?.winX ?? window.screenX
+let restingWinY = persisted?.winY ?? window.screenY
+function updateRestingFromWindow(): void {
+  if (!panelExpanded) {
+    restingWinX = window.screenX
+    restingWinY = window.screenY
+  }
+}
+let _persistTimer: ReturnType<typeof setTimeout> | null = null
+function persistSoon(): void {
+  if (_persistTimer !== null) clearTimeout(_persistTimer)
+  _persistTimer = setTimeout(() => {
+    _persistTimer = null
+    const state: PersistedState = {
+      settings: { ...settings },
+      alwaysOnTop: currentAlwaysOnTop,
+      barWidth: currentBarWidth,
+      barHeight: currentBarHeight,
+      winX: restingWinX,
+      winY: restingWinY,
+    }
+    savePersisted(state)
+  }, 400)
 }
 
 // 캔버스 참조 (hidden 시 display 제어)
@@ -180,18 +212,20 @@ const controlPanel = new ControlPanel(
     sceneTransparency01: settings.sceneTransparency01,
     hidden: settings.hidden,
     clickThrough: settings.clickThrough,
-    alwaysOnTop: true,
+    alwaysOnTop: currentAlwaysOnTop,
   },
   {
     onFishCountChange(count: number) {
       settings.fishCount = count
       fishSchool.setCount(count)
+      persistSoon()
     },
     onBrightnessChange(b01: number) {
       settings.brightness01 = b01
       lighting.setBrightness01(b01)
       glowSprites.setBrightness01(b01)
       setWaterVeil(b01)
+      persistSoon()
     },
     onSceneTransparencyChange(t01: number) {
       settings.sceneTransparency01 = t01
@@ -200,6 +234,7 @@ const controlPanel = new ControlPanel(
       glowSprites.setSceneOpacity(factor)
       bubbles.setSceneOpacity(factor)
       setWaterVeil(settings.brightness01, factor)
+      persistSoon()
     },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden
@@ -218,16 +253,22 @@ const controlPanel = new ControlPanel(
         loop.start()
       }
       applyMouseIgnore()
+      persistSoon()
     },
     onClickThroughChange(enabled: boolean) {
       settings.clickThrough = enabled
       applyMouseIgnore()
+      persistSoon()
     },
     onAlwaysOnTopChange(enabled: boolean) {
+      currentAlwaysOnTop = enabled
       window.aqua.setAlwaysOnTop(enabled)
+      persistSoon()
     },
     onMoveWindow(dx: number, dy: number) {
       window.aqua.moveWindowBy(dx, dy)
+      updateRestingFromWindow()
+      persistSoon()
     },
     onControlsHoverChange(hovering: boolean) {
       hoveringControls = hovering
@@ -300,6 +341,8 @@ setupResizeHandles(
       // 리사이즈는 좌상단 앵커가 기본. 단 패널이 '위로' 펼쳐진 상태에서의 리사이즈만 하단 앵커 유지.
       syncWindowSize(shouldAnchorBottom('resize', panelExpanded, currentPanelDir))
       sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
+      updateRestingFromWindow()
+      persistSoon()
     },
     onHoverChange(hovering: boolean) {
       hoveringHandles = hovering
@@ -307,3 +350,26 @@ setupResizeHandles(
     },
   },
 )
+
+// ── 저장된 상태 적용 (재시작 복원) ──
+// settings 값은 ControlPanel 초기 상태로 이미 UI에 반영됨. 여기선 실제 시스템·창에 적용한다.
+if (persisted) {
+  fishSchool.setCount(settings.fishCount)
+  lighting.setBrightness01(settings.brightness01)
+  glowSprites.setBrightness01(settings.brightness01)
+  const factor = sceneOpacityFactor(settings.sceneTransparency01)
+  aquascape.setSceneOpacity(factor)
+  glowSprites.setSceneOpacity(factor)
+  bubbles.setSceneOpacity(factor)
+  setWaterVeil(settings.brightness01, factor)
+  if (settings.hidden) {
+    loop.stop()
+    if (canvas) canvas.style.display = 'none'
+    waterVeil.style.display = 'none'
+  }
+  window.aqua.setAlwaysOnTop(currentAlwaysOnTop)
+  // 창 위치/크기 복원(main이 화면 안으로 클램프). 렌더러 container는 width:100%·height=barHeight라
+  // 창 resize 이벤트로 캔버스가 자동 리프레임된다.
+  window.aqua.setWindowBounds(persisted.winX, persisted.winY, currentBarWidth, currentBarHeight)
+  applyMouseIgnore()
+}

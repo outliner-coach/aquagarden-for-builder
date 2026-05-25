@@ -4,19 +4,31 @@ import { WINDOW } from '../shared/config'
 // 모듈 레벨 참조 — GC로 트레이가 사라지지 않게 유지.
 let tray: Tray | null = null
 
-/** 트레이 아이콘. mac은 메뉴바에 이모지 제목을 쓰므로 빈 이미지, 그 외엔 단색 비트맵. */
+/**
+ * 트레이 아이콘 — 생성한 비트맵(에셋 파일 불필요)의 채워진 원.
+ * mac은 템플릿 이미지(검정+알파)로 만들어 메뉴바 명암에 맞게 자동 틴트, 그 외엔 청록 원.
+ * (빈 이미지+setTitle 방식은 일부 macOS에서 메뉴바에 안 보였음.)
+ */
 function buildIcon(): Electron.NativeImage {
-  if (process.platform === 'darwin') return nativeImage.createEmpty()
   const size = 16
+  const r = 6.5
+  const c = (size - 1) / 2
+  const isMac = process.platform === 'darwin'
   const buf = Buffer.alloc(size * size * 4)
-  for (let i = 0; i < size * size; i++) {
-    const o = i * 4
-    buf[o] = 0xc8 // B
-    buf[o + 1] = 0xd0 // G
-    buf[o + 2] = 0x40 // R → 청록 계열
-    buf[o + 3] = 0xff // A
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const o = (y * size + x) * 4
+      const inside = (x - c) * (x - c) + (y - c) * (y - c) <= r * r
+      // BGRA. mac 템플릿은 검정+알파, 그 외는 청록.
+      buf[o] = isMac ? 0 : 0xc8 // B
+      buf[o + 1] = isMac ? 0 : 0xd0 // G
+      buf[o + 2] = isMac ? 0 : 0x40 // R
+      buf[o + 3] = inside ? 0xff : 0 // A (원 모양)
+    }
   }
-  return nativeImage.createFromBitmap(buf, { width: size, height: size })
+  const img = nativeImage.createFromBitmap(buf, { width: size, height: size })
+  if (isMac) img.setTemplateImage(true)
+  return img
 }
 
 /** 창을 현재 디스플레이 상단 전폭(기본 위치)으로 되돌리고 표시 — 버튼을 잃었을 때 복구용. */
@@ -32,7 +44,6 @@ function resetPosition(win: BrowserWindow): void {
  */
 export function createTray(win: BrowserWindow): Tray {
   tray = new Tray(buildIcon())
-  if (process.platform === 'darwin') tray.setTitle('🐠')
   tray.setToolTip('Aquagarden')
 
   const rebuild = (): void => {

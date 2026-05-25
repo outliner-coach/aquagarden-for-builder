@@ -1,6 +1,7 @@
-import { FISH, COLORS } from '../../shared/config'
+import { FISH, COLORS, ZOOM } from '../../shared/config'
 import { setupButtonDrag, setupPanelDrag } from './drag'
 import type { LureMode } from '../entities/FoodLure'
+import { zoomToSliderPercent, sliderPercentToZoom } from '../core/zoomHelpers'
 
 /** ControlPanel이 외부에 알려주는 콜백 인터페이스 */
 export interface ControlPanelCallbacks {
@@ -15,6 +16,8 @@ export interface ControlPanelCallbacks {
   onControlsHoverChange: (hovering: boolean) => void
   /** 패널 확장/축소 시. 창 높이 조정용(잘림 방지). */
   onExpandedChange: (expanded: boolean) => void
+  /** 확대(줌) 배율 변경. */
+  onZoomChange: (factor: number) => void
   /** 먹이주기/놀래키기 모드 변경. */
   onLureModeChange: (mode: LureMode) => void
   /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
@@ -29,6 +32,7 @@ export interface ControlPanelState {
   hidden: boolean
   clickThrough: boolean
   alwaysOnTop: boolean
+  zoom: number
 }
 
 /**
@@ -49,6 +53,11 @@ export class ControlPanel {
   private readonly _brightnessValue: HTMLSpanElement
   private readonly _sceneTransSlider: HTMLInputElement
   private readonly _sceneTransValue: HTMLSpanElement
+  private readonly _zoomSlider: HTMLInputElement
+  private readonly _zoomValue: HTMLSpanElement
+  private _zoomRow!: HTMLElement
+  private _lureRow!: HTMLDivElement
+  private _interactionNotice!: HTMLDivElement
   private readonly _hideToggle: HTMLInputElement
   private readonly _clickThroughToggle: HTMLInputElement
   private readonly _alwaysOnTopToggle: HTMLInputElement
@@ -185,6 +194,19 @@ export class ControlPanel {
     this._hideToggle.addEventListener('change', () => this._updateStatusHint())
     this._clickThroughToggle.addEventListener('change', () => this._updateStatusHint())
 
+    // ── 확대(줌) 슬라이더 ── (휠이 주 조작, 슬라이더는 레벨 표시 + 비활성 표시 대상)
+    const { slider: zoomSlider, value: zoomValue } = this._createSlider(
+      '확대',
+      Math.round(ZOOM.min * 100),
+      Math.round(ZOOM.max * 100),
+      1,
+      zoomToSliderPercent(state.zoom),
+      (v) => callbacks.onZoomChange(sliderPercentToZoom(v)),
+    )
+    this._zoomSlider = zoomSlider
+    this._zoomValue = zoomValue
+    this._zoomRow = zoomSlider.parentElement as HTMLElement
+
     // ── 먹이주기 / 놀래키기 버튼 ──
     const lureRow = document.createElement('div')
     lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;'
@@ -202,11 +224,20 @@ export class ControlPanel {
     lureRow.appendChild(this._feedBtn)
     lureRow.appendChild(this._scareBtn)
     this._panel.appendChild(lureRow)
+    this._lureRow = lureRow
 
     // 활성 모드 힌트 — 어떤 모드가 켜졌고 무엇을 해야 하는지 명시(armed 표시 보강).
     this._lureHint = document.createElement('div')
     this._lureHint.style.cssText = `font-size:11px;color:${COLORS.point};margin-bottom:12px;display:none;`
     this._panel.appendChild(this._lureHint)
+
+    // 인터랙션 비활성 안내 — 위 그룹(확대·먹이·놀래키기) 바로 아래. 비활성일 때만 표시.
+    this._interactionNotice = document.createElement('div')
+    this._interactionNotice.style.cssText =
+      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin-bottom:12px;display:none;`
+    this._interactionNotice.textContent =
+      '마우스 투과·수조 숨김 중에는 먹이주기·놀래키기·확대를 사용할 수 없어요.'
+    this._panel.appendChild(this._interactionNotice)
 
     // ── 종료 버튼 (파괴적: 2단계 확인) ──
     // frameless·always-on-top 오버레이라 메뉴/X가 없어 끌 방법이 없으므로 여기서 종료.
@@ -297,7 +328,26 @@ export class ControlPanel {
     this._hideToggle.checked = state.hidden
     this._clickThroughToggle.checked = state.clickThrough
     this._alwaysOnTopToggle.checked = state.alwaysOnTop
+    this._zoomSlider.value = String(zoomToSliderPercent(state.zoom))
+    this._zoomValue.textContent = `${zoomToSliderPercent(state.zoom)}%`
     this._updateStatusHint()
+  }
+
+  /** 외부(휠)에서 줌이 바뀌면 슬라이더/값 표시를 동기화 */
+  setZoom(factor: number): void {
+    const pct = zoomToSliderPercent(factor)
+    this._zoomSlider.value = String(pct)
+    this._zoomValue.textContent = `${pct}%`
+  }
+
+  /** 인터랙션 가용성 반영: 비활성 시 확대·먹이·놀래키기를 흐리게/클릭불가 + 안내문 표시. */
+  setInteractive(enabled: boolean): void {
+    this._zoomRow.classList.toggle('cp__control--disabled', !enabled)
+    this._lureRow.classList.toggle('cp__control--disabled', !enabled)
+    this._zoomSlider.disabled = !enabled
+    this._feedBtn.disabled = !enabled
+    this._scareBtn.disabled = !enabled
+    this._interactionNotice.style.display = enabled ? 'none' : 'block'
   }
 
   /** 마우스 투과/수조 숨김이 켜졌을 때, 무슨 일이 일어나는지 안내 문구를 표시한다. */
@@ -434,7 +484,7 @@ export class ControlPanel {
     const valueEl = document.createElement('span')
     valueEl.className = 'cp__value'
     valueEl.style.cssText = `font-size:12px;font-weight:600;color:${COLORS.textPrimary};font-variant-numeric:tabular-nums;`
-    const isPercent = label === '밝기' || label === '배경 투명도'
+    const isPercent = label === '밝기' || label === '배경 투명도' || label === '확대'
     valueEl.textContent = isPercent ? `${initial}%` : String(initial)
 
     labelRow.appendChild(labelEl)
@@ -525,6 +575,12 @@ export class ControlPanel {
       }
       .cp__slider::-webkit-slider-runnable-track {
         height:4px;border-radius:2px;
+      }
+
+      .cp__control--disabled {
+        opacity:0.4;
+        pointer-events:none;
+        cursor:not-allowed;
       }
 
       .cp__toggle {

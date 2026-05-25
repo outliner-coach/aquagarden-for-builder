@@ -11,9 +11,11 @@ import { FoodLure } from './entities/FoodLure'
 import { ControlPanel } from './ui/ControlPanel'
 import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
+import { computeInteractive } from './ui/interaction'
+import { zoomFromWheel } from './core/zoomHelpers'
 import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
+import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA, ZOOM } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
@@ -81,8 +83,10 @@ const settings: AppSettings = persisted?.settings ?? {
   hidden: false,
   clickThrough: false,
   sceneTransparency01: SCENE.defaultTransparency01,
+  zoom: ZOOM.default,
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
+sceneRoot.setZoom(settings.zoom)
 
 // ── 영속화 ──
 // 펼친 상태(패널 open/'up' 이동)의 좌표를 저장하지 않도록, 접힌(resting) 상태 창 위치만 추적한다.
@@ -200,7 +204,7 @@ const foodLure = new FoodLure(
   canvas!,
   fishSchool,
   foodParticles,
-  () => !settings.clickThrough && !settings.hidden,
+  () => computeInteractive(settings.clickThrough, settings.hidden),
 )
 
 // ── ControlPanel 배선 ──
@@ -213,6 +217,7 @@ const controlPanel = new ControlPanel(
     hidden: settings.hidden,
     clickThrough: settings.clickThrough,
     alwaysOnTop: currentAlwaysOnTop,
+    zoom: settings.zoom,
   },
   {
     onFishCountChange(count: number) {
@@ -236,6 +241,11 @@ const controlPanel = new ControlPanel(
       setWaterVeil(settings.brightness01, factor)
       persistSoon()
     },
+    onZoomChange(factor: number) {
+      settings.zoom = factor
+      sceneRoot.setZoom(factor)
+      persistSoon()
+    },
     onHiddenChange(hidden: boolean) {
       settings.hidden = hidden
       // CRITICAL: hidden 시 렌더 루프 정지, 표시 시 재개.
@@ -253,11 +263,13 @@ const controlPanel = new ControlPanel(
         loop.start()
       }
       applyMouseIgnore()
+      applyInteractive()
       persistSoon()
     },
     onClickThroughChange(enabled: boolean) {
       settings.clickThrough = enabled
       applyMouseIgnore()
+      applyInteractive()
       persistSoon()
     },
     onAlwaysOnTopChange(enabled: boolean) {
@@ -307,6 +319,33 @@ foodLure.onModeChange = (mode) => {
   controlPanel.setLureMode(mode)
 }
 
+// 인터랙션 가용성(투과/숨김)에 따라 패널 컨트롤 비활성·안내 + armed lure 해제.
+function applyInteractive(): void {
+  const interactive = computeInteractive(settings.clickThrough, settings.hidden)
+  controlPanel.setInteractive(interactive)
+  if (!interactive) foodLure.setMode(null)
+}
+
+// ── 마우스 휠 줌 ──
+// 인터랙티브(투과 OFF·숨김 OFF)일 때만 캔버스 휠로 확대/축소. 그 외엔 기본 스크롤 보존.
+canvas?.addEventListener(
+  'wheel',
+  (e: WheelEvent) => {
+    if (!computeInteractive(settings.clickThrough, settings.hidden)) return
+    const next = zoomFromWheel(settings.zoom, e.deltaY)
+    if (next === settings.zoom) {
+      e.preventDefault()
+      return
+    }
+    e.preventDefault()
+    settings.zoom = next
+    sceneRoot.setZoom(next)
+    controlPanel.setZoom(next)
+    persistSoon()
+  },
+  { passive: false },
+)
+
 // ── 물고기 클릭 대사 ──
 // lure(먹이/놀래키기)가 armed일 때는 대사를 띄우지 않는다 — 한 번의 클릭에 두 핸들러가
 // 동시에 발동하던 겹침(#3) 방지. lure 해제(mode===null) 상태에서만 대사 활성.
@@ -315,7 +354,7 @@ new FishDialogue(
   sceneRoot.camera,
   canvas!,
   fishSchool,
-  () => !settings.clickThrough && !settings.hidden && foodLure.mode === null,
+  () => computeInteractive(settings.clickThrough, settings.hidden) && foodLure.mode === null,
 )
 
 // ── 모서리 드래그 리사이즈 핸들 ──
@@ -373,3 +412,6 @@ if (persisted) {
   window.aqua.setWindowBounds(persisted.winX, persisted.winY, currentBarWidth, currentBarHeight)
   applyMouseIgnore()
 }
+
+// 시작 시 패널 비활성 상태를 현재 설정에 맞춰 반영(예: 투과/숨김이 복원된 경우).
+applyInteractive()

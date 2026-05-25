@@ -26,7 +26,7 @@
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }]
     },
-    "publish": [{ "provider": "github", "owner": "outliner-coach", "repo": "aquagarden-for-builder" }]
+    "publish": [{ "provider": "github", "owner": "outliner-coach", "repo": "aquagarden-for-builder", "releaseType": "release" }]
   },
   "dependencies": {
     "three": "^0.184.0"

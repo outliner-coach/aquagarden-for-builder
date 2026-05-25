@@ -45,9 +45,10 @@
 
 [Releases](https://github.com/outliner-coach/aquagarden-for-builder/releases)에서 OS에 맞는 파일을 받으세요.
 
-> ⚠️ 코드서명이 안 된 무료 배포라 첫 실행에 한 번 우회가 필요합니다.
-> - **macOS**: `.dmg`를 열어 `응용 프로그램`으로 드래그 → 앱 **우클릭 → 열기**.
->   "손상되었기 때문에…" 오류 시(Apple Silicon): `xattr -cr /Applications/Aquagarden.app` 후 재실행.
+> ⚠️ Apple 공증(notarization)이 안 된 무료 배포라 첫 실행에 한 번 우회가 필요합니다.
+> - **macOS**: `.dmg`를 열어 `응용 프로그램`으로 드래그 → 앱을 한 번 실행(차단됨) →
+>   **시스템 설정 → 개인정보 보호 및 보안 → 맨 아래 "그래도 열기"** → 다시 실행.
+>   (터미널 대안: `xattr -dr com.apple.quarantine /Applications/Aquagarden.app` 후 실행)
 > - **Windows**: `.exe` 실행 → SmartScreen에서 **추가 정보 → 실행**.
 
 ## 🛠️ 개발

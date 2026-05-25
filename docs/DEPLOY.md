@@ -14,7 +14,7 @@ git push origin v0.1.1
 ```
 
 → `.github/workflows/release.yml` 이 macOS·Windows 러너에서 각각 빌드해
-`https://github.com/jha0313/harness_framework/releases` 의 `v0.1.1` 릴리스에
+`https://github.com/outliner-coach/aquagarden-for-builder/releases` 의 `v0.1.1` 릴리스에
 `.dmg`(arm64·x64)와 `.exe`(x64)를 첨부한다. (Actions 탭에서 진행 상황 확인)
 
 - 빌드 전 `npm test`(순수 로직)가 게이트로 돈다. 실패하면 릴리스가 안 만들어진다.

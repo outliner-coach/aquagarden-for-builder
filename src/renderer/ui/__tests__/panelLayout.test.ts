@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { choosePanelDirection, expandedWindowHeight, canvasTopOffset } from '../panelLayout'
+import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom } from '../panelLayout'
 
 describe('choosePanelDirection', () => {
   const base = { barHeight: 220, panelExtra: 420, availTop: 0, availHeight: 1080 }
@@ -55,5 +55,26 @@ describe('canvasTopOffset', () => {
 
   it('음수가 되지 않는다', () => {
     expect(canvasTopOffset('up', 100, 220)).toBe(0)
+  })
+})
+
+describe('shouldAnchorBottom — 리사이즈가 하단 앵커로 새서 창이 위로 기어오르던 버그 가드', () => {
+  it("dir이 'down'이면 항상 false", () => {
+    expect(shouldAnchorBottom('toggle', true, 'down')).toBe(false)
+    expect(shouldAnchorBottom('resize', true, 'down')).toBe(false)
+    expect(shouldAnchorBottom('resize', false, 'down')).toBe(false)
+  })
+
+  it("toggle은 'up'이면 펼침/접힘 모두 true(바 제자리 유지)", () => {
+    expect(shouldAnchorBottom('toggle', true, 'up')).toBe(true)
+    expect(shouldAnchorBottom('toggle', false, 'up')).toBe(true)
+  })
+
+  it("resize는 패널이 닫혀 있으면 'up'이어도 false(좌상단 앵커) — 핵심 회귀 가드", () => {
+    expect(shouldAnchorBottom('resize', false, 'up')).toBe(false)
+  })
+
+  it("resize는 패널이 '위로' 펼쳐진 동안에만 true", () => {
+    expect(shouldAnchorBottom('resize', true, 'up')).toBe(true)
   })
 })

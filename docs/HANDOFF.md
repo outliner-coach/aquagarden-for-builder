@@ -37,6 +37,14 @@
 1c. **수조 숨김 시 베일 '레이어' 잔존** — `onHiddenChange`가 캔버스만 `display:none` 하고 water veil(DOM
    그라디언트)은 그대로 둬, 숨김 시 옅은 사각형 레이어가 바탕화면 위에 남음. 숨김/표시에 `waterVeil.style.
    display` 토글 추가. ✅ dev에서 숨김 시 상단 깨끗(레이어 없음) 확인.
+1d. **리사이즈가 하단 앵커로 새서 창이 위로 사라짐(버튼 무반응)** — main 프로세스에 창 bounds 로깅을
+   붙여 dev에서 재현: `currentPanelDir`가 패널을 닫은 뒤에도 'up'으로 남고, **리사이즈가 패널 토글과 같은
+   `syncWindowSize`를 거쳐 그 값을 anchorBottom으로 사용** → 우하단 그립을 끌면 바닥이 고정되고 top이
+   위로 기어올라(468→338…) 창이 화면 밖으로. 순수 함수 `shouldAnchorBottom('toggle'|'resize', expanded,
+   dir)`로 분리: 하단 앵커는 'up'에서만, **리사이즈는 패널이 실제 펼쳐진 동안에만**(닫힌 채 리사이즈는
+   좌상단 앵커). 회귀 테스트 4개. ✅ dev에서 리사이즈 시 top 고정·바닥 확장 확인(로그 anchorBottom=false).
+   - 알려진 잔여: `moveWindowBy`(overlay.ts)는 클램프가 없어 버튼을 화면 밖으로 드래그하면 사라질 수 있음
+     (별도 후속 — 화면 안으로 클램프 검토).
 
 ### 신규 기능 (완료, dev 실기기 확인)
 3. **패널 자동 위/아래 열기** — 패널 펼침 시 하단 공간이 부족하면 창을 강제 이동하던 것을, **위로 펼침**으로

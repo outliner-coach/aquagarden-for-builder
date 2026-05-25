@@ -11,7 +11,7 @@ import { FoodLure } from './entities/FoodLure'
 import { ControlPanel } from './ui/ControlPanel'
 import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
-import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, type PanelDirection } from './ui/panelLayout'
+import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA } from '../shared/config'
 import type { AppSettings } from '../shared/types'
@@ -149,12 +149,16 @@ function applyCanvasAnchor(): void {
  * 현재 바 크기 + 패널 확장 여부로 OS 창 크기를 갱신한다.
  * 패널이 열려 있으면 창 높이를 바+panelExtra로 키워 잘림을 막는다. 'up' 방향이면 하단 앵커로
  * 키워(위로 펼침) 바가 화면 제자리를 유지한다. 캔버스(수조)는 바 높이에 고정.
+ *
+ * anchorBottom은 **패널 펼침/접힘에서만** true여야 한다. 리사이즈는 항상 좌상단 앵커(false)다.
+ * (currentPanelDir가 'up'으로 남아 있을 때 리사이즈까지 하단 앵커가 되면, 우하단 그립을 끌어도
+ *  바닥이 고정되고 top이 위로 기어올라 창이 화면 밖으로 사라지는 버그가 있었다.)
  */
-function syncWindowSize(): void {
+function syncWindowSize(anchorBottom: boolean): void {
   const winH = panelExpanded
     ? expandedWindowHeight(currentBarHeight, WINDOW.panelExtra)
     : currentBarHeight
-  window.aqua.setWindowSize(currentBarWidth, winH, currentPanelDir === 'up')
+  window.aqua.setWindowSize(currentBarWidth, winH, anchorBottom)
   applyCanvasAnchor()
 }
 
@@ -245,7 +249,8 @@ const controlPanel = new ControlPanel(
         })
         controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
       }
-      syncWindowSize()
+      // 펼침/접힘에서만 'up'이면 하단 앵커(바를 제자리에 유지).
+      syncWindowSize(shouldAnchorBottom('toggle', panelExpanded, currentPanelDir))
     },
     onLureModeChange(mode) {
       foodLure.setMode(mode)
@@ -292,7 +297,8 @@ setupResizeHandles(
       waterVeil.style.height = `${height}px`
       // 'up' 방향일 때 버튼은 바 상단(창 하단 기준 barHeight-84)에 맞춰야 하므로 바 높이 변화에 재정렬.
       controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
-      syncWindowSize()
+      // 리사이즈는 좌상단 앵커가 기본. 단 패널이 '위로' 펼쳐진 상태에서의 리사이즈만 하단 앵커 유지.
+      syncWindowSize(shouldAnchorBottom('resize', panelExpanded, currentPanelDir))
       sceneRoot.resizePreservingScale(CAMERA.fov, WINDOW.height)
     },
     onHoverChange(hovering: boolean) {

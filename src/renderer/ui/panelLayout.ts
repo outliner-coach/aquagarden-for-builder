@@ -39,6 +39,23 @@ export function expandedWindowHeight(barHeight: number, panelExtra: number): num
 }
 
 /**
+ * 창 크기 변경 시 하단 가장자리를 고정(anchorBottom)할지 결정한다(순수).
+ * 하단 앵커는 'up' 방향에서만 의미가 있고:
+ * - 'toggle'(패널 펼침/접힘): 'up'이면 항상 하단 고정(바가 제자리 유지).
+ * - 'resize': 패널이 **실제로 펼쳐져 있을 때만** 하단 고정. 닫힌 채 리사이즈는 좌상단 앵커여야 한다.
+ *   (currentPanelDir가 'up'으로 남아 있어도 닫힌 상태 리사이즈가 하단 앵커가 되면, 우하단 그립을
+ *    끌 때 바닥이 고정되고 top이 위로 기어올라 창이 화면 밖으로 사라지는 버그가 있었다.)
+ */
+export function shouldAnchorBottom(
+  op: 'toggle' | 'resize',
+  panelExpanded: boolean,
+  dir: PanelDirection,
+): boolean {
+  if (dir !== 'up') return false
+  return op === 'toggle' ? true : panelExpanded
+}
+
+/**
  * 창 안에서 캔버스(바)의 top 오프셋(px).
  * 'down'·축소: 0(상단). 'up': 창 하단에 바를 붙여 화면상 제자리 유지 → winHeight-barHeight.
  */

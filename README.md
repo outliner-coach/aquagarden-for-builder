@@ -46,9 +46,13 @@
 [Releases](https://github.com/outliner-coach/aquagarden-for-builder/releases)에서 OS에 맞는 파일을 받으세요.
 
 > ⚠️ Apple 공증(notarization)이 안 된 무료 배포라 첫 실행에 한 번 우회가 필요합니다.
-> - **macOS**: `.dmg`를 열어 `응용 프로그램`으로 드래그 → 앱을 한 번 실행(차단됨) →
->   **시스템 설정 → 개인정보 보호 및 보안 → 맨 아래 "그래도 열기"** → 다시 실행.
->   (터미널 대안: `xattr -dr com.apple.quarantine /Applications/Aquagarden.app` 후 실행)
+> - **macOS**: Apple Silicon은 반드시 **`-arm64.dmg`**, 인텔 맥은 `...-x64.dmg`(접미사 없는 dmg)를 받으세요.
+>   `응용 프로그램`으로 드래그한 뒤, 첫 실행이 막히면 **영구 해결(권장)** — 터미널에서 한 번:
+>   ```bash
+>   xattr -dr com.apple.quarantine /Applications/Aquagarden.app
+>   ```
+>   이후로는 더블클릭으로 바로 열립니다. (터미널이 싫으면 **시스템 설정 → 개인정보 보호 및 보안 →
+>   "그래도 열기"** — 단 미공증 앱은 가끔 재승인을 요구할 수 있어 위 방법을 권장.)
 > - **Windows**: `.exe` 실행 → SmartScreen에서 **추가 정보 → 실행**.
 
 ## 🛠️ 개발

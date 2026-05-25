@@ -62,6 +62,13 @@ export const CAMERA = {
   far: 100,
 } as const
 
+export const ZOOM = {
+  min: 1.0, // 기본(축소 없음)
+  max: 2.0, // 최대 2배 확대
+  default: 1.0,
+  wheelStep: 0.1, // 휠 한 칸당 줌 증감
+} as const
+
 export const AQUASCAPE = {
   sandY: -1.8,
 } as const

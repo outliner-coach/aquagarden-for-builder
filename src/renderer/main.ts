@@ -82,6 +82,14 @@ const settings: AppSettings = {
 // 캔버스 참조 (hidden 시 display 제어)
 const canvas = container.querySelector('canvas')
 
+// 캔버스 하단 페이드 — 바 아래 가장자리의 불투명 모래 하드 컷(=가로선)을 마스크로 용해.
+// 패널 펼침 시 캔버스 하단이 투명 영역 위에 선으로 드러나던 문제 제거.
+if (canvas) {
+  const fade = `linear-gradient(to bottom, #000 calc(100% - ${WINDOW.canvasBottomFadePx}px), transparent 100%)`
+  canvas.style.setProperty('-webkit-mask-image', fade)
+  canvas.style.setProperty('mask-image', fade)
+}
+
 // ── 수중 분위기 베일 ──
 // 투명 오버레이라 '물 부피' 색이 없으므로, 화면 상단이 살짝 푸르게 물드는 은은한
 // 반투명 그라디언트를 덧씌워 수중 느낌을 준다(바탕화면은 여전히 비침). 밝기와 연동.
@@ -197,8 +205,12 @@ const controlPanel = new ControlPanel(
       if (hidden) {
         loop.stop()
         if (canvas) canvas.style.display = 'none'
+        // 수조 숨김 시 수중 베일(DOM 그라디언트)도 같이 숨긴다. 안 그러면 캔버스만 사라지고
+        // 베일이 옅은 사각형 '레이어'로 바탕화면 위에 남는다.
+        waterVeil.style.display = 'none'
       } else {
         if (canvas) canvas.style.display = ''
+        waterVeil.style.display = ''
         loop.start()
       }
       applyMouseIgnore()

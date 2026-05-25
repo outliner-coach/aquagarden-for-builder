@@ -9,6 +9,18 @@
 - 검증: `npm run test`(361) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
 - 이번 세션에서 핸드오프의 인터랙션 UX 이슈 6건 + 발견된 패널 잘림 버그 1건을 모두 처리했다.
 
+## 신규 기능 (2026-05-26) — 수조 줌 + 인터랙션 가용성 UX
+
+설계 `docs/superpowers/specs/2026-05-26-...`, 계획 `docs/superpowers/plans/2026-05-26-...`.
+- **줌**: 마우스 휠 + "확대" 슬라이더(100~200%). `camera.zoom` 방식(fov 재계산과 독립 → 리사이즈해도
+  유지, Raycaster 자동 반영). 휠은 인터랙티브(투과 OFF·숨김 OFF)일 때만, 그 외엔 기본 스크롤 보존.
+  `ZOOM` 상수, `SceneRoot.setZoom`, `zoomHelpers`(순수·테스트). 영속화(`AppSettings.zoom`, 하위호환).
+- **인터랙션 비활성 UX**: 투과/숨김 ON이면 먹이주기·놀래키기·확대 슬라이더를 흐리게+클릭불가 처리하고
+  그 아래 안내문 표시. armed lure 모드는 해제. 단일 진실 원천 `computeInteractive`(순수·테스트)로
+  FoodLure/FishDialogue 게이트·휠·패널 표시를 통일.
+- 검증: `npm run test`(394)·`lint`·`build`·`smoke`(pass=true) 통과. ⚠ **휠 줌 체감·비활성 시각
+  표시·확대 상태 픽킹 정확도는 dev 라이브 QA 미완료** — 계획 Task 8 Step 2 체크리스트 참고.
+
 ## 후속 세션 작업 (2026-05-25, 추가) — 버그 3건 + 신규 기능 2건
 
 ### 버그 수정 (완료)

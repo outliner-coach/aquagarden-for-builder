@@ -5,6 +5,8 @@ export interface AppSettings {
   clickThrough: boolean
   sceneTransparency01: number
   zoom: number
+  /** 켜진 특별 개체 종 id 목록. 유효성은 renderer에서 availableFeatures와 교집합으로 검증. */
+  enabledFeatures: string[]
 }
 
 export interface MoveWindowByPayload {

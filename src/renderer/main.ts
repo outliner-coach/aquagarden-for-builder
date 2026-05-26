@@ -3,6 +3,7 @@ import { RenderLoop } from './core/RenderLoop'
 import { Aquascape } from './entities/Aquascape'
 import { FishSchool } from './entities/FishSchool'
 import type { SpeciesId } from './entities/fishAssets'
+import { getSpecies } from './entities/speciesRegistry'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
 import { GlowSprites } from './entities/GlowSprites'
@@ -61,6 +62,9 @@ fishSchool
       persistSoon()
     }
     fishSchool.setEnabledFeatures(valid as SpeciesId[])
+    // 가용 특별 개체 목록으로 ControlPanel 토글 UI 채우기
+    const featureList = [...avail].map((id) => ({ id, displayName: getSpecies(id).displayName }))
+    controlPanel.setFeatureSpecies(featureList, valid)
   })
   .catch((err) => {
     console.error('[FishSchool] 초기화 실패:', err)
@@ -316,6 +320,11 @@ const controlPanel = new ControlPanel(
       }
       // 펼침/접힘에서만 'up'이면 하단 앵커(바를 제자리에 유지).
       syncWindowSize(shouldAnchorBottom('toggle', panelExpanded, currentPanelDir))
+    },
+    onEnabledFeaturesChange(ids: string[]) {
+      settings.enabledFeatures = ids
+      fishSchool.setEnabledFeatures(ids as SpeciesId[])
+      persistSoon()
     },
     onLureModeChange(mode) {
       foodLure.setMode(mode)

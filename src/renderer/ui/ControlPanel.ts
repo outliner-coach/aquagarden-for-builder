@@ -20,6 +20,8 @@ export interface ControlPanelCallbacks {
   onZoomChange: (factor: number) => void
   /** 먹이주기/놀래키기 모드 변경. */
   onLureModeChange: (mode: LureMode) => void
+  /** 특별 개체 활성화 토글 변경. */
+  onEnabledFeaturesChange: (ids: string[]) => void
   /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
   onQuit: () => void
 }
@@ -71,6 +73,9 @@ export class ControlPanel {
   /** 패널 닫힘 상태의 transform — 펼침 방향(up/down)에 따라 슬라이드 방향이 바뀐다. */
   private _closedTransform = 'translateY(-4px)'
   private _helpModal!: HTMLDivElement
+  private _featureGroupHeader!: HTMLDivElement
+  private _featureGroupBody!: HTMLDivElement
+  private _featureExpanded = false
 
   constructor(
     container: HTMLElement,
@@ -129,9 +134,12 @@ export class ControlPanel {
 
     this._panel.appendChild(header)
 
+    // ── 어종 섹션 ──
+    this._appendSectionLabel('어종')
+
     // ── 개체수 슬라이더 ──
     const { slider: fishSlider, value: fishValue } = this._createSlider(
-      '개체수',
+      '개체수 (작은 물고기)',
       FISH.min,
       FISH.max,
       1,
@@ -140,6 +148,23 @@ export class ControlPanel {
     )
     this._fishSlider = fishSlider
     this._fishValue = fishValue
+
+    // ── 특별 개체 접이식 그룹 (기본 접힘, setFeatureSpecies로 내용 채움) ──
+    {
+      const fg = document.createElement('div')
+      fg.style.cssText = 'margin-bottom:12px;'
+      const fgHeader = document.createElement('div')
+      fgHeader.className = 'cp__feature-header'
+      fgHeader.textContent = '▸ 특별 개체'
+      fgHeader.addEventListener('click', () => this._toggleFeatureGroup())
+      const fgBody = document.createElement('div')
+      fgBody.className = 'cp__feature-body'
+      fgBody.style.display = 'none'
+      fg.append(fgHeader, fgBody)
+      this._panel.appendChild(fg)
+      this._featureGroupHeader = fgHeader
+      this._featureGroupBody = fgBody
+    }
 
     // ── 밝기 슬라이더 ──
     const { slider: brightSlider, value: brightValue } = this._createSlider(
@@ -350,6 +375,59 @@ export class ControlPanel {
     this._interactionNotice.style.display = enabled ? 'none' : 'block'
   }
 
+  /** 외부(main)에서 가용 특별 개체 종과 활성 목록을 전달해 토글 UI를 채운다. */
+  setFeatureSpecies(species: { id: string; displayName: string }[], enabled: string[]): void {
+    this._featureGroupBody.replaceChildren()
+    if (species.length === 0) {
+      const empty = document.createElement('div')
+      empty.style.cssText = `font-size:11px;color:${COLORS.textSecondary};opacity:0.7;`
+      empty.textContent = '추가 가능한 특별 개체가 없습니다.'
+      this._featureGroupBody.appendChild(empty)
+      return
+    }
+    const enabledSet = new Set(enabled)
+    for (const sp of species) {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;'
+      const label = document.createElement('span')
+      label.style.cssText = `font-size:12px;font-weight:500;color:${COLORS.textSecondary};`
+      label.textContent = sp.displayName
+      const wrap = document.createElement('label')
+      wrap.className = 'cp__toggle'
+      const input = document.createElement('input')
+      input.type = 'checkbox'
+      input.checked = enabledSet.has(sp.id)
+      input.style.cssText = 'display:none;'
+      input.dataset.speciesId = sp.id
+      const track = document.createElement('span')
+      track.className = 'cp__toggle-track'
+      input.addEventListener('change', () => this._emitEnabledFeatures())
+      wrap.append(input, track)
+      row.append(label, wrap)
+      this._featureGroupBody.appendChild(row)
+    }
+  }
+
+  private _emitEnabledFeatures(): void {
+    const ids = Array.from(
+      this._featureGroupBody.querySelectorAll<HTMLInputElement>('input[type=checkbox]'),
+    ).filter((i) => i.checked).map((i) => i.dataset.speciesId!).filter(Boolean)
+    this._callbacks.onEnabledFeaturesChange(ids)
+  }
+
+  private _appendSectionLabel(text: string): void {
+    const el = document.createElement('div')
+    el.style.cssText = `font-size:11px;font-weight:700;color:${COLORS.textSecondary};letter-spacing:0.04em;margin:2px 0 8px;opacity:0.8;`
+    el.textContent = text
+    this._panel.appendChild(el)
+  }
+
+  private _toggleFeatureGroup(): void {
+    this._featureExpanded = !this._featureExpanded
+    this._featureGroupBody.style.display = this._featureExpanded ? 'block' : 'none'
+    this._featureGroupHeader.textContent = (this._featureExpanded ? '▾' : '▸') + ' 특별 개체'
+  }
+
   /** 마우스 투과/수조 숨김이 켜졌을 때, 무슨 일이 일어나는지 안내 문구를 표시한다. */
   private _updateStatusHint(): void {
     const msgs: string[] = []
@@ -403,7 +481,8 @@ export class ControlPanel {
 
     const items: [string, string][] = [
       ['⚙ 플로팅 버튼', '드래그하면 창 이동, 클릭하면 이 패널을 열고 닫습니다.'],
-      ['개체수', '헤엄치는 물고기 수를 조절합니다.'],
+      ['개체수 (작은 물고기)', '함께 헤엄치는 작은 물고기 수를 조절합니다.'],
+      ['특별 개체', '고래·만타가오리 등 큰 개체를 켜고 끕니다. 켜면 한 마리씩 천천히 등장합니다.'],
       ['밝기', '수조 조명의 밝기를 조절합니다.'],
       ['배경 투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
       ['수조 숨김', '렌더링을 멈춰 절전합니다. 플로팅 버튼만 남습니다.'],
@@ -605,6 +684,12 @@ export class ControlPanel {
       .cp__toggle input:checked + .cp__toggle-track::after {
         transform:translateX(16px);
       }
+
+      .cp__feature-header {
+        font-size:12px;font-weight:600;color:${COLORS.textSecondary};
+        cursor:pointer;user-select:none;padding:4px 0;margin-bottom:4px;
+      }
+      .cp__feature-header:hover { color:${COLORS.textPrimary}; }
 
       .cp__lure-btn {
         flex:1;

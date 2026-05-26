@@ -8,7 +8,7 @@
       "status": "completed",
       "eval": true,
       "started_at": "2026-05-27T01:09:36+0900",
-      "completed_at": "2026-05-27T01:14:00+0900",
+      "completed_at": "2026-05-27T01:15:03+0900",
       "summary": "speciesRegistry에 category 필드 추가, feature 4종(manta/whale/dolphin/shark) 등록(dialogue 10개씩), pickSpecies ambient-only 필터, CREDITS.md 갱신. test 395·build·lint·smoke 통과."
     },
     {

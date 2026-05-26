@@ -67,13 +67,13 @@ export class Fish {
     return this._velocity
   }
 
-  reset(seed: number, kind: FishKind): void {
+  reset(seed: number, kind: FishKind, species?: SpeciesId): void {
     this._kind = kind
     this._seed = seed
     this._wanderPhase = seed * 100
     this._steer.set(0, 0, 0)
 
-    const speciesId = pickSpecies(seed, kind)
+    const speciesId = species ?? pickSpecies(seed, kind)
     const proto = this._prototypes.get(speciesId)
 
     // 종이 바뀌었을 때만 클론/믹서 재구성 (성장 시점에만 발생, 매 프레임 X)

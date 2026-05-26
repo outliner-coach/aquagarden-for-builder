@@ -9,7 +9,11 @@
 | `lionfish.glb` | Lionfish (쏠배감펭) | 개체 | https://poly.pizza/m/czsz9Baw86 | CC0 1.0 |
 | `tetra-a.glb` | Fish (슬림 변형 A) | 군집 | https://poly.pizza/m/BEcU9rjiAq | CC0 1.0 |
 | `tetra-b.glb` | Fish (슬림 변형 B) | 군집 | https://poly.pizza/m/XWl86YFtpF | CC0 1.0 |
+| `manta.glb` | Manta Ray (만타가오리) | 개체(특별) | https://poly.pizza/m/yzD8b7ZHZm | CC0 1.0 |
+| `whale.glb` | Whale (고래) | 개체(특별) | https://poly.pizza/m/JGFwp6xWgk | CC0 1.0 |
+| `dolphin.glb` | Dolphin (돌고래) | 개체(특별) | https://poly.pizza/m/3LzFgI3GLO | CC0 1.0 |
+| `shark.glb` | Shark (상어) | 개체(특별) | https://poly.pizza/m/AyHTK3zUSG | CC0 1.0 |
 
 - 제작자: Quaternius (https://quaternius.com / https://quaternius.itch.io/lowpoly-animated-fish)
-- 모델에 헤엄 리그가 포함돼 있으나, 본 프로젝트는 리그를 사용하지 않고 정적 메시 + 셰이더 바디 벤딩으로 애니메이션한다.
-- 다운로드일: 2026-05-24
+- 각 모델의 스켈레탈 swim 클립을 `AnimationMixer`로 재생한다(절차적 벤딩 아님).
+- 다운로드일: 2026-05-24 (기존 5종), 2026-05-27 (신규 4종)

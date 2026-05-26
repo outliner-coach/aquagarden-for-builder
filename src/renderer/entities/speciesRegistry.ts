@@ -18,6 +18,10 @@ import butterflyfishUrl from '../assets/fish/butterflyfish.glb?url'
 import lionfishUrl from '../assets/fish/lionfish.glb?url'
 import tetraAUrl from '../assets/fish/tetra-a.glb?url'
 import tetraBUrl from '../assets/fish/tetra-b.glb?url'
+import mantaUrl from '../assets/fish/manta.glb?url'
+import whaleUrl from '../assets/fish/whale.glb?url'
+import dolphinUrl from '../assets/fish/dolphin.glb?url'
+import sharkUrl from '../assets/fish/shark.glb?url'
 
 /* ── Types ── */
 
@@ -27,16 +31,22 @@ export type SpeciesId =
   | 'lionfish'
   | 'tetra-a'
   | 'tetra-b'
+  | 'manta'
+  | 'whale'
+  | 'dolphin'
+  | 'shark'
 
 export interface FishSpecies {
   id: SpeciesId
   file: string
   kind: FishKind
+  /** ambient: 앰비언트 풀(개체수 슬라이더), feature: 특별 개체(종별 토글) */
+  category: 'ambient' | 'feature'
   baseScale: number
   swimSpeed: number
   /** 한국어 표시명 (UI·대사에서 사용) */
   displayName: string
-  /** 어종별 대사 목록 (step 1에서 >=10개로 채운다) */
+  /** 어종별 대사 목록 (>=10개) */
   dialogue: readonly string[]
 }
 
@@ -47,6 +57,7 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     id: 'tetra-a',
     file: tetraAUrl,
     kind: 'schooling',
+    category: 'ambient',
     baseScale: 0.58,
     swimSpeed: 1.2,
     displayName: '네온테트라 A',
@@ -67,6 +78,7 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     id: 'tetra-b',
     file: tetraBUrl,
     kind: 'schooling',
+    category: 'ambient',
     baseScale: 0.58,
     swimSpeed: 1.3,
     displayName: '네온테트라 B',
@@ -87,6 +99,7 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     id: 'clownfish',
     file: clownfishUrl,
     kind: 'individual',
+    category: 'ambient',
     baseScale: 0.85,
     swimSpeed: 0.8,
     displayName: '흰동가리',
@@ -107,6 +120,7 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     id: 'butterflyfish',
     file: butterflyfishUrl,
     kind: 'individual',
+    category: 'ambient',
     baseScale: 0.9,
     swimSpeed: 0.7,
     displayName: '나비고기',
@@ -127,6 +141,7 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     id: 'lionfish',
     file: lionfishUrl,
     kind: 'individual',
+    category: 'ambient',
     baseScale: 0.95,
     swimSpeed: 0.6,
     displayName: '쏠배감펭',
@@ -141,6 +156,93 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
       '넓은 바다 한가운데, 나는 고요히 떠 있어요.',
       '겉모습이 전부가 아니라는 걸 알아주세요.',
       '느리게 사는 것도 하나의 용기입니다.',
+    ],
+  },
+
+  /* ── feature 종 (특별 개체, 앰비언트 풀에 섞이지 않음) ── */
+
+  {
+    id: 'manta',
+    file: mantaUrl,
+    kind: 'individual',
+    category: 'feature',
+    baseScale: 1.4,
+    swimSpeed: 0.45,
+    displayName: '만타가오리',
+    dialogue: [
+      '넓은 날개를 펼치면, 바다 전체가 품에 안기는 것 같아요.',
+      '천천히 날갯짓하는 것만으로도 멀리 갈 수 있습니다.',
+      '깊은 바다의 고요함 속에서 나는 자유를 배웠어요.',
+      '큰 몸을 가볍게 움직이는 비결은 힘을 빼는 거예요.',
+      '물살에 몸을 맡기면, 바다가 길을 알려줍니다.',
+      '하늘을 나는 것처럼 헤엄치는 이 순간이 좋아요.',
+      '서두르지 않아도 물결은 항상 앞으로 흘러가요.',
+      '넓은 바다를 품은 만큼, 마음도 넓어지는 것 같아요.',
+      '고요히 떠 있는 것도 하나의 여행입니다.',
+      '날개 끝에 닿는 물의 온도가 오늘의 인사예요.',
+    ],
+  },
+  {
+    id: 'whale',
+    file: whaleUrl,
+    kind: 'individual',
+    category: 'feature',
+    baseScale: 1.8,
+    swimSpeed: 0.35,
+    displayName: '고래',
+    dialogue: [
+      '깊이 잠수할수록, 세상은 더 고요해집니다.',
+      '먼 바다를 건너온 기억이 오늘의 나를 만들었어요.',
+      '큰 몸이지만, 가장 작은 물결도 느낄 수 있어요.',
+      '천천히 숨을 쉬는 것, 그것이 살아있다는 증거입니다.',
+      '혼자 헤엄쳐도 외롭지 않아요. 바다가 함께하니까.',
+      '오랜 여정 끝에 만나는 고요함이 가장 큰 선물이에요.',
+      '세상의 모든 바다는 결국 하나로 이어져 있습니다.',
+      '깊은 곳에서 올려다보는 수면의 빛이 참 아름다워요.',
+      '느리게 가도 괜찮아요. 도착하지 못할 곳은 없으니까.',
+      '이 넓은 바다에서 당신을 만난 건 작은 기적이에요.',
+    ],
+  },
+  {
+    id: 'dolphin',
+    file: dolphinUrl,
+    kind: 'individual',
+    category: 'feature',
+    baseScale: 1.1,
+    swimSpeed: 0.7,
+    displayName: '돌고래',
+    dialogue: [
+      '같이 놀래요! 물 위로 뛰어오르는 건 정말 신나요.',
+      '웃는 것처럼 보이나요? 정말로 웃고 있는 거예요.',
+      '파도를 타는 건 혼자보다 함께가 더 재미있어요.',
+      '오늘 기분이 어때요? 저는 항상 즐거워요.',
+      '수면 위로 뛰어오르면, 잠깐이지만 하늘을 날 수 있어요.',
+      '친구들과 나란히 헤엄치는 이 순간이 행복이에요.',
+      '놀이가 곧 삶이고, 삶이 곧 놀이예요.',
+      '당신이 웃으면 바다도 더 반짝이는 것 같아요.',
+      '어려운 일이 있어도 한 번 뛰어오르면 괜찮아져요.',
+      '매일이 새로운 모험의 시작이에요!',
+    ],
+  },
+  {
+    id: 'shark',
+    file: sharkUrl,
+    kind: 'individual',
+    category: 'feature',
+    baseScale: 1.3,
+    swimSpeed: 0.6,
+    displayName: '상어',
+    dialogue: [
+      '멈추지 않는 것, 그것이 내가 살아가는 방식입니다.',
+      '강한 것은 이빨이 아니라 앞으로 나아가는 의지예요.',
+      '혼자 헤엄치는 시간이 나를 단단하게 만들어요.',
+      '깊은 바다의 어둠 속에서도 길을 잃지 않습니다.',
+      '고요하게 흐르는 물살 위에 나만의 길이 있어요.',
+      '겉모습과 달리, 저도 평화로운 바다를 좋아해요.',
+      '오래 헤엄칠수록 바다의 깊은 뜻을 알게 됩니다.',
+      '두려움 없이 나아가는 건, 용기가 아니라 습관이에요.',
+      '넓은 바다를 홀로 누비는 것도 나쁘지 않아요.',
+      '거친 파도 너머에 항상 잔잔한 바다가 기다리고 있어요.',
     ],
   },
 ]
@@ -159,9 +261,9 @@ export function getSpecies(id: SpeciesId): FishSpecies {
   return found
 }
 
-/** 시드 기반 결정적 종 선택. 해당 kind의 종 중에서. */
+/** 시드 기반 결정적 종 선택. ambient 카테고리의 해당 kind 종 중에서. */
 export function pickSpecies(seed: number, kind: FishKind): SpeciesId {
-  const candidates = SPECIES_REGISTRY.filter((s) => s.kind === kind)
+  const candidates = SPECIES_REGISTRY.filter((s) => s.kind === kind && s.category === 'ambient')
   const hash = Math.sin(seed * 127.1 + 311.7) * 43758.5453
   const frac = hash - Math.floor(hash)
   const index = Math.floor(Math.abs(frac) * candidates.length) % candidates.length

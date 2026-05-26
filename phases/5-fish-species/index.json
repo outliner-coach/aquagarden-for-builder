@@ -1,0 +1,30 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "5-fish-species",
+  "steps": [
+    {
+      "step": 0,
+      "name": "registry-feature-species",
+      "status": "pending",
+      "eval": true
+    },
+    {
+      "step": 1,
+      "name": "feature-spawn",
+      "status": "pending",
+      "eval": true
+    },
+    {
+      "step": 2,
+      "name": "persistence-and-wiring",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "control-panel-ui",
+      "status": "pending",
+      "eval": true
+    }
+  ],
+  "created_at": "2026-05-27T00:00:00+0900"
+}

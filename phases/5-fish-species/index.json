@@ -25,7 +25,7 @@
       "name": "persistence-and-wiring",
       "status": "completed",
       "started_at": "2026-05-27T01:21:17+0900",
-      "completed_at": "2026-05-27T01:26:00+0900",
+      "completed_at": "2026-05-27T01:24:34+0900",
       "summary": "AppSettings.enabledFeatures: string[] 추가, loadPersisted 하위호환(구버전/비배열/비문자열 보정), main.ts init 후 availableFeatures 교집합 복원+유령 id 드롭. persistence 테스트 5개 추가. test 409·build·lint 통과."
     },
     {

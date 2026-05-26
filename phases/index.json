@@ -28,7 +28,8 @@
     },
     {
       "dir": "5-fish-species",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-05-27T01:29:51+0900"
     }
   ]
 }

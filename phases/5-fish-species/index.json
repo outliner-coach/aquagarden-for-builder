@@ -17,7 +17,7 @@
       "status": "completed",
       "eval": true,
       "started_at": "2026-05-27T01:15:31+0900",
-      "completed_at": "2026-05-27T01:20:00+0900",
+      "completed_at": "2026-05-27T01:20:49+0900",
       "summary": "Fish.reset에 species 인자 추가, featureHelpers(reconcileFeatures/featureSpawnPosition) TDD 구현, config.ts FEATURE 상수, FishSchool 앰비언트를 _ambientFish 명시 추적+특별 개체 _featureActive Map 분리 관리(setActiveCount 미사용). test 404·build·lint 통과."
     },
     {

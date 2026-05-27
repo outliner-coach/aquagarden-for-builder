@@ -73,7 +73,7 @@ export class ControlPanel {
   /** 패널 닫힘 상태의 transform — 펼침 방향(up/down)에 따라 슬라이드 방향이 바뀐다. */
   private _closedTransform = 'translateY(-4px)'
   private _helpModal!: HTMLDivElement
-  private _featureGroupBody!: HTMLDivElement
+  private readonly _featureGroupBody: HTMLDivElement
 
   constructor(
     container: HTMLElement,
@@ -436,10 +436,10 @@ export class ControlPanel {
 
     const items: [string, string][] = [
       ['⚙ 플로팅 버튼', '드래그하면 창 이동, 클릭하면 이 패널을 열고 닫습니다.'],
-      ['개체수 (작은 물고기)', '함께 헤엄치는 작은 물고기 수를 조절합니다.'],
+      ['개체수', '함께 헤엄치는 작은 물고기 수를 조절합니다.'],
       ['특별 개체', '고래·만타가오리 등 큰 개체를 켜고 끕니다. 켜면 한 마리씩 천천히 등장합니다.'],
       ['밝기', '수조 조명의 밝기를 조절합니다.'],
-      ['배경 투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
+      ['투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
       ['수조 숨김', '렌더링을 멈춰 절전합니다. 플로팅 버튼만 남습니다.'],
       ['마우스 투과', '수조 영역의 클릭이 뒤쪽 화면(바탕화면)으로 통과됩니다.'],
       ['Always on Top', '항상 다른 창 위에 표시합니다.'],

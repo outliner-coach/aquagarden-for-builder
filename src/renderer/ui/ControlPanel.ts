@@ -73,9 +73,7 @@ export class ControlPanel {
   /** 패널 닫힘 상태의 transform — 펼침 방향(up/down)에 따라 슬라이드 방향이 바뀐다. */
   private _closedTransform = 'translateY(-4px)'
   private _helpModal!: HTMLDivElement
-  private _featureGroupHeader!: HTMLDivElement
   private _featureGroupBody!: HTMLDivElement
-  private _featureExpanded = false
 
   constructor(
     container: HTMLElement,
@@ -102,7 +100,7 @@ export class ControlPanel {
     this._panel.className = 'cp__panel'
     this._panel.style.cssText = `
       position:absolute;top:48px;right:0;
-      width:220px;border-radius:12px;padding:14px 16px;
+      width:310px;border-radius:12px;padding:14px 16px;
       background:${COLORS.panelBg};border:1px solid ${COLORS.border};
       opacity:0;pointer-events:none;
       transform:translateY(-4px);
@@ -134,129 +132,89 @@ export class ControlPanel {
 
     this._panel.appendChild(header)
 
-    // ── 어종 섹션 ──
-    this._appendSectionLabel('어종')
+    // ── 2열 본문 grid ──
+    const body = document.createElement('div')
+    body.className = 'cp__body'
+    this._panel.appendChild(body)
 
-    // ── 개체수 슬라이더 ──
+    const leftCol = document.createElement('div')
+    const rightCol = document.createElement('div')
+    body.append(leftCol, rightCol)
+
+    // ── 왼쪽: 어종 ──
+    this._appendSectionLabel(leftCol, '어종')
     const { slider: fishSlider, value: fishValue } = this._createSlider(
-      '개체수 (작은 물고기)',
-      FISH.min,
-      FISH.max,
-      1,
-      state.fishCount,
+      leftCol, '개체수', FISH.min, FISH.max, 1, state.fishCount, '',
       (v) => callbacks.onFishCountChange(v),
     )
     this._fishSlider = fishSlider
     this._fishValue = fishValue
 
-    // ── 특별 개체 접이식 그룹 (기본 접힘, setFeatureSpecies로 내용 채움) ──
-    {
-      const fg = document.createElement('div')
-      fg.style.cssText = 'margin-bottom:12px;'
-      const fgHeader = document.createElement('div')
-      fgHeader.className = 'cp__feature-header'
-      fgHeader.textContent = '▸ 특별 개체'
-      fgHeader.addEventListener('click', () => this._toggleFeatureGroup())
-      const fgBody = document.createElement('div')
-      fgBody.className = 'cp__feature-body'
-      fgBody.style.display = 'none'
-      fg.append(fgHeader, fgBody)
-      this._panel.appendChild(fg)
-      this._featureGroupHeader = fgHeader
-      this._featureGroupBody = fgBody
-    }
+    // 특별 개체 칩 컨테이너(setFeatureSpecies로 채움). 접이식 제거 — 항상 표시.
+    this._appendSectionLabel(leftCol, '특별 개체')
+    const featureWrap = document.createElement('div')
+    featureWrap.className = 'cp__feature-chips'
+    leftCol.appendChild(featureWrap)
+    this._featureGroupBody = featureWrap
 
-    // ── 밝기 슬라이더 ──
+    // ── 오른쪽: 표시 · 조명 ──
+    this._appendSectionLabel(rightCol, '표시 · 조명')
     const { slider: brightSlider, value: brightValue } = this._createSlider(
-      '밝기',
-      0,
-      100,
-      1,
-      Math.round(state.brightness01 * 100),
+      rightCol, '밝기', 0, 100, 1, Math.round(state.brightness01 * 100), '%',
       (v) => callbacks.onBrightnessChange(v / 100),
     )
     this._brightnessSlider = brightSlider
     this._brightnessValue = brightValue
 
-    // ── 배경 투명도 슬라이더 ──
     const { slider: sceneTransSlider, value: sceneTransValue } = this._createSlider(
-      '배경 투명도',
-      0,
-      100,
-      1,
-      Math.round(state.sceneTransparency01 * 100),
+      rightCol, '투명도', 0, 100, 1, Math.round(state.sceneTransparency01 * 100), '%',
       (v) => callbacks.onSceneTransparencyChange(v / 100),
     )
     this._sceneTransSlider = sceneTransSlider
     this._sceneTransValue = sceneTransValue
 
-    // ── Hide/Show 토글 ──
-    this._hideToggle = this._createToggle(
-      '수조 숨김',
-      state.hidden,
-      (checked) => callbacks.onHiddenChange(checked),
-    )
-
-    // ── Click-through 토글 ──
-    this._clickThroughToggle = this._createToggle(
-      '마우스 투과',
-      state.clickThrough,
-      (checked) => callbacks.onClickThroughChange(checked),
-    )
-
-    // ── Always on top 토글 ──
-    this._alwaysOnTopToggle = this._createToggle(
-      'Always on Top',
-      state.alwaysOnTop,
-      (checked) => callbacks.onAlwaysOnTopChange(checked),
-    )
-
-    // ── 상태 힌트 (마우스 투과/수조 숨김이 켜졌을 때 무슨 일이 일어나는지 안내) ──
-    this._statusHint = document.createElement('div')
-    this._statusHint.style.cssText =
-      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin-bottom:12px;display:none;`
-    this._panel.appendChild(this._statusHint)
-    this._hideToggle.addEventListener('change', () => this._updateStatusHint())
-    this._clickThroughToggle.addEventListener('change', () => this._updateStatusHint())
-
-    // ── 확대(줌) 슬라이더 ── (휠이 주 조작, 슬라이더는 레벨 표시 + 비활성 표시 대상)
     const { slider: zoomSlider, value: zoomValue } = this._createSlider(
-      '확대',
-      Math.round(ZOOM.min * 100),
-      Math.round(ZOOM.max * 100),
-      1,
-      zoomToSliderPercent(state.zoom),
+      rightCol, '확대', Math.round(ZOOM.min * 100), Math.round(ZOOM.max * 100), 1,
+      zoomToSliderPercent(state.zoom), '%',
       (v) => callbacks.onZoomChange(sliderPercentToZoom(v)),
     )
     this._zoomSlider = zoomSlider
     this._zoomValue = zoomValue
     this._zoomRow = zoomSlider.parentElement as HTMLElement
 
-    // ── 먹이주기 / 놀래키기 버튼 ──
+    this._hideToggle = this._createToggle(rightCol, '수조 숨김', state.hidden,
+      (checked) => callbacks.onHiddenChange(checked))
+    this._clickThroughToggle = this._createToggle(rightCol, '마우스 투과', state.clickThrough,
+      (checked) => callbacks.onClickThroughChange(checked))
+    this._alwaysOnTopToggle = this._createToggle(rightCol, 'Always on Top', state.alwaysOnTop,
+      (checked) => callbacks.onAlwaysOnTopChange(checked))
+
+    // ── 하단(전폭): 상태 힌트 → 먹이/놀래키기 → 안내 → 종료 ──
+    this._statusHint = document.createElement('div')
+    this._statusHint.style.cssText =
+      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin:4px 0 12px;display:none;`
+    this._panel.appendChild(this._statusHint)
+    this._hideToggle.addEventListener('change', () => this._updateStatusHint())
+    this._clickThroughToggle.addEventListener('change', () => this._updateStatusHint())
+
     const lureRow = document.createElement('div')
     lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;'
-
     this._feedBtn = document.createElement('button')
     this._feedBtn.className = 'cp__lure-btn'
     this._feedBtn.textContent = '먹이주기'
     this._feedBtn.addEventListener('click', () => callbacks.onLureModeChange('feed'))
-
     this._scareBtn = document.createElement('button')
     this._scareBtn.className = 'cp__lure-btn'
     this._scareBtn.textContent = '놀래키기'
     this._scareBtn.addEventListener('click', () => callbacks.onLureModeChange('scare'))
-
-    lureRow.appendChild(this._feedBtn)
-    lureRow.appendChild(this._scareBtn)
+    lureRow.append(this._feedBtn, this._scareBtn)
     this._panel.appendChild(lureRow)
     this._lureRow = lureRow
 
-    // 활성 모드 힌트 — 어떤 모드가 켜졌고 무엇을 해야 하는지 명시(armed 표시 보강).
     this._lureHint = document.createElement('div')
     this._lureHint.style.cssText = `font-size:11px;color:${COLORS.point};margin-bottom:12px;display:none;`
     this._panel.appendChild(this._lureHint)
 
-    // 인터랙션 비활성 안내 — 위 그룹(확대·먹이·놀래키기) 바로 아래. 비활성일 때만 표시.
     this._interactionNotice = document.createElement('div')
     this._interactionNotice.style.cssText =
       `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin-bottom:12px;display:none;`
@@ -264,8 +222,6 @@ export class ControlPanel {
       '마우스 투과·수조 숨김 중에는 먹이주기·놀래키기·확대를 사용할 수 없어요.'
     this._panel.appendChild(this._interactionNotice)
 
-    // ── 종료 버튼 (파괴적: 2단계 확인) ──
-    // frameless·always-on-top 오버레이라 메뉴/X가 없어 끌 방법이 없으므로 여기서 종료.
     this._quitBtn = document.createElement('button')
     this._quitBtn.className = 'cp__quit-btn'
     this._quitBtn.textContent = '종료'
@@ -380,7 +336,7 @@ export class ControlPanel {
     this._interactionNotice.style.display = enabled ? 'none' : 'block'
   }
 
-  /** 외부(main)에서 가용 특별 개체 종과 활성 목록을 전달해 토글 UI를 채운다. */
+  /** 외부(main)에서 가용 특별 개체 종과 활성 목록을 전달해 칩 UI를 채운다. */
   setFeatureSpecies(species: { id: string; displayName: string }[], enabled: string[]): void {
     this._featureGroupBody.replaceChildren()
     if (species.length === 0) {
@@ -392,45 +348,39 @@ export class ControlPanel {
     }
     const enabledSet = new Set(enabled)
     for (const sp of species) {
-      const row = document.createElement('div')
-      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;'
+      const chip = document.createElement('button')
+      chip.className = 'cp__feature-chip'
+      chip.dataset.speciesId = sp.id
+      const on = enabledSet.has(sp.id)
+      chip.setAttribute('aria-pressed', String(on))
+      chip.classList.toggle('cp__feature-chip--on', on)
+      const dot = document.createElement('span')
+      dot.className = 'cp__feature-chip-dot'
       const label = document.createElement('span')
-      label.style.cssText = `font-size:12px;font-weight:500;color:${COLORS.textSecondary};`
       label.textContent = sp.displayName
-      const wrap = document.createElement('label')
-      wrap.className = 'cp__toggle'
-      const input = document.createElement('input')
-      input.type = 'checkbox'
-      input.checked = enabledSet.has(sp.id)
-      input.style.cssText = 'display:none;'
-      input.dataset.speciesId = sp.id
-      const track = document.createElement('span')
-      track.className = 'cp__toggle-track'
-      input.addEventListener('change', () => this._emitEnabledFeatures())
-      wrap.append(input, track)
-      row.append(label, wrap)
-      this._featureGroupBody.appendChild(row)
+      chip.append(dot, label)
+      chip.addEventListener('click', () => {
+        const next = chip.getAttribute('aria-pressed') !== 'true'
+        chip.setAttribute('aria-pressed', String(next))
+        chip.classList.toggle('cp__feature-chip--on', next)
+        this._emitEnabledFeatures()
+      })
+      this._featureGroupBody.appendChild(chip)
     }
   }
 
   private _emitEnabledFeatures(): void {
     const ids = Array.from(
-      this._featureGroupBody.querySelectorAll<HTMLInputElement>('input[type=checkbox]'),
-    ).filter((i) => i.checked).map((i) => i.dataset.speciesId!).filter(Boolean)
+      this._featureGroupBody.querySelectorAll<HTMLButtonElement>('.cp__feature-chip[aria-pressed=true]'),
+    ).map((c) => c.dataset.speciesId!).filter(Boolean)
     this._callbacks.onEnabledFeaturesChange(ids)
   }
 
-  private _appendSectionLabel(text: string): void {
+  private _appendSectionLabel(parent: HTMLElement, text: string): void {
     const el = document.createElement('div')
     el.style.cssText = `font-size:11px;font-weight:700;color:${COLORS.textSecondary};letter-spacing:0.04em;margin:2px 0 8px;opacity:0.8;`
     el.textContent = text
-    this._panel.appendChild(el)
-  }
-
-  private _toggleFeatureGroup(): void {
-    this._featureExpanded = !this._featureExpanded
-    this._featureGroupBody.style.display = this._featureExpanded ? 'block' : 'none'
-    this._featureGroupHeader.textContent = (this._featureExpanded ? '▾' : '▸') + ' 특별 개체'
+    parent.appendChild(el)
   }
 
   /** 마우스 투과/수조 숨김이 켜졌을 때, 무슨 일이 일어나는지 안내 문구를 표시한다. */
@@ -548,11 +498,13 @@ export class ControlPanel {
   }
 
   private _createSlider(
+    parent: HTMLElement,
     label: string,
     min: number,
     max: number,
     step: number,
     initial: number,
+    unit: '' | '%',
     onChange: (value: number) => void,
   ): { slider: HTMLInputElement; value: HTMLSpanElement } {
     const row = document.createElement('div')
@@ -568,8 +520,7 @@ export class ControlPanel {
     const valueEl = document.createElement('span')
     valueEl.className = 'cp__value'
     valueEl.style.cssText = `font-size:12px;font-weight:600;color:${COLORS.textPrimary};font-variant-numeric:tabular-nums;`
-    const isPercent = label === '밝기' || label === '배경 투명도' || label === '확대'
-    valueEl.textContent = isPercent ? `${initial}%` : String(initial)
+    valueEl.textContent = `${initial}${unit}`
 
     labelRow.appendChild(labelEl)
     labelRow.appendChild(valueEl)
@@ -584,18 +535,19 @@ export class ControlPanel {
 
     slider.addEventListener('input', () => {
       const v = Number(slider.value)
-      valueEl.textContent = isPercent ? `${v}%` : String(v)
+      valueEl.textContent = `${v}${unit}`
       onChange(v)
     })
 
     row.appendChild(labelRow)
     row.appendChild(slider)
-    this._panel.appendChild(row)
+    parent.appendChild(row)
 
     return { slider, value: valueEl }
   }
 
   private _createToggle(
+    parent: HTMLElement,
     label: string,
     initial: boolean,
     onChange: (checked: boolean) => void,
@@ -627,7 +579,7 @@ export class ControlPanel {
 
     row.appendChild(labelEl)
     row.appendChild(toggleWrap)
-    this._panel.appendChild(row)
+    parent.appendChild(row)
 
     return input
   }
@@ -690,11 +642,37 @@ export class ControlPanel {
         transform:translateX(16px);
       }
 
-      .cp__feature-header {
-        font-size:12px;font-weight:600;color:${COLORS.textSecondary};
-        cursor:pointer;user-select:none;padding:4px 0;margin-bottom:4px;
+      .cp__body {
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        column-gap:14px;
       }
-      .cp__feature-header:hover { color:${COLORS.textPrimary}; }
+      .cp__feature-chips {
+        display:flex;flex-direction:column;gap:6px;margin-bottom:12px;
+      }
+      .cp__feature-chip {
+        display:flex;align-items:center;gap:7px;
+        padding:6px 9px;border-radius:8px;
+        border:1px solid ${COLORS.border};
+        background:${COLORS.buttonBg};
+        color:${COLORS.textSecondary};
+        font-size:12px;font-weight:500;text-align:left;
+        cursor:pointer;transition:background 150ms,color 150ms,border-color 150ms;
+      }
+      .cp__feature-chip:hover { background:rgba(15,23,28,0.76); }
+      .cp__feature-chip-dot {
+        width:9px;height:9px;border-radius:50%;flex:none;
+        border:1.5px solid ${COLORS.textSecondary};
+      }
+      .cp__feature-chip--on {
+        border-color:${COLORS.point};
+        background:rgba(63,208,201,0.15);
+        color:${COLORS.textPrimary};
+      }
+      .cp__feature-chip--on .cp__feature-chip-dot {
+        background:${COLORS.point};border-color:${COLORS.point};
+        box-shadow:0 0 6px rgba(63,208,201,0.5);
+      }
 
       .cp__lure-btn {
         flex:1;

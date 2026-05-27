@@ -3,6 +3,23 @@
 다음 세션이 이어서 작업할 수 있도록 현재 상태를 정리한다.
 먼저 `CLAUDE.md`(렌더링 함정·eval 규칙)와 `docs/ARCHITECTURE.md`를 읽을 것.
 
+## 신규 기능 (2026-05-28) — 컨트롤 패널 2열 재구성 + 잘림 근본 수정 (브랜치 `feat-panel-2col`, main 미병합)
+
+설계 `docs/superpowers/specs/2026-05-28-panel-2column-layout-design.md`,
+계획 `docs/superpowers/plans/2026-05-28-panel-2column-layout.md`. 서브에이전트 주도로 구현.
+- **잘림 근본 수정**: 창을 키울 때 고정 `panelExtra(400)` 대신 **패널 실제 높이를 측정**(`getPanelHeight`=scrollHeight)
+  해 `requiredPanelExtra`(순수, 가용공간 클램프)로 창 높이를 산정. 위/아래 펼침·창 크기 무관하게 안 잘림.
+  fallback으로 `max-height`+`overflow-y:auto` 유지. `WINDOW.panelExtra`는 fallback, `panelGap=60` 추가.
+- **레이아웃**: 섹션별 2열 grid(`cp__body`). 왼쪽 "어종"(개체수 슬라이더+특별개체 칩), 오른쪽 "표시·조명"
+  (밝기·투명도·확대 슬라이더+숨김/투과/Always 토글), 하단 전폭(힌트→먹이/놀래키기→안내→종료). 패널 폭 220→310px.
+- **특별 개체 = 채움 칩**: 접이식 그룹 제거, 항상 표시. `<button.cp__feature-chip aria-pressed>`(ON=청록 채움+점●,
+  OFF=테두리○). 빌더(`_createSlider`/`_createToggle`/`_appendSectionLabel`)가 부모 인자를 받고, 슬라이더는 `unit` 인자.
+- 검증: test **413**·lint·build·smoke(pass=true, `AQUA_SMOKE_FEATURES` 칩 클릭으로 갱신) 통과.
+  **데스크톱 라이브 QA 완료**(computer-use): 2열 정렬·칩 ON/OFF 토글·스폰/디스폰·숨김 중 어종 활성/확대·먹이·놀래키기
+  비활성·**전 상태 잘림 0**·영속 복원 확인.
+- 후속(코드리뷰 Minor, 미적용): 칩 `:focus-visible` 링 없음(키보드 a11y), hover색 `rgba(15,23,28,0.76)` 매직넘버
+  3중복(`COLORS.buttonBgHover`로 추출 검토).
+
 ## 신규 기능 (2026-05-27) — 어종 4종 추가 + 하이브리드 종 선택 (main 병합됨)
 
 설계 `docs/superpowers/specs/2026-05-27-fish-species-addition-design.md`,

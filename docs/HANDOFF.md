@@ -3,6 +3,23 @@
 다음 세션이 이어서 작업할 수 있도록 현재 상태를 정리한다.
 먼저 `CLAUDE.md`(렌더링 함정·eval 규칙)와 `docs/ARCHITECTURE.md`를 읽을 것.
 
+## 신규 기능 (2026-05-27) — 어종 4종 추가 + 하이브리드 종 선택 (main 병합됨)
+
+설계 `docs/superpowers/specs/2026-05-27-fish-species-addition-design.md`,
+계획 `docs/superpowers/plans/2026-05-27-fish-species-addition.md`, 하네스 `phases/5-fish-species`.
+- **어종 4종**: 만타가오리·고래·돌고래·상어(`src/renderer/assets/fish/`, Quaternius CC0, 스켈레탈 swim).
+  레지스트리 `category: 'ambient' | 'feature'` 도입, `pickSpecies`는 ambient만 후보.
+- **하이브리드 스폰**: 앰비언트 5종은 개체수 슬라이더(현행), 특별 4종은 토글 ON=1마리(화면 안 즉시 등장).
+  단일풀 + `_ambientFish` 명시 추적 + `_featureActive` 맵. 순수함수 `reconcileFeatures`/`featureSpawnPosition`.
+- **단일 진실 원천 `availableFeatures`**(로드된 프로토타입만): UI 토글·영속 교집합·reconcile 모두 여기에 맞춰 유령 차단.
+- **UI**: "어종" 섹션, `개체수 (작은 물고기)`, 접이식 "특별 개체" 그룹. `setInteractive`에서 종/개체수 제외(투과·숨김 중 조작 가능).
+- **영속**: `AppSettings.enabledFeatures: string[]`(하위호환), 복원 시 availableFeatures 교집합.
+- **smoke 훅**: `AQUA_SMOKE_FEATURES=1`로 특별 개체 렌더를 headless 검증 가능(토글 DOM 구동).
+- 검증: test **409**·lint·build·smoke pass. 헤드리스 캡처로 **ON→fishActive 22·머리 자세 정상·셰이더 무결**,
+  **OFF→18(release)** 확인.
+- ⚠ **데스크톱 복귀 시 라이브 QA 잔여 2건**(모바일이라 미구동, 유닛테스트+코드로만 확인):
+  ① 재시작 후 토글 상태 복원 ② 투과/숨김 중 종/개체수 토글 실제 조작.
+
 ## 현재 상태
 
 - 브랜치: **`feat-4-fish-interactions`** (main 미병합).

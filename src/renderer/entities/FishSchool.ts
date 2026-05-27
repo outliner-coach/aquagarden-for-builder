@@ -6,11 +6,13 @@ import type { FishKind } from './Fish'
 import { nextActiveCount } from './fishHelpers'
 import { computeBoidsSteer } from './boids'
 import type { BoidAgent } from './boids'
-import { FISH, BOIDS, LURE, FOOD } from '../../shared/config'
+import { FISH, BOIDS, LURE, FOOD, FEATURE } from '../../shared/config'
 import { clampFishCount } from '../../shared/clamp'
 import { loadFishPrototypes } from './fishAssets'
 import type { SpeciesId, FishPrototype } from './fishAssets'
+import { SPECIES_REGISTRY } from './speciesRegistry'
 import { attractSteer, fleeSteer, isEaten } from './lureHelpers'
+import { reconcileFeatures, featureSpawnPosition } from './featureHelpers'
 import type { FoodParticles } from './FoodParticles'
 
 const SCHOOLING_RATIO = 0.6
@@ -30,6 +32,10 @@ export class FishSchool implements SceneEntity {
   readonly object3d: THREE.Group
   private _pool: ObjectPool<Fish> | null = null
   private readonly _allFish: Fish[] = []
+  private readonly _ambientFish: Fish[] = []
+  private readonly _featureActive = new Map<SpeciesId, Fish>()
+  private _desiredFeatures: ReadonlySet<SpeciesId> = new Set()
+  private _featureSeed = 100000
   private _targetCount: number
   private _nextSeed = 0
   private readonly _agentBuf: BoidAgent[] = []
@@ -72,6 +78,21 @@ export class FishSchool implements SceneEntity {
     return this._ready
   }
 
+  /** 로드된 프로토타입 중 feature 카테고리 종 집합. 로드 실패 종은 제외(유령 차단). */
+  availableFeatures(): Set<SpeciesId> {
+    if (!this._prototypes) return new Set()
+    return new Set(
+      SPECIES_REGISTRY
+        .filter((s) => s.category === 'feature' && this._prototypes!.has(s.id))
+        .map((s) => s.id),
+    )
+  }
+
+  /** 활성화할 특별 개체 종을 설정한다. 실제 reconcile은 update()에서 수행. */
+  setEnabledFeatures(ids: SpeciesId[]): void {
+    this._desiredFeatures = new Set(ids)
+  }
+
   /** FoodParticles 참조를 설정한다 (먹이 소비 연동용). */
   setFoodParticles(fp: FoodParticles): void {
     this._foodParticles = fp
@@ -95,18 +116,39 @@ export class FishSchool implements SceneEntity {
   update(dt: number): void {
     if (!this._ready || !this._pool) return
 
-    const current = this._pool.activeCount
-
-    if (current < this._targetCount) {
-      const next = nextActiveCount(current, this._targetCount, FISH.spawnPerTick)
-      const toSpawn = next - current
-      for (let i = 0; i < toSpawn; i++) {
+    // 앰비언트: _ambientFish 길이를 _targetCount로 점진 수렴
+    if (this._ambientFish.length < this._targetCount) {
+      const next = nextActiveCount(this._ambientFish.length, this._targetCount, FISH.spawnPerTick)
+      for (let i = this._ambientFish.length; i < next; i++) {
         this._nextSeed++
         const fish = this._pool.acquire()
         fish.reset(this._nextSeed, this._assignKind())
+        this._ambientFish.push(fish)
       }
-    } else if (current > this._targetCount) {
-      this._pool.setActiveCount(this._targetCount)
+    } else {
+      while (this._ambientFish.length > this._targetCount) {
+        const fish = this._ambientFish.pop()!
+        this._pool.release(fish)
+      }
+    }
+
+    // 특별 개체 reconcile
+    const available = this.availableFeatures()
+    const target = new Set([...this._desiredFeatures].filter((id) => available.has(id)))
+    const active = new Set(this._featureActive.keys())
+    const { acquire, release } = reconcileFeatures(target, active)
+    for (const id of release) {
+      const fish = this._featureActive.get(id)!
+      this._pool.release(fish)
+      this._featureActive.delete(id)
+    }
+    for (const id of acquire) {
+      this._featureSeed++
+      const fish = this._pool.acquire()
+      fish.reset(this._featureSeed, 'individual', id)
+      const p = featureSpawnPosition(this._featureSeed, FEATURE.spawnArea)
+      fish.position.set(p.x, p.y, p.z)
+      this._featureActive.set(id, fish)
     }
 
     // Boids: schooling 물고기만 조향 적용
@@ -140,6 +182,8 @@ export class FishSchool implements SceneEntity {
       fish.dispose()
     }
     this._allFish.length = 0
+    this._ambientFish.length = 0
+    this._featureActive.clear()
     // prototype 씬의 geometry/material을 dispose
     if (this._prototypes) {
       for (const proto of this._prototypes.values()) {

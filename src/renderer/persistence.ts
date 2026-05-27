@@ -52,6 +52,10 @@ export function loadPersisted(): PersistedState | null {
         zoom: isFiniteNumber(s.zoom)
           ? Math.max(ZOOM.min, Math.min(ZOOM.max, s.zoom))
           : ZOOM.default,
+        // enabledFeatures: 하위호환(구버전 저장값엔 없음). 배열 아니면 빈 배열, 비문자열 요소 드롭.
+        enabledFeatures: Array.isArray(s.enabledFeatures)
+          ? s.enabledFeatures.filter((x): x is string => typeof x === 'string')
+          : [],
       },
       alwaysOnTop: typeof p.alwaysOnTop === 'boolean' ? p.alwaysOnTop : true,
       barWidth: p.barWidth,

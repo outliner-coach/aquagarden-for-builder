@@ -2,6 +2,8 @@ import { SceneRoot } from './core/SceneRoot'
 import { RenderLoop } from './core/RenderLoop'
 import { Aquascape } from './entities/Aquascape'
 import { FishSchool } from './entities/FishSchool'
+import type { SpeciesId } from './entities/fishAssets'
+import { getSpecies } from './entities/speciesRegistry'
 import { Lighting } from './lighting/Lighting'
 import { Bubbles } from './entities/Bubbles'
 import { GlowSprites } from './entities/GlowSprites'
@@ -50,7 +52,20 @@ sceneRoot.add(fishSchool)
 // 비동기 GLB 프로토타입 로딩 — 렌더 루프는 즉시 시작, 물고기는 로드 후 등장
 fishSchool
   .init()
-  .then(() => markReady())
+  .then(() => {
+    markReady()
+    // 영속된 enabledFeatures를 실제 로드된 종과 교집합해 유효 id만 적용(유령 차단).
+    const avail = fishSchool.availableFeatures()
+    const valid = settings.enabledFeatures.filter((id) => avail.has(id as SpeciesId))
+    if (valid.length !== settings.enabledFeatures.length) {
+      settings.enabledFeatures = valid // 미지/로드실패 id 드롭 → 영속 정리
+      persistSoon()
+    }
+    fishSchool.setEnabledFeatures(valid as SpeciesId[])
+    // 가용 특별 개체 목록으로 ControlPanel 토글 UI 채우기
+    const featureList = [...avail].map((id) => ({ id, displayName: getSpecies(id).displayName }))
+    controlPanel.setFeatureSpecies(featureList, valid)
+  })
   .catch((err) => {
     console.error('[FishSchool] 초기화 실패:', err)
   })
@@ -84,6 +99,7 @@ const settings: AppSettings = persisted?.settings ?? {
   clickThrough: false,
   sceneTransparency01: SCENE.defaultTransparency01,
   zoom: ZOOM.default,
+  enabledFeatures: [],
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
 sceneRoot.setZoom(settings.zoom)
@@ -304,6 +320,11 @@ const controlPanel = new ControlPanel(
       }
       // 펼침/접힘에서만 'up'이면 하단 앵커(바를 제자리에 유지).
       syncWindowSize(shouldAnchorBottom('toggle', panelExpanded, currentPanelDir))
+    },
+    onEnabledFeaturesChange(ids: string[]) {
+      settings.enabledFeatures = ids
+      fishSchool.setEnabledFeatures(ids as SpeciesId[])
+      persistSoon()
     },
     onLureModeChange(mode) {
       foodLure.setMode(mode)

@@ -325,6 +325,11 @@ export const COLORS = {
   dangerFill: 'rgba(248, 113, 113, 0.92)',
 } as const
 
+export const FEATURE = {
+  /** 특별 개체 스폰 가시 영역 (FISH.bounds의 중앙·전면 부분집합) */
+  spawnArea: { minX: -5, maxX: 5, minY: -0.4, maxY: 1.2, minZ: -1.2, maxZ: 0.2 },
+} as const
+
 export const DRAG = {
   // 플로팅 버튼: 이 거리(px) 이내 이동은 '클릭'(패널 토글)으로 간주. 미세 지터로 토글이
   // 스킵되던 문제(#4) 방지. 화면 좌표(screenX/Y) 기준.

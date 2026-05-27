@@ -9,8 +9,8 @@ import type { SpeciesId } from '../fishAssets'
 /* ── 매니페스트 무결성 ── */
 
 describe('FISH_SPECIES manifest', () => {
-  it('5종이 등록되어 있다', () => {
-    expect(FISH_SPECIES).toHaveLength(5)
+  it('9종이 등록되어 있다', () => {
+    expect(FISH_SPECIES).toHaveLength(9)
   })
 
   it('군집(schooling) 종이 2개다', () => {
@@ -18,9 +18,9 @@ describe('FISH_SPECIES manifest', () => {
     expect(schooling).toHaveLength(2)
   })
 
-  it('개체(individual) 종이 3개다', () => {
+  it('개체(individual) 종이 7개다', () => {
     const individual = FISH_SPECIES.filter((s) => s.kind === 'individual')
-    expect(individual).toHaveLength(3)
+    expect(individual).toHaveLength(7)
   })
 
   it('모든 종의 baseScale > 0', () => {

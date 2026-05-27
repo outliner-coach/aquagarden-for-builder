@@ -67,8 +67,66 @@ describe('FISH_SPECIES (backward compat)', () => {
     expect(FISH_SPECIES).toBe(SPECIES_REGISTRY)
   })
 
-  it('5종이 등록되어 있다', () => {
-    expect(FISH_SPECIES).toHaveLength(5)
+  it('9종이 등록되어 있다', () => {
+    expect(FISH_SPECIES).toHaveLength(9)
+  })
+})
+
+/* ── category 필드 무결성 ── */
+
+describe('category 필드', () => {
+  it('모든 종에 category가 ambient 또는 feature이다', () => {
+    for (const sp of SPECIES_REGISTRY) {
+      expect(['ambient', 'feature']).toContain(sp.category)
+    }
+  })
+
+  it('기존 5종은 모두 ambient이다', () => {
+    const ambientIds: SpeciesId[] = ['tetra-a', 'tetra-b', 'clownfish', 'butterflyfish', 'lionfish']
+    for (const id of ambientIds) {
+      expect(getSpecies(id).category).toBe('ambient')
+    }
+  })
+
+  it('신규 4종(manta, whale, dolphin, shark)은 모두 feature이다', () => {
+    const featureIds: SpeciesId[] = ['manta', 'whale', 'dolphin', 'shark']
+    for (const id of featureIds) {
+      const sp = getSpecies(id)
+      expect(sp.category).toBe('feature')
+      expect(sp.kind).toBe('individual')
+    }
+  })
+})
+
+/* ── 신규 4종 메타데이터 ── */
+
+describe('신규 feature 4종', () => {
+  const featureIds: SpeciesId[] = ['manta', 'whale', 'dolphin', 'shark']
+
+  it('레지스트리에 존재하고 displayName이 비어있지 않다', () => {
+    for (const id of featureIds) {
+      const sp = getSpecies(id)
+      expect(sp.displayName).toBeTruthy()
+      expect(sp.displayName.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('각각 dialogue가 정확히 10개이다', () => {
+    for (const id of featureIds) {
+      const sp = getSpecies(id)
+      expect(sp.dialogue).toHaveLength(10)
+      for (const line of sp.dialogue) {
+        expect(typeof line).toBe('string')
+        expect(line.trim().length).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('dialogue에 중복이 없다', () => {
+    for (const id of featureIds) {
+      const sp = getSpecies(id)
+      expect(new Set(sp.dialogue).size).toBe(sp.dialogue.length)
+    }
   })
 })
 
@@ -128,5 +186,26 @@ describe('pickSpecies (regression)', () => {
       results.add(pickSpecies(seed * 0.037, 'individual'))
     }
     expect(results.size).toBeGreaterThanOrEqual(2)
+  })
+
+  it('pickSpecies가 feature 종을 절대 반환하지 않는다 (seed 0~999 스윕)', () => {
+    const featureIds = new Set(
+      SPECIES_REGISTRY.filter((s) => s.category === 'feature').map((s) => s.id),
+    )
+    for (let seed = 0; seed < 1000; seed++) {
+      const schoolId = pickSpecies(seed, 'schooling')
+      expect(featureIds.has(schoolId)).toBe(false)
+      const indivId = pickSpecies(seed, 'individual')
+      expect(featureIds.has(indivId)).toBe(false)
+    }
+  })
+
+  it('pickSpecies가 반환하는 종은 항상 category=ambient이다', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const schoolId = pickSpecies(seed * 0.1, 'schooling')
+      expect(getSpecies(schoolId).category).toBe('ambient')
+      const indivId = pickSpecies(seed * 0.1, 'individual')
+      expect(getSpecies(indivId).category).toBe('ambient')
+    }
   })
 })

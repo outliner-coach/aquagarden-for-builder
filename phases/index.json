@@ -25,6 +25,11 @@
       "dir": "4-fish-interactions",
       "status": "completed",
       "completed_at": "2026-05-25T00:17:36+0900"
+    },
+    {
+      "dir": "5-fish-species",
+      "status": "completed",
+      "completed_at": "2026-05-27T01:29:51+0900"
     }
   ]
 }

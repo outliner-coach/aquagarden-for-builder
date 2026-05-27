@@ -1,6 +1,6 @@
 {
   "name": "aquagarden-overlay",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Desktop overlay widget - minimal 3D aquarium",
   "main": "out/main/index.js",
   "scripts": {
@@ -16,18 +16,45 @@
   "build": {
     "appId": "com.aquagarden.overlay",
     "productName": "Aquagarden",
-    "directories": { "output": "dist" },
-    "files": ["out/**/*", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "category": "public.app-category.entertainment",
       "identity": null
     },
     "afterPack": "build/adhoc-sign.cjs",
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
-    "publish": [{ "provider": "github", "owner": "outliner-coach", "repo": "aquagarden-for-builder", "releaseType": "release" }]
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "outliner-coach",
+        "repo": "aquagarden-for-builder",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
     "three": "^0.184.0"

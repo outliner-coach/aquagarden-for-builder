@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom } from '../panelLayout'
+import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra } from '../panelLayout'
 
 describe('choosePanelDirection', () => {
   const base = { barHeight: 220, panelExtra: 420, availTop: 0, availHeight: 1080 }
@@ -76,5 +76,28 @@ describe('shouldAnchorBottom — 리사이즈가 하단 앵커로 새서 창이 
 
   it("resize는 패널이 '위로' 펼쳐진 동안에만 true", () => {
     expect(shouldAnchorBottom('resize', true, 'up')).toBe(true)
+  })
+})
+
+describe('requiredPanelExtra', () => {
+  // winTop=100, barHeight=120, availTop=0, availHeight=1000
+  // spaceBelow = 0+1000-(100+120) = 780, spaceAbove = 100-0 = 100
+  const base = { availTop: 0, availHeight: 1000, winTop: 100, barHeight: 120 }
+
+  it('down: 원하는 높이가 아래 공간보다 작으면 그대로 반환', () => {
+    expect(requiredPanelExtra(400, base.availTop, base.availHeight, base.winTop, base.barHeight, 'down')).toBe(400)
+  })
+
+  it('down: 원하는 높이가 아래 공간을 넘으면 아래 공간으로 클램프', () => {
+    expect(requiredPanelExtra(900, base.availTop, base.availHeight, base.winTop, base.barHeight, 'down')).toBe(780)
+  })
+
+  it('up: 위 공간으로 클램프', () => {
+    expect(requiredPanelExtra(400, base.availTop, base.availHeight, base.winTop, base.barHeight, 'up')).toBe(100)
+  })
+
+  it('공간이 음수면 0으로 바닥 처리', () => {
+    // 바가 작업영역 아래로 빠진 경우(winTop+barHeight > avail 하단)
+    expect(requiredPanelExtra(400, 0, 200, 300, 120, 'down')).toBe(0)
   })
 })

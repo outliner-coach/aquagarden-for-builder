@@ -73,15 +73,15 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     fatal = String(e)
   }
 
-  // 선택: 특별 개체(대형 어종) 렌더 검증용. 실제 토글 체크박스를 구동해
+  // 선택: 특별 개체(대형 어종) 렌더 검증용. 실제 칩 버튼을 클릭해
   // onEnabledFeaturesChange→setEnabledFeatures→스폰 경로를 그대로 태운 뒤 추가 settle.
   if (process.env['AQUA_SMOKE_FEATURES'] === '1') {
     await win.webContents
       .executeJavaScript(
         `(() => {
-          const boxes = document.querySelectorAll('.cp__feature-body input[type=checkbox]');
-          boxes.forEach((b) => { if (!b.checked) { b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); } });
-          return boxes.length;
+          const chips = document.querySelectorAll('.cp__feature-chip');
+          chips.forEach((c) => { if (c.getAttribute('aria-pressed') !== 'true') { c.click(); } });
+          return chips.length;
         })()`,
       )
       .catch(() => 0)

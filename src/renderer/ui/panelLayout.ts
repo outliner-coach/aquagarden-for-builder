@@ -62,3 +62,22 @@ export function shouldAnchorBottom(
 export function canvasTopOffset(dir: PanelDirection, winHeight: number, barHeight: number): number {
   return dir === 'up' ? Math.max(0, winHeight - barHeight) : 0
 }
+
+/**
+ * 펼침 방향에 따라 패널이 실제로 차지할 수 있는 높이를 가용 공간으로 클램프한다(순수).
+ * desiredPanelPx: 패널 실제 콘텐츠 높이(측정값) + 여백.
+ * dir==='up'이면 바 위 공간, 'down'이면 바 아래 공간으로 제한. 음수는 0.
+ */
+export function requiredPanelExtra(
+  desiredPanelPx: number,
+  availTop: number,
+  availHeight: number,
+  winTop: number,
+  barHeight: number,
+  dir: PanelDirection,
+): number {
+  const spaceBelow = availTop + availHeight - (winTop + barHeight)
+  const spaceAbove = winTop - availTop
+  const room = dir === 'up' ? spaceAbove : spaceBelow
+  return Math.max(0, Math.min(desiredPanelPx, room))
+}

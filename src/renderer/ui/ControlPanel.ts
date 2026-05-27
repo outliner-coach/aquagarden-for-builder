@@ -305,6 +305,11 @@ export class ControlPanel {
     this._updateStatusHint()
   }
 
+  /** 패널 콘텐츠의 실제 레이아웃 높이(px). 창 높이 동적 산정에 쓴다(닫힘/펼침 무관, scrollHeight). */
+  getPanelHeight(): number {
+    return this._panel.scrollHeight
+  }
+
   /**
    * 패널 펼침 방향을 설정한다(펼치기 직전 호출).
    * 'down': 버튼 아래로(top-right 고정). 'up': 버튼 위로(바를 창 하단에 두고 위로 펼침).

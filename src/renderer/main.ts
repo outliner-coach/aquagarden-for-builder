@@ -15,7 +15,7 @@ import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
 import { computeInteractive } from './ui/interaction'
 import { zoomFromWheel } from './core/zoomHelpers'
-import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, type PanelDirection } from './ui/panelLayout'
+import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA, ZOOM } from '../shared/config'
 import type { AppSettings } from '../shared/types'
@@ -186,11 +186,13 @@ function applyMouseIgnore(): void {
 
 // 패널 펼침 방향. 펼칠 때 하단 공간이 부족하면 'up'(위로) — 창을 강제 이동하지 않는다.
 let currentPanelDir: PanelDirection = 'down'
+// 펼침 시 측정된 패널 밴드 높이(가용 공간으로 클램프됨). 측정 전/실패 시 fallback=WINDOW.panelExtra.
+let currentPanelExtra: number = WINDOW.panelExtra
 
 /** 펼침 방향에 맞춰 캔버스(바)·베일의 창 내 앵커를 설정한다. 'up'이면 바를 창 하단에 붙인다. */
 function applyCanvasAnchor(): void {
   const winH = panelExpanded
-    ? expandedWindowHeight(currentBarHeight, WINDOW.panelExtra)
+    ? expandedWindowHeight(currentBarHeight, currentPanelExtra)
     : currentBarHeight
   const top = canvasTopOffset(currentPanelDir, winH, currentBarHeight)
   container.style.top = `${top}px`
@@ -208,7 +210,7 @@ function applyCanvasAnchor(): void {
  */
 function syncWindowSize(anchorBottom: boolean): void {
   const winH = panelExpanded
-    ? expandedWindowHeight(currentBarHeight, WINDOW.panelExtra)
+    ? expandedWindowHeight(currentBarHeight, currentPanelExtra)
     : currentBarHeight
   window.aqua.setWindowSize(currentBarWidth, winH, anchorBottom)
   applyCanvasAnchor()
@@ -306,16 +308,21 @@ const controlPanel = new ControlPanel(
       // 패널이 열리면 창을 패널 전체가 담길 만큼 키운다(작은 바에서도 안 잘림). 닫으면 바 높이로 복귀.
       panelExpanded = expanded
       if (expanded) {
-        // 펼치기 직전 하단/상단 공간을 보고 방향 결정 → 하단 부족 시 위로 펼쳐 창 강제 이동 방지.
-        // availTop은 비표준이라 옵셔널 캐스트(없으면 0). 멀티모니터에서 작업영역 상단 오프셋 반영.
+        // 펼치기 직전 패널 실제 높이를 측정해 방향 결정 + 가용 공간으로 클램프.
+        // availTop은 비표준이라 옵셔널 캐스트(없으면 0). 멀티모니터 작업영역 상단 오프셋 반영.
         const scr = window.screen as Screen & { availTop?: number }
+        const availTop = scr.availTop ?? 0
+        const desired = controlPanel.getPanelHeight() + WINDOW.panelGap
         currentPanelDir = choosePanelDirection({
           winTop: window.screenY,
           barHeight: currentBarHeight,
-          panelExtra: WINDOW.panelExtra,
-          availTop: scr.availTop ?? 0,
+          panelExtra: desired,
+          availTop,
           availHeight: scr.availHeight,
         })
+        currentPanelExtra = requiredPanelExtra(
+          desired, availTop, scr.availHeight, window.screenY, currentBarHeight, currentPanelDir,
+        )
         controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
       }
       // 펼침/접힘에서만 'up'이면 하단 앵커(바를 제자리에 유지).

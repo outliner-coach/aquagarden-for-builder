@@ -7,7 +7,7 @@
 
 | 파일 | 변경 내용 |
 |------|-----------|
-| `src/renderer/assets/fish/shrimp.glb` | 신규 추가. Blender 절차적 생성 GLB (15328 verts, 7 bones, "Swim" 클립). `/tmp/shrimp_amano/shrimp_amano.glb`에서 복사. |
+| `src/renderer/assets/fish/shrimp.glb` | 신규 추가 후 **미학 개선 GLB로 교체**. Blender 절차적 생성, 메시 미학 개선판 (6,901 verts, 8 bones, "Swim" 클립 48프레임). `/tmp/shrimp_amano/shrimp_amano.glb`(441,728 bytes)에서 복사. 이전 989,968 bytes(15,328 verts/7 bones) → 교체. |
 | `src/renderer/assets/fish/CREDITS.md` | `shrimp.glb` 항목 추가 — 본 프로젝트 자체 제작(원본 창작물), CC0 1.0. |
 | `src/renderer/entities/speciesRegistry.ts` | `import shrimpUrl`, `SpeciesId` 유니온에 `'shrimp'` 추가, 레지스트리 항목 1개 추가. |
 | `src/renderer/entities/__tests__/fishAssets.test.ts` | 종 수 9→10, individual 7→8 어서션 갱신. |
@@ -29,7 +29,7 @@
 }
 ```
 
-- `baseScale 1.5`: 최종 스케일 = `baseScale * normScale * variation`. GLB bbox 최장축 dx≈4.72 → `normScale ≈ 1/4.72 ≈ 0.212`. 따라서 최종 ≈ `1.5 * 0.212 * (0.85~1.15) ≈ 0.27~0.37`로, 어종보다 확연히 작은 청소부 새우 크기로 보인다.
+- `baseScale 1.5`(미학 개선 GLB에서도 유지): 최종 스케일 = `baseScale * normScale * variation`. 신규 GLB bbox 최장축 X span = 1.688−(−3.495) ≈ 5.18 → `normScale ≈ 1/5.18 ≈ 0.193`. 따라서 최종 ≈ `1.5 * 0.193 * (0.85~1.15) ≈ 0.25~0.33`로, 어종보다 확연히 작은 청소부 새우 크기(목표 0.25~0.4)에 부합한다. bbox가 바뀌었어도 최종 스케일이 적정 범위에 들어가므로 baseScale 조정 불필요.
 - `swimSpeed 0.5`: 느긋하게 거니는 작은 생물 톤.
 - `dialogue`: 10줄, 모두 고유(테스트로 가드). 청소·바닥·더듬이 등 새우 특성 + 기존 종과 같은 차분/힐링 톤.
 
@@ -47,7 +47,7 @@
 
 ## 검증 결과 (실제 명령 출력)
 
-- `npm run build` → `EXIT=0`. `tsc --noEmit` 통과, `shrimp-ryL042a0.glb 989.97 kB`로 번들됨.
+- `npm run build` → `EXIT=0`. `tsc --noEmit` 통과, `shrimp-DH-EnVX_.glb 441.73 kB`로 번들됨(미학 개선 GLB).
 - `npm run test` → `Test Files 30 passed (30) / Tests 431 passed (431)`, `EXIT=0`.
 - `npm run lint` → `EXIT=0` (경고/에러 없음).
 - `npm run smoke` → `[smoke] pass=true failures=0 → eval-report.json`, `EXIT=0`. "로드 실패" 없음 (health.errors=[]).
@@ -58,13 +58,13 @@
 {
   "pass": true,
   "failures": [],
-  "health": { "ready": true, "fishActive": 31, "errors": [], "frames": 144 },
+  "health": { "ready": true, "fishActive": 31, "errors": [], "frames": 114 },
   "pixel": {
     "sampled": 3084,
-    "opaqueRatio": 0.2432,
-    "transparentRatio": 0.7568,
-    "uniqueBuckets": 46,
-    "lumVariance": 670.9,
+    "opaqueRatio": 0.2412,
+    "transparentRatio": 0.7588,
+    "uniqueBuckets": 44,
+    "lumVariance": 790.2,
     "blank": false
   },
   "screenshot": "eval-screenshot.png",
@@ -76,9 +76,22 @@
 ```
 
 - `health.errors: []` — GLB 로드 실패(`[fishAssets] shrimp 로드 실패`) 없음. `errorConsole`의 항목은 모두 **level 2(경고)** 이며 셰이더/렌더 깨짐이 아니라 기존부터 있던 IBL 블러 경고와 개발 빌드 CSP 경고(새우 추가와 무관). 스모크 게이트는 이를 실패로 보지 않아 `pass=true, failures=[]`.
-- frames 144 (≥5), fishActive 31 (≥1), blank=false, transparentRatio 0.7568 (≥0.01). 모든 게이트 통과.
+- frames 114 (≥5), fishActive 31 (≥1), blank=false, transparentRatio 0.7588 (≥0.01). 모든 게이트 통과.
 - 새우는 ambient/individual 이므로 기본 풀에 등장 가능(`pickSpecies('individual')`가 `shrimp`를 반환할 수 있음을 유닛테스트로 검증).
+
+## 메시 미학 개선 (GLB 교체)
+
+초기 GLB(15,328 verts / 7 bones)를 미학 개선판(6,901 verts / 8 bones)으로 교체했다.
+
+- 다리·더듬이를 베벨 커브로 다듬어 형태를 정리.
+- 꼬리 부채(tail fan)를 정돈해 실루엣을 또렷하게.
+- 정점 수를 절반 이하로 줄여(989,968→441,728 bytes) 번들 용량 경감.
+- 품질 점수 7 → **8**.
+- bbox: X −3.495..+1.688(머리 −X, 꼬리부채 +X), Y −1.538..+0.163, Z −0.831..+0.831. 머리 −X 규약 유지 → `_align.rotation.y = Math.PI/2` 정렬 그대로, per-species `modelYaw` 불필요(스모크에서 측면 유영 없음).
 
 ## 참고 이미지
 
-생성 단계 프리뷰: `/tmp/shrimp_amano/preview.png`
+미학 개선판 프리뷰(저장소 내): `docs/media/shrimp/shrimp_preview.png`
+원본 생성 산출물: `/tmp/shrimp_amano/preview.png`
+
+![shrimp preview](media/shrimp/shrimp_preview.png)

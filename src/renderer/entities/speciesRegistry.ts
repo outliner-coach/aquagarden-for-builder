@@ -166,7 +166,8 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     file: mantaUrl,
     kind: 'individual',
     category: 'feature',
-    baseScale: 1.4,
+    // 사용자 피드백: 큰 개체(만타·고래)를 더 크게. 1.4→2.1 (약 1.5배).
+    baseScale: 2.1,
     swimSpeed: 0.45,
     displayName: '만타가오리',
     dialogue: [
@@ -187,7 +188,8 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     file: whaleUrl,
     kind: 'individual',
     category: 'feature',
-    baseScale: 1.8,
+    // 사용자 피드백: 큰 개체(만타·고래)를 더 크게. 1.8→2.7 (약 1.5배).
+    baseScale: 2.7,
     swimSpeed: 0.35,
     displayName: '고래',
     dialogue: [

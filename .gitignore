@@ -16,3 +16,6 @@ phases/**/step*-output.json
 phases/**/eval/
 eval-report.json
 eval-screenshot.png
+
+# 화면 기록 원본(README용 변환본은 docs/media/에 별도 커밋 — 원본 .mov는 용량 커서 제외)
+*.mov

@@ -12,9 +12,11 @@ import { WATER } from '../../shared/config'
 const _tintColor = { value: new THREE.Vector3(...WATER.tintColor) }
 const _depthNear = { value: WATER.depthNear }
 const _depthFar = { value: WATER.depthFar }
+const _alphaNear = { value: WATER.alphaDepthNear }
 const _alphaFar = { value: WATER.alphaDepthFar }
 const _maxTint = { value: WATER.maxTintStrength }
 const _maxFade = { value: WATER.maxAlphaFade }
+const _fadePower = { value: WATER.alphaFadePower }
 
 export function attachWaterDepthUniforms(
   shader: { uniforms: Record<string, { value: unknown }> },
@@ -22,9 +24,11 @@ export function attachWaterDepthUniforms(
   shader.uniforms.uWaterTintColor = _tintColor
   shader.uniforms.uWaterDepthNear = _depthNear
   shader.uniforms.uWaterDepthFar = _depthFar
+  shader.uniforms.uWaterAlphaNear = _alphaNear
   shader.uniforms.uWaterAlphaFar = _alphaFar
   shader.uniforms.uWaterMaxTint = _maxTint
   shader.uniforms.uWaterMaxFade = _maxFade
+  shader.uniforms.uWaterFadePower = _fadePower
 }
 
 /* ── 공유 GLSL 청크 — onBeforeCompile 주입용 ── */
@@ -42,9 +46,11 @@ export const WATER_DEPTH_FRAG_DECLARE = /* glsl */ `
 uniform vec3 uWaterTintColor;
 uniform float uWaterDepthNear;
 uniform float uWaterDepthFar;
+uniform float uWaterAlphaNear;
 uniform float uWaterAlphaFar;
 uniform float uWaterMaxTint;
 uniform float uWaterMaxFade;
+uniform float uWaterFadePower;
 varying float vWaterDepth;`
 
 /** 프래그먼트: #include <opaque_fragment> 뒤에 삽입. gl_FragColor를 수정. */
@@ -52,12 +58,14 @@ export const WATER_DEPTH_FRAG_MAIN = /* glsl */ `
 {
   float tintT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterDepthFar - uWaterDepthNear), 0.0, 1.0);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uWaterTintColor, tintT * uWaterMaxTint);
-  // 알파 페이드는 더 먼 거리(uWaterAlphaFar)까지 램프 → 모래 먼 가장자리에서 0으로 용해(하드 컷 제거)
-  float alphaT = clamp((vWaterDepth - uWaterDepthNear) / (uWaterAlphaFar - uWaterDepthNear), 0.0, 1.0);
-  // smoothstep ease-out: 먼 가장자리에서 알파가 '기울기 0'으로 0에 도달 → 지평선 근처
-  // 원근 압축(깊이가 1~2px에 몰림)에도 마지막 픽셀에서 알파가 급강하하지 않아 수평선이 안 생김.
-  alphaT = alphaT * alphaT * (3.0 - 2.0 * alphaT);
-  gl_FragColor.a *= 1.0 - alphaT * uWaterMaxFade;
+  // 알파 페이드: uWaterAlphaNear~uWaterAlphaFar(=모래 먼 가장자리 깊이) 램프 → 가장자리에서 0으로 용해.
+  float alphaT = clamp((vWaterDepth - uWaterAlphaNear) / (uWaterAlphaFar - uWaterAlphaNear), 0.0, 1.0);
+  // ease-out(1-(1-t)^power): 페이드를 가까운 깊이쪽으로 전진시켜 먼 모래를 일찍부터 옅게 한다.
+  // 원근 압축으로 먼 가장자리(깊이 10~16)가 화면 ~17px에 몰리는데, 과거 smoothstep은 그 좁은 띠에서
+  // 알파를 한꺼번에 떨궈 어두운 '가로선'을 남겼다. ease-out은 같은 페이드를 화면 35px+로 펼친다.
+  // t=1(먼 가장자리)에서 eased=1 → 알파 0 도달(하드 컷 없음) 불변식 유지.
+  float eased = 1.0 - pow(1.0 - alphaT, uWaterFadePower);
+  gl_FragColor.a *= 1.0 - eased * uWaterMaxFade;
 }`
 
 /**

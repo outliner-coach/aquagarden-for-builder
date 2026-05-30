@@ -17,7 +17,7 @@ import { computeInteractive } from './ui/interaction'
 import { zoomFromWheel } from './core/zoomHelpers'
 import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WATER, WINDOW, SCENE, CAMERA, ZOOM } from '../shared/config'
+import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM } from '../shared/config'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
@@ -142,34 +142,9 @@ if (canvas) {
   canvas.style.setProperty('mask-image', fade)
 }
 
-// ── 수중 분위기 베일 ──
-// 투명 오버레이라 '물 부피' 색이 없으므로, 화면 상단이 살짝 푸르게 물드는 은은한
-// 반투명 그라디언트를 덧씌워 수중 느낌을 준다(바탕화면은 여전히 비침). 밝기와 연동.
-const waterVeil = document.createElement('div')
-waterVeil.id = 'water-veil'
-waterVeil.style.cssText = [
-  'position:fixed', 'top:0', 'left:0', 'width:100%',
-  `height:${currentBarHeight}px`,
-  'pointer-events:none', 'z-index:1',
-].join(';')
-document.body.appendChild(waterVeil)
-
-let _veilSceneFactor = 1
-function setWaterVeil(b01: number, sceneFactor?: number): void {
-  if (sceneFactor !== undefined) _veilSceneFactor = sceneFactor
-  // 어두울수록(밤) 살짝 더 짙게, 밝을수록 옅게. sceneOpacity factor로 곱.
-  const v = WATER.veil
-  const a = (v.maxAlpha - v.brightnessScale * b01) * _veilSceneFactor
-  const [tr, tg, tb] = v.topColor
-  const [mr, mg, mb] = v.midColor
-  const [br, bg, bb] = v.bottomColor
-  waterVeil.style.background =
-    `linear-gradient(180deg,` +
-    ` rgba(${tr},${tg},${tb},${a.toFixed(3)}) 0%,` +
-    ` rgba(${mr},${mg},${mb},${(a * v.midAlphaRatio).toFixed(3)}) ${v.midStop}%,` +
-    ` rgba(${br},${bg},${bb},${(a * v.bottomAlphaRatio).toFixed(3)}) 100%)`
-}
-setWaterVeil(LIGHT.default01)
+// 수중 분위기 베일(상단 푸른 반투명 그라디언트)은 제거했다. 투명 오버레이 위에서 저알파
+// CSS 그라디언트가 8비트로 양자화되며 ~10px 간격의 균일한 가로 밴딩(여러 개의 수평선)을 만들었고,
+// 밝기/투명도를 바꾸면 알파가 변해 그 선들이 움직였다. 디더링 없이 DOM에서 제거가 가장 확실한 해법.
 
 // 컨트롤(버튼/패널) 또는 리사이즈 핸들 위에 마우스가 있는지. click-through 중에도 조작 위해 추적.
 let hoveringControls = false
@@ -189,14 +164,13 @@ let currentPanelDir: PanelDirection = 'down'
 // 펼침 시 측정된 패널 밴드 높이(가용 공간으로 클램프됨). 측정 전/실패 시 fallback=WINDOW.panelExtra.
 let currentPanelExtra: number = WINDOW.panelExtra
 
-/** 펼침 방향에 맞춰 캔버스(바)·베일의 창 내 앵커를 설정한다. 'up'이면 바를 창 하단에 붙인다. */
+/** 펼침 방향에 맞춰 캔버스(바)의 창 내 앵커를 설정한다. 'up'이면 바를 창 하단에 붙인다. */
 function applyCanvasAnchor(): void {
   const winH = panelExpanded
     ? expandedWindowHeight(currentBarHeight, currentPanelExtra)
     : currentBarHeight
   const top = canvasTopOffset(currentPanelDir, winH, currentBarHeight)
   container.style.top = `${top}px`
-  waterVeil.style.top = `${top}px`
 }
 
 /**
@@ -247,7 +221,6 @@ const controlPanel = new ControlPanel(
       settings.brightness01 = b01
       lighting.setBrightness01(b01)
       glowSprites.setBrightness01(b01)
-      setWaterVeil(b01)
       persistSoon()
     },
     onSceneTransparencyChange(t01: number) {
@@ -256,7 +229,6 @@ const controlPanel = new ControlPanel(
       aquascape.setSceneOpacity(factor)
       glowSprites.setSceneOpacity(factor)
       bubbles.setSceneOpacity(factor)
-      setWaterVeil(settings.brightness01, factor)
       persistSoon()
     },
     onZoomChange(factor: number) {
@@ -272,12 +244,8 @@ const controlPanel = new ControlPanel(
       if (hidden) {
         loop.stop()
         if (canvas) canvas.style.display = 'none'
-        // 수조 숨김 시 수중 베일(DOM 그라디언트)도 같이 숨긴다. 안 그러면 캔버스만 사라지고
-        // 베일이 옅은 사각형 '레이어'로 바탕화면 위에 남는다.
-        waterVeil.style.display = 'none'
       } else {
         if (canvas) canvas.style.display = ''
-        waterVeil.style.display = ''
         loop.start()
       }
       applyMouseIgnore()
@@ -402,7 +370,6 @@ setupResizeHandles(
       currentBarWidth = width
       currentBarHeight = height
       container.style.height = `${height}px`
-      waterVeil.style.height = `${height}px`
       // 'up' 방향일 때 버튼은 바 상단(창 하단 기준 barHeight-84)에 맞춰야 하므로 바 높이 변화에 재정렬.
       controlPanel.setOpenDirection(currentPanelDir, currentBarHeight)
       // 리사이즈는 좌상단 앵커가 기본. 단 패널이 '위로' 펼쳐진 상태에서의 리사이즈만 하단 앵커 유지.
@@ -428,11 +395,9 @@ if (persisted) {
   aquascape.setSceneOpacity(factor)
   glowSprites.setSceneOpacity(factor)
   bubbles.setSceneOpacity(factor)
-  setWaterVeil(settings.brightness01, factor)
   if (settings.hidden) {
     loop.stop()
     if (canvas) canvas.style.display = 'none'
-    waterVeil.style.display = 'none'
   }
   window.aqua.setAlwaysOnTop(currentAlwaysOnTop)
   // 창 위치/크기 복원(main이 화면 안으로 클램프). 렌더러 container는 width:100%·height=barHeight라

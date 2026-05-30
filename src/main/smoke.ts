@@ -29,6 +29,16 @@ const SETTLE = Number(process.env['AQUA_SMOKE_SETTLE_MS'] || 2500)
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
+/** "r,g,b"(0-255) 환경변수를 BGR 튜플로 파싱. 실패 시 기본 짙은 회색. */
+function parseBgBgr(env: string | undefined): [number, number, number] {
+  const def: [number, number, number] = [46, 40, 38] // BGR of [38,40,46]
+  if (!env) return def
+  const parts = env.split(',').map((s) => Number(s.trim()))
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return def
+  const [r, g, b] = parts
+  return [b, g, r]
+}
+
 /** BGRA 비트맵을 불투명 배경색(BGR) 위에 알파 합성한다. 반환도 BGRA(알파=255). */
 function compositeOverBackground(bitmap: Buffer, bgBgr: [number, number, number]): Buffer {
   const out = Buffer.from(bitmap)
@@ -88,6 +98,48 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(2000)
   }
 
+  // 선택: 격리 캡처용 밝기/투명도 슬라이더 구동. 슬라이더 DOM 순서 = [어종수, 밝기, 투명도, 줌].
+  // 가운데 까만 선(모래 지평선 등) 아티팩트는 고밝기+밝은 배경에서만 드러나므로 이 노브로 재현한다.
+  const brightnessEnv = process.env['AQUA_SMOKE_BRIGHTNESS']
+  const transparencyEnv = process.env['AQUA_SMOKE_TRANSPARENCY']
+  if (brightnessEnv !== undefined || transparencyEnv !== undefined) {
+    await win.webContents
+      .executeJavaScript(
+        `(() => {
+          const sliders = document.querySelectorAll('.cp__slider');
+          const drive = (idx, val) => {
+            const el = sliders[idx];
+            if (!el) return false;
+            el.value = String(val);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          };
+          const b = ${brightnessEnv !== undefined ? Number(brightnessEnv) : 'null'};
+          const t = ${transparencyEnv !== undefined ? Number(transparencyEnv) : 'null'};
+          const r = { count: sliders.length, brightness: false, transparency: false };
+          if (b !== null) r.brightness = drive(1, b);
+          if (t !== null) r.transparency = drive(2, t);
+          return JSON.stringify(r);
+        })()`,
+      )
+      .catch(() => '')
+    await delay(1200)
+  }
+
+  // 선택: 패널을 펼쳐(플로팅 버튼 클릭) 확장 상태의 캔버스 하단 가장자리(=가운데 가로선 후보)를 캡처.
+  if (process.env['AQUA_SMOKE_OPEN_PANEL'] === '1') {
+    await win.webContents
+      .executeJavaScript(
+        `(() => {
+          const btn = document.querySelector('.cp__btn');
+          if (btn) { btn.click(); return true; }
+          return false;
+        })()`,
+      )
+      .catch(() => false)
+    await delay(1500)
+  }
+
   const health = await readHealth(win)
 
   // 스크린샷 + 픽셀 분석
@@ -99,7 +151,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     const size = img.getSize()
     const bitmap = img.toBitmap() // BGRA (원본 알파 보존)
     pixel = evaluatePixels(bitmap, size.width, size.height)
-    const composited = compositeOverBackground(bitmap, [38, 40, 46]) // 짙은 회색 = 데스크톱 대용
+    const composited = compositeOverBackground(bitmap, parseBgBgr(process.env['AQUA_SMOKE_BG'])) // 데스크톱 대용 배경(기본 짙은 회색, AQUA_SMOKE_BG로 override)
     const out = nativeImage.createFromBitmap(composited, { width: size.width, height: size.height })
     writeFileSync(SHOT, out.toPNG())
   } catch (e) {

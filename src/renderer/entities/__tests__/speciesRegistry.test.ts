@@ -88,8 +88,8 @@ describe('FISH_SPECIES (backward compat)', () => {
     expect(FISH_SPECIES).toBe(SPECIES_REGISTRY)
   })
 
-  it('9종이 등록되어 있다', () => {
-    expect(FISH_SPECIES).toHaveLength(9)
+  it('10종이 등록되어 있다', () => {
+    expect(FISH_SPECIES).toHaveLength(10)
   })
 })
 
@@ -107,6 +107,13 @@ describe('category 필드', () => {
     for (const id of ambientIds) {
       expect(getSpecies(id).category).toBe('ambient')
     }
+  })
+
+  it('ambient 6종 / feature 4종이다', () => {
+    const ambient = SPECIES_REGISTRY.filter((s) => s.category === 'ambient')
+    const feature = SPECIES_REGISTRY.filter((s) => s.category === 'feature')
+    expect(ambient).toHaveLength(6)
+    expect(feature).toHaveLength(4)
   })
 
   it('신규 4종(manta, whale, dolphin, shark)은 모두 feature이다', () => {
@@ -148,6 +155,47 @@ describe('신규 feature 4종', () => {
       const sp = getSpecies(id)
       expect(new Set(sp.dialogue).size).toBe(sp.dialogue.length)
     }
+  })
+})
+
+/* ── 새우(shrimp) 메타데이터 ── */
+
+describe('새우(shrimp)', () => {
+  it('레지스트리에서 getSpecies("shrimp")로 조회된다', () => {
+    const sp = getSpecies('shrimp')
+    expect(sp.id).toBe('shrimp')
+    expect(sp.displayName).toBe('새우')
+  })
+
+  it('ambient 카테고리·individual kind이다 (앰비언트 풀에 등장)', () => {
+    const sp = getSpecies('shrimp')
+    expect(sp.category).toBe('ambient')
+    expect(sp.kind).toBe('individual')
+  })
+
+  it('dialogue가 10개 이상이고 중복이 없다', () => {
+    const sp = getSpecies('shrimp')
+    expect(sp.dialogue.length).toBeGreaterThanOrEqual(10)
+    expect(new Set(sp.dialogue).size).toBe(sp.dialogue.length)
+    for (const line of sp.dialogue) {
+      expect(typeof line).toBe('string')
+      expect(line.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('baseScale > 0, swimSpeed > 0, file이 비어있지 않다', () => {
+    const sp = getSpecies('shrimp')
+    expect(sp.baseScale).toBeGreaterThan(0)
+    expect(sp.swimSpeed).toBeGreaterThan(0)
+    expect(sp.file.length).toBeGreaterThan(0)
+  })
+
+  it('ambient이므로 pickSpecies 후보에 포함될 수 있다 (individual)', () => {
+    const ids = new Set<SpeciesId>()
+    for (let seed = 0; seed < 500; seed++) {
+      ids.add(pickSpecies(seed * 0.0173, 'individual'))
+    }
+    expect(ids.has('shrimp')).toBe(true)
   })
 })
 

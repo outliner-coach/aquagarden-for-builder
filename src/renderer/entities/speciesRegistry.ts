@@ -22,6 +22,7 @@ import mantaUrl from '../assets/fish/manta.glb?url'
 import whaleUrl from '../assets/fish/whale.glb?url'
 import dolphinUrl from '../assets/fish/dolphin.glb?url'
 import sharkUrl from '../assets/fish/shark.glb?url'
+import shrimpUrl from '../assets/fish/shrimp.glb?url'
 
 /* ── Types ── */
 
@@ -35,6 +36,7 @@ export type SpeciesId =
   | 'whale'
   | 'dolphin'
   | 'shark'
+  | 'shrimp'
 
 export interface FishSpecies {
   id: SpeciesId
@@ -156,6 +158,29 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
       '넓은 바다 한가운데, 나는 고요히 떠 있어요.',
       '겉모습이 전부가 아니라는 걸 알아주세요.',
       '느리게 사는 것도 하나의 용기입니다.',
+    ],
+  },
+
+  {
+    id: 'shrimp',
+    file: shrimpUrl,
+    kind: 'individual',
+    category: 'ambient',
+    // 작은 청소부 새우 — 어종보다 작게, 느긋하게.
+    baseScale: 1.5,
+    swimSpeed: 0.5,
+    displayName: '새우',
+    dialogue: [
+      '바닥을 천천히 거닐며 하루를 정리해요.',
+      '작아도 부지런히 제 몫을 해냅니다.',
+      '모래 한 알 한 알에도 이야기가 담겨 있어요.',
+      '조용히 청소하다 보면 마음도 맑아져요.',
+      '더듬이로 세상을 느끼는 게 제 방식이에요.',
+      '눈에 띄지 않아도 늘 여기 있답니다.',
+      '수초 사이는 제게 가장 아늑한 쉼터예요.',
+      '서두르지 않아도 할 일은 다 끝나요.',
+      '작은 몸으로 큰 수조를 가꾸는 게 뿌듯해요.',
+      '바닥에서 올려다보는 물빛이 참 곱습니다.',
     ],
   },
 

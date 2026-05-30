@@ -60,6 +60,27 @@ describe('SPECIES_REGISTRY', () => {
   })
 })
 
+/* ── 특별 대형 개체 크기 불변식 (사용자 의도: 특별 개체가 압도적으로 큼) ── */
+
+describe('대형 특별 개체 baseScale 불변식', () => {
+  it('고래는 만타가오리보다 크다 (현실 비율: 고래 ≫ 만타)', () => {
+    expect(getSpecies('whale').baseScale).toBeGreaterThan(getSpecies('manta').baseScale)
+  })
+
+  it('만타·고래는 모든 ambient 종보다 크다 (특별 개체의 압도감)', () => {
+    const maxAmbientScale = Math.max(
+      ...SPECIES_REGISTRY.filter((s) => s.category === 'ambient').map((s) => s.baseScale),
+    )
+    expect(getSpecies('manta').baseScale).toBeGreaterThan(maxAmbientScale)
+    expect(getSpecies('whale').baseScale).toBeGreaterThan(maxAmbientScale)
+  })
+
+  it('고래가 전체 종 중 가장 크다', () => {
+    const maxScale = Math.max(...SPECIES_REGISTRY.map((s) => s.baseScale))
+    expect(getSpecies('whale').baseScale).toBe(maxScale)
+  })
+})
+
 /* ── FISH_SPECIES 호환성 ── */
 
 describe('FISH_SPECIES (backward compat)', () => {

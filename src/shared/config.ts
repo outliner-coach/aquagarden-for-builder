@@ -12,6 +12,9 @@ export const WINDOW = {
   minWidth: 400,
   minHeight: 80,
   maxHeight: 350,
+  // 창 이동 시 어떤 모니터든 최소 이만큼(px) 보이면 이동을 허용한다(모니터 간 자유 이동).
+  // 어디에도 이만큼 안 보이면 가장 가까운 모니터로 끌어당겨 완전 이탈(버튼째 사라짐)을 막는다.
+  minVisibleOnMove: 80,
 } as const
 
 export const FISH = {
@@ -208,24 +211,25 @@ export const WATER = {
   /** 틴트(색 헤이즈) 포화 깊이 — 알파 페이드와 분리해 수중 무드 유지 */
   depthFar: 10.0,
   maxTintStrength: 0.3,
+  /** 알파 페이드 시작 깊이(이 앞은 완전 불투명=바닥). 화면상 바 하단부. */
+  alphaDepthNear: 5.0,
   /**
-   * 알파 페이드 포화 깊이. 모래 평면 먼 가장자리(뷰 깊이≈16)보다 앞에 두어
-   * 가장자리에서 알파가 0에 도달 → 하드 컷(수평선) 대신 수중 헤이즈로 용해.
+   * 알파 페이드 포화 깊이. 모래 평면 먼 가장자리(뷰 깊이=16)에 맞춰 가장자리에서
+   * 알파가 0에 도달 → 하드 컷(수평선) 대신 수중 헤이즈로 용해.
    * 변경 시 waterDepthHelpers.test.ts의 "먼 가장자리 알파 0" 가드 확인.
    */
-  alphaDepthFar: 15.0,
+  alphaDepthFar: 16.0,
+  /**
+   * 페이드 곡선 지수(ease-out, 1-(1-t)^p). >1이면 페이드를 **가까운 깊이쪽으로 전진**시켜
+   * 먼 모래가 일찍부터 헤이즈로 옅어지게 한다. 원근 압축으로 먼 가장자리(깊이 10~16)가
+   * 화면 17px에 몰리므로, smoothstep(끝에서 급강하)은 그 좁은 띠에 어두운 '가로선'을 만든다.
+   * ease-out은 페이드를 깊이 6~11(화면 35px+)로 펼쳐 선이 아닌 부드러운 그라디언트로 만든다.
+   */
+  alphaFadePower: 2.2,
   /** alphaDepthFar에서의 페이드량. 1.0=완전 투명(가장자리 용해) */
   maxAlphaFade: 1.0,
-  veil: {
-    topColor: [35, 105, 118] as readonly [number, number, number],
-    midColor: [30, 110, 108] as readonly [number, number, number],
-    bottomColor: [24, 98, 88] as readonly [number, number, number],
-    maxAlpha: 0.14,
-    brightnessScale: 0.06,
-    midAlphaRatio: 0.50,
-    bottomAlphaRatio: 0.22,
-    midStop: 55,
-  },
+  // 수중 분위기 베일(DOM 그라디언트)은 제거했다. 투명 오버레이 위에서 저알파 CSS 그라디언트가
+  // 8비트로 양자화되며 균일한 가로 밴딩(여러 수평선)을 만들어, 밝기/투명도 변경 시 선이 움직였다.
 } as const
 
 export const SCENE = {

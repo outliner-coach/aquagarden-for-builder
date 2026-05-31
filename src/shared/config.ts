@@ -32,6 +32,18 @@ export const FISH = {
   },
 } as const
 
+/** 새우(바닥 기는 청소부) 전용 거동 상수. 일반 어종 유영과 차별화. */
+export const SHRIMP = {
+  /** 모래바닥(FISH.bounds.minY) 위로 띄울 목표 높이(머무는 띠의 중심). */
+  floorOffset: 0.45,
+  /** 바닥 띠로 끌어당기는 수직 부착력(스프링 상수). */
+  floorPull: 4.0,
+  /** 종종거림(scuttle) 한 주기 초. 멈칫→전진→멈칫. */
+  scuttlePeriod: 1.7,
+  /** 종종거림 멈칫 구간의 최저 속도 비율(0=완전정지). */
+  scuttleMinFactor: 0.12,
+} as const
+
 export const LIGHT = {
   minIntensity: 0.1,
   maxIntensity: 2.0,

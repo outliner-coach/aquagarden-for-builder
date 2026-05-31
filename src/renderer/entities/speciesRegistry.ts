@@ -46,6 +46,11 @@ export interface FishSpecies {
   category: 'ambient' | 'feature'
   baseScale: number
   swimSpeed: number
+  /**
+   * 이동 거동. 생략 시 'swim'(일반 자유 유영).
+   * 'crawler' = 바닥 기는 청소부(새우): 모래바닥 띠에 머물며 수평 위주로 종종거림.
+   */
+  behavior?: 'swim' | 'crawler'
   /** 한국어 표시명 (UI·대사에서 사용) */
   displayName: string
   /** 어종별 대사 목록 (>=10개) */
@@ -166,9 +171,11 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     file: shrimpUrl,
     kind: 'individual',
     category: 'ambient',
-    // 작은 청소부 새우 — 어종보다 작게, 느긋하게.
-    baseScale: 1.5,
+    // 작은 청소부 새우 — 어종보다 훨씬 작게, 느긋하게. (기존 1.5의 1/4 = 0.375)
+    baseScale: 0.375,
     swimSpeed: 0.5,
+    // 바닥 기는 청소부 거동: 다른 어종의 자유 유영과 차별화.
+    behavior: 'crawler',
     displayName: '새우',
     dialogue: [
       '바닥을 천천히 거닐며 하루를 정리해요.',

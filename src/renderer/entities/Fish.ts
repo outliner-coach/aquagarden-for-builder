@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { FISH } from '../../shared/config'
+import { FISH, SHRIMP } from '../../shared/config'
 import type { FishPrototype } from './fishAssets'
 import type { SpeciesId } from './speciesRegistry'
 import { pickSpecies } from './fishAssets'
 import { headingYaw } from './fishHelpers'
+import { floorBiasForce, scuttleSpeedFactor } from './crawlerHelpers'
 
 /* ── Types ── */
 
@@ -28,6 +29,7 @@ export class Fish {
   readonly mesh: THREE.Group // 외곽: 위치·헤딩 회전·스케일
   private readonly _align: THREE.Group // 정렬: 머리 +X
   private _kind: FishKind = 'schooling'
+  private _behavior: 'swim' | 'crawler' = 'swim'
   private _seed = 0
   private _baseSpeed = 1.0
 
@@ -108,6 +110,9 @@ export class Fish {
       b.minZ + (b.maxZ - b.minZ) * pseudoRandom(seed, 2),
     )
 
+    // 거동(일반 유영 vs 바닥 기는 새우)
+    this._behavior = proto?.behavior ?? 'swim'
+
     // 속도
     this._baseSpeed = proto?.swimSpeed ?? (kind === 'schooling' ? 1.2 : 0.8)
     const angle = pseudoRandom(seed, 3) * Math.PI * 2
@@ -140,11 +145,13 @@ export class Fish {
 
     this._wanderPhase += dt
 
-    // Wander
+    const isCrawler = this._behavior === 'crawler'
+
+    // Wander (새우는 수직 방랑 제거 → 바닥 띠 부착으로 대체)
     const s = this._seed
     const wp = this._wanderPhase
     const wx = Math.sin(wp * 0.7 + s * 6.28) * 0.5
-    const wy = Math.sin(wp * 0.4 + s * 12.57) * 0.15
+    const wy = isCrawler ? 0 : Math.sin(wp * 0.4 + s * 12.57) * 0.15
     const wz = Math.sin(wp * 0.5 + s * 18.85) * 0.25
 
     // Boundary avoidance
@@ -157,8 +164,13 @@ export class Fish {
     let bz = 0
     if (p.x < b.minX + m) bx = tf * (1 - (p.x - b.minX) / m)
     if (p.x > b.maxX - m) bx = -tf * (1 - (b.maxX - p.x) / m)
-    if (p.y < b.minY + m) by = tf * (1 - (p.y - b.minY) / m)
-    if (p.y > b.maxY - m) by = -tf * (1 - (b.maxY - p.y) / m)
+    // 새우는 바닥 띠에 머물러야 하므로 y-경계회피 대신 바닥 부착 스프링을 쓴다.
+    if (isCrawler) {
+      by = floorBiasForce(p.y, b.minY, SHRIMP.floorOffset, SHRIMP.floorPull)
+    } else {
+      if (p.y < b.minY + m) by = tf * (1 - (p.y - b.minY) / m)
+      if (p.y > b.maxY - m) by = -tf * (1 - (b.maxY - p.y) / m)
+    }
     if (p.z < b.minZ + m) bz = tf * (1 - (p.z - b.minZ) / m)
     if (p.z > b.maxZ - m) bz = -tf * (1 - (b.maxZ - p.z) / m)
 
@@ -166,10 +178,13 @@ export class Fish {
     this._velocity.y += (wy + by + this._steer.y) * dt
     this._velocity.z += (wz + bz + this._steer.z) * dt
 
-    // 속도 범위 유지
+    // 속도 범위 유지 (새우는 종종거림 envelope로 멈칫→전진 반복)
+    const scuttle = isCrawler
+      ? scuttleSpeedFactor(this._wanderPhase, SHRIMP.scuttlePeriod, SHRIMP.scuttleMinFactor)
+      : 1
     const speed = this._velocity.length()
-    const maxSpeed = this._baseSpeed * 1.5 * this._speedMultiplier
-    const minSpeed = this._baseSpeed * 0.3
+    const maxSpeed = this._baseSpeed * 1.5 * this._speedMultiplier * scuttle
+    const minSpeed = this._baseSpeed * 0.3 * scuttle
     if (speed > maxSpeed) {
       this._velocity.multiplyScalar(maxSpeed / speed)
     } else if (speed > 0 && speed < minSpeed) {

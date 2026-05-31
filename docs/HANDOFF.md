@@ -3,9 +3,9 @@
 다음 세션이 이어서 작업할 수 있도록 현재 상태를 정리한다.
 먼저 `CLAUDE.md`(렌더링 함정·eval 규칙)와 `docs/ARCHITECTURE.md`를 읽을 것.
 
-## 신규 개체 (2026-05-31) — 새우(아마노 새우) 추가 + 미완료 2건 (브랜치 `feat-5-shrimp`, main 미병합) ⬅ 다음 작업
+## 신규 개체 (2026-05-31) — 새우(아마노 새우) 추가 + 크기/거동 차별화 완료 (브랜치 `feat-5-shrimp`, main 미병합)
 
-상세 리포트: `docs/SHRIMP_REPORT.md`. 직전 세션(2026-05-30~31)이 **블렌더 절차적 새우 GLB 제작 → 앱 통합 → 2차 미학 개선**까지 마쳤으나, 마지막 사용자 요청 2건은 **미완료 상태로 세션이 중단**됐다. 다음 에이전트는 아래 "미완료(다음 작업)" 2건을 먼저 처리할 것.
+상세 리포트: `docs/SHRIMP_REPORT.md`. **블렌더 절차적 새우 GLB 제작 → 앱 통합 → 미학 개선 → 크기 1/4 축소 → 바닥 기는 청소부 거동**까지 완료. (직전 세션이 마지막 2건을 미완료로 중단했던 것을 이어받아 처리함.)
 
 ### 완료된 부분 (커밋됨)
 - **GLB**: Blender 절차적 생성(`/tmp/shrimp_amano/build.py` v32 보존). 커밋본 `src/renderer/assets/fish/shrimp.glb` = **588,576 bytes** (md5 `a4288fc…`), 스킨 메시 1개(`Shrimp`, 7,740 verts) + 보조 메시 1개(총 7,782 verts), **아마처 7본(b00–b06) + neutral_bone**, `"Swim"` 클립 1–48프레임, 머티리얼 2개(텍스처드 바디).
@@ -15,15 +15,17 @@
 - **프리뷰**: `docs/media/shrimp/shrimp_preview.png`(실제 커밋 GLB 렌더와 일치하도록 갱신·커밋됨).
 - 커밋 흐름: `7e7795d`(추가) → `4be40f7`(메시 미학) → `aaaf53f`(텍스처드 재동기화) → `62e5c88`(개선판 재동기화) → `88a9303`(프리뷰 갱신, 최종 HEAD).
 
-### ⚠ 미완료 (다음 작업) — 사용자 요청, 세션 중단으로 미적용
-1. **[P0] 새우 크기 1/4 축소 — 코드 미반영.** 사용자가 "새우를 현재의 1/4 크기로 줄여달라"고 요청. `baseScale: 1.5 → 0.375`(선형이라 정확히 1/4) Edit이 **응답 중단으로 누락**됨. working tree 클린, 코드는 **여전히 `baseScale: 1.5`**(`speciesRegistry.ts:170`). → `0.375`로 수정 후 `npm run smoke`로 렌더 확인(너무 작아 사라지지 않는지) 필요. SHRIMP_REPORT의 스케일 계산식도 함께 갱신.
-2. **[P1] 새우 전용 거동 — 미구현.** 사용자가 "새우 움직임이 다른 물고기와 비슷한데 달라야 하지 않냐"고 지적(정당함). 현재 `kind:'individual'`이라 **다른 어종과 동일한 wander/사인파 유영 로직**을 그대로 탄다. 직전 세션이 `AskUserQuestion`으로 거동 스타일 3안을 제시했으나 **사용자 답변 전 종료**:
-   - ① 바닥 기는 청소부(추천): 모래바닥 근처에 머물며 수평 위주·느리고 종종거림(아마노 새우다움, 실제 어종과 최대 대비).
-   - ② 떠다니다 멈칫 호버링: 제자리 살짝 표류 + 가끔 짧게 이동.
-   - ③ 가끔 핑 달아나는 도망형: 평소 느리다 가끔 빠르게 튐.
-   → **다음 세션은 먼저 사용자 선택을 확인**한 뒤 구현. 구현 시 매직넘버 금지(`config.ts` 상수) + 순수함수로 분리 + 결정적 유닛테스트(TDD), 다른 어종 거동을 건드리지 말 것.
+### ✅ 크기·거동 차별화 (2026-05-31 완료)
+1. **[완료] 새우 크기 1/4 축소.** 사용자 요청대로 `baseScale: 1.5 → 0.375`([speciesRegistry.ts](../src/renderer/entities/speciesRegistry.ts)). 최종 스케일 ≈ 0.06~0.08. smoke pass=true(사라지지 않음 확인).
+2. **[완료] 새우 전용 "바닥 기는 청소부" 거동.** 사용자가 선택한 ①안 구현. 다른 어종의 자유 유영과 차별화:
+   - `FishSpecies.behavior?: 'swim' | 'crawler'` 종별 분기(새우만 crawler, 다른 어종 경로 불변).
+   - 바닥 띠 부착(수직 스프링 `floorBiasForce`) + 수직 방랑 제거 + 종종거림(scuttle 속도 envelope `scuttleSpeedFactor`).
+   - 매직넘버 금지: `SHRIMP` config 상수 + 순수 헬퍼 `crawlerHelpers.ts` + TDD(`crawlerHelpers.test` 8 + `Fish.crawler.test` 5).
+   - 검증: test **446**·lint·build·smoke(pass=true, errors=[]) 통과.
 
 > 보존 산출물: `/tmp/shrimp_amano/`(build.py v32·v31 백업·렌더/검사 스크립트, preview.png). **`/tmp`는 재부팅 시 소실될 수 있음** — 재생성이 필요하면 `build.py`를 `/Applications/Blender.app/Contents/MacOS/Blender -b -P build.py`로 실행.
+>
+> 후속(선택): 새우 크기가 매우 작아졌으니(≈0.06~0.08) 실제 오버레이에서 가시성·클릭 픽킹이 적절한지 `npm run dev` 라이브 확인 권장. main 병합(merge/PR)도 미진행.
 
 ## 신규 기능 (2026-05-28) — 컨트롤 패널 2열 재구성 + 잘림 근본 수정 (브랜치 `feat-panel-2col`, main 미병합)
 

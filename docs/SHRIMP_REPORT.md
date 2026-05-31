@@ -22,23 +22,29 @@
   file: shrimpUrl,          // import shrimpUrl from '../assets/fish/shrimp.glb?url'
   kind: 'individual',       // 확실히 스폰·동작하도록 individual
   category: 'ambient',      // 앰비언트 풀(개체수 슬라이더)에 등장 → 기본 스폰
-  baseScale: 1.5,
+  baseScale: 0.375,         // 사용자 요청으로 1.5 → 1/4 축소
   swimSpeed: 0.5,
+  behavior: 'crawler',      // 바닥 기는 청소부 거동 (일반 유영과 차별화)
   displayName: '새우',
   dialogue: [ /* 차분·귀여운 톤의 한국어 10줄, 중복 없음 */ ],
 }
 ```
 
-- `baseScale 1.5`: 최종 스케일 = `baseScale * normScale * variation`. 커밋 GLB bbox 최장축 X span = 1.737−(−3.432) ≈ 5.169 → `normScale ≈ 1/5.169 ≈ 0.193`. 따라서 최종 ≈ `1.5 * 0.193 * (0.85~1.15) ≈ 0.25~0.33`로, 어종보다 확연히 작은 청소부 새우 크기에 부합.
-  - ⚠ **미완료(다음 작업)**: 사용자가 "현재의 1/4 크기로 줄여달라"고 요청 → `baseScale: 1.5 → 0.375`로 변경 예정이었으나 응답 중단으로 **미적용**(코드는 여전히 1.5). 적용 시 최종 ≈ `0.375 * 0.193 * variation ≈ 0.06~0.08`. 너무 작아 사라지지 않는지 `npm run smoke`로 확인할 것. 상세는 `docs/HANDOFF.md` 최상단 참고.
+- `baseScale 0.375`(**2026-05-31 사용자 요청으로 1.5→1/4 축소**): 최종 스케일 = `baseScale * normScale * variation`. 커밋 GLB bbox 최장축 X span = 1.737−(−3.432) ≈ 5.169 → `normScale ≈ 1/5.169 ≈ 0.193`. 따라서 최종 ≈ `0.375 * 0.193 * (0.85~1.15) ≈ 0.06~0.08`로, 어종보다 확연히 작은 청소부 새우 크기. smoke pass=true(렌더 정상, 사라지지 않음) 확인.
 - `swimSpeed 0.5`: 느긋하게 거니는 작은 생물 톤.
+- `behavior 'crawler'`(**2026-05-31 추가**): 아래 "거동(바닥 기는 청소부)" 섹션 참조.
 - `dialogue`: 10줄, 모두 고유(테스트로 가드). 청소·바닥·더듬이 등 새우 특성 + 기존 종과 같은 차분/힐링 톤.
-- ⚠ **거동 미완료(다음 작업)**: `kind:'individual'`이라 다른 어종과 **동일한 wander/사인파 유영**을 그대로 탄다. 사용자가 "새우 움직임이 달라야 한다"고 지적 → 바닥 기는 청소부 등 새우 전용 거동이 필요하나 **미구현**(거동 스타일 사용자 선택 대기). `docs/HANDOFF.md` 최상단 "미완료 2건" 참고.
 
-## 설정(config)
+## 거동 — 바닥 기는 청소부 (crawler, 2026-05-31)
 
-- `src/shared/config.ts`에 **새 상수를 추가하지 않았다.** 새우는 기존 `FISH.bounds` 안에서 다른 어종과 동일하게 유영한다.
-- 선택 사항이던 "바닥 바이어스(bottom-bias)"는 매직넘버 없이 깔끔하게 넣을 수 없고 다른 어종 동작을 건드릴 위험이 있어 적용하지 않았다(스코프 밖, 깔끔함 우선).
+사용자 지적("새우 움직임이 다른 물고기와 똑같다")에 따라, 새우는 다른 어종의 자유 유영과 **다른 거동**을 갖는다. 매직넘버 없이 `config.ts` 상수 + 순수 헬퍼 + 결정적 테스트(TDD)로 구현.
+
+- **종별 분기**: `FishSpecies.behavior?: 'swim' | 'crawler'`(생략=swim). 새우만 `'crawler'`. `FishPrototype`까지 전달돼 `Fish._behavior`로 보관, `Fish.update`가 분기한다(다른 어종 코드 경로 불변).
+- **바닥 띠 부착**: 수직 방랑(wy)을 제거하고, y-경계회피 대신 `floorBiasForce`(선형 스프링)로 `FISH.bounds.minY + SHRIMP.floorOffset(0.45)` 띠로 끌어당긴다. 위에서 시작해도 바닥으로 내려와 머문다.
+- **종종거림(scuttle)**: `scuttleSpeedFactor`가 `SHRIMP.scuttlePeriod(1.7s)` 주기로 속도를 `scuttleMinFactor(0.12)`↔1 사이로 진동시켜 "멈칫→전진" 끊기는 이동감을 만든다. 수평(x·z) 방랑은 유지.
+- **상수**: `src/shared/config.ts`의 `SHRIMP { floorOffset, floorPull, scuttlePeriod, scuttleMinFactor }`.
+- **순수 헬퍼**: `src/renderer/entities/crawlerHelpers.ts` (`floorBiasForce`, `scuttleSpeedFactor`).
+- **테스트**: `crawlerHelpers.test.ts`(8, 순수 로직) + `Fish.crawler.test.ts`(5, 통합 — 위→바닥 수렴·하단 유지·수평 이동·경계 내·swim과 차별화). 놀래키기(`speedMultiplier`)는 crawler에도 그대로 적용돼 가끔 빠르게 튄다.
 
 ## 방향(Orientation) 처리
 

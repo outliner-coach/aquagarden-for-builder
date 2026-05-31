@@ -19,6 +19,8 @@ export interface FishPrototype {
   clip: THREE.AnimationClip | null
   baseScale: number
   swimSpeed: number
+  /** 이동 거동(생략 시 'swim'). 'crawler'=바닥 기는 새우. */
+  behavior?: 'swim' | 'crawler'
   /** 가장 긴 축을 1로 만드는 스케일(1/maxDim). */
   normScale: number
   /** 모델 로컬 bbox 중심(원점 정렬용). */
@@ -125,6 +127,7 @@ export async function loadFishPrototypes(): Promise<Map<SpeciesId, FishPrototype
           clip: pickSwimClip(gltf.animations),
           baseScale: species.baseScale,
           swimSpeed: species.swimSpeed,
+          behavior: species.behavior,
           normScale: 1 / maxDim,
           center,
         })

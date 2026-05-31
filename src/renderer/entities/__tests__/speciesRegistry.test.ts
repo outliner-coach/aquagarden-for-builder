@@ -190,6 +190,16 @@ describe('새우(shrimp)', () => {
     expect(sp.file.length).toBeGreaterThan(0)
   })
 
+  it("behavior가 'crawler'다 (바닥 기는 청소부 거동)", () => {
+    expect(getSpecies('shrimp').behavior).toBe('crawler')
+  })
+
+  it('새우 외 어종은 crawler 거동이 아니다 (일반 유영)', () => {
+    for (const id of ['clownfish', 'manta', 'whale', 'tetra-a'] as const) {
+      expect(getSpecies(id).behavior ?? 'swim').toBe('swim')
+    }
+  })
+
   it('ambient이므로 pickSpecies 후보에 포함될 수 있다 (individual)', () => {
     const ids = new Set<SpeciesId>()
     for (let seed = 0; seed < 500; seed++) {

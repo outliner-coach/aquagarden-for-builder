@@ -7,7 +7,7 @@
 
 | 파일 | 변경 내용 |
 |------|-----------|
-| `src/renderer/assets/fish/shrimp.glb` | 신규 추가 후 **미학 개선 GLB로 교체**. Blender 절차적 생성, 메시 미학 개선판 (6,901 verts, 8 bones, "Swim" 클립 48프레임). `/tmp/shrimp_amano/shrimp_amano.glb`(441,728 bytes)에서 복사. 이전 989,968 bytes(15,328 verts/7 bones) → 교체. |
+| `src/renderer/assets/fish/shrimp.glb` | 신규 추가 후 **미학 개선·텍스처드 GLB로 교체**. Blender 절차적 생성(`build.py` v32). 커밋본 **588,576 bytes** (md5 `a4288fc…`). 스킨 메시 `Shrimp` 7,740 verts + 보조 메시(총 **7,782 verts**), **아마처 7본(b00–b06) + neutral_bone**, "Swim" 클립 1–48프레임, 머티리얼 2개(텍스처드 바디). |
 | `src/renderer/assets/fish/CREDITS.md` | `shrimp.glb` 항목 추가 — 본 프로젝트 자체 제작(원본 창작물), CC0 1.0. |
 | `src/renderer/entities/speciesRegistry.ts` | `import shrimpUrl`, `SpeciesId` 유니온에 `'shrimp'` 추가, 레지스트리 항목 1개 추가. |
 | `src/renderer/entities/__tests__/fishAssets.test.ts` | 종 수 9→10, individual 7→8 어서션 갱신. |
@@ -29,9 +29,11 @@
 }
 ```
 
-- `baseScale 1.5`(미학 개선 GLB에서도 유지): 최종 스케일 = `baseScale * normScale * variation`. 신규 GLB bbox 최장축 X span = 1.688−(−3.495) ≈ 5.18 → `normScale ≈ 1/5.18 ≈ 0.193`. 따라서 최종 ≈ `1.5 * 0.193 * (0.85~1.15) ≈ 0.25~0.33`로, 어종보다 확연히 작은 청소부 새우 크기(목표 0.25~0.4)에 부합한다. bbox가 바뀌었어도 최종 스케일이 적정 범위에 들어가므로 baseScale 조정 불필요.
+- `baseScale 1.5`: 최종 스케일 = `baseScale * normScale * variation`. 커밋 GLB bbox 최장축 X span = 1.737−(−3.432) ≈ 5.169 → `normScale ≈ 1/5.169 ≈ 0.193`. 따라서 최종 ≈ `1.5 * 0.193 * (0.85~1.15) ≈ 0.25~0.33`로, 어종보다 확연히 작은 청소부 새우 크기에 부합.
+  - ⚠ **미완료(다음 작업)**: 사용자가 "현재의 1/4 크기로 줄여달라"고 요청 → `baseScale: 1.5 → 0.375`로 변경 예정이었으나 응답 중단으로 **미적용**(코드는 여전히 1.5). 적용 시 최종 ≈ `0.375 * 0.193 * variation ≈ 0.06~0.08`. 너무 작아 사라지지 않는지 `npm run smoke`로 확인할 것. 상세는 `docs/HANDOFF.md` 최상단 참고.
 - `swimSpeed 0.5`: 느긋하게 거니는 작은 생물 톤.
 - `dialogue`: 10줄, 모두 고유(테스트로 가드). 청소·바닥·더듬이 등 새우 특성 + 기존 종과 같은 차분/힐링 톤.
+- ⚠ **거동 미완료(다음 작업)**: `kind:'individual'`이라 다른 어종과 **동일한 wander/사인파 유영**을 그대로 탄다. 사용자가 "새우 움직임이 달라야 한다"고 지적 → 바닥 기는 청소부 등 새우 전용 거동이 필요하나 **미구현**(거동 스타일 사용자 선택 대기). `docs/HANDOFF.md` 최상단 "미완료 2건" 참고.
 
 ## 설정(config)
 
@@ -40,14 +42,14 @@
 
 ## 방향(Orientation) 처리
 
-- 새우 GLB는 계약대로 **머리 = -X**로 작성됨 → 기존 어종과 동일 규약.
+- 새우 GLB는 계약대로 **머리 = -X**로 작성됨 → 기존 어종과 동일 규약. (커밋본 bbox `x −3.432..1.737, y −0.755..0.755, z −1.646..0.152`, 최장축 X.)
 - `Fish.ts`는 모든 모델에 공유 `_align.rotation.y = Math.PI/2`를 적용해 머리(-X)를 진행 방향(+X)에 맞춘다. 새우도 동일 경로를 타므로 별도 보정 불필요.
 - 머리-선행 불변식은 `fishHelpers.headingYaw` / `forwardDirAfterYaw` 결정적 유닛테스트(27개 통과)로 가드됨.
 - 스모크 결과 측면/역방향 유영 징후 없음 → **per-species `modelYaw` 오버라이드는 추가하지 않았다**(불필요한 변경 회피). 만약 추후 측면 유영이 관측되면, `FishSpecies`에 `modelYaw?: number`를 추가하고 `Fish.ts`의 `_align.rotation.y` 지점에서 존중하되 유닛테스트로 가드하는 방식(인라인 매직넘버 금지)으로 처리한다.
 
 ## 검증 결과 (실제 명령 출력)
 
-- `npm run build` → `EXIT=0`. `tsc --noEmit` 통과, `shrimp-DH-EnVX_.glb 441.73 kB`로 번들됨(미학 개선 GLB).
+- `npm run build` → `EXIT=0`. `tsc --noEmit` 통과, 텍스처드 GLB(588,576 bytes)가 `shrimp-*.glb`로 번들됨.
 - `npm run test` → `Test Files 30 passed (30) / Tests 431 passed (431)`, `EXIT=0`.
 - `npm run lint` → `EXIT=0` (경고/에러 없음).
 - `npm run smoke` → `[smoke] pass=true failures=0 → eval-report.json`, `EXIT=0`. "로드 실패" 없음 (health.errors=[]).
@@ -79,15 +81,16 @@
 - frames 114 (≥5), fishActive 31 (≥1), blank=false, transparentRatio 0.7588 (≥0.01). 모든 게이트 통과.
 - 새우는 ambient/individual 이므로 기본 풀에 등장 가능(`pickSpecies('individual')`가 `shrimp`를 반환할 수 있음을 유닛테스트로 검증).
 
-## 메시 미학 개선 (GLB 교체)
+## 메시 미학 개선 (GLB 교체 이력)
 
-초기 GLB(15,328 verts / 7 bones)를 미학 개선판(6,901 verts / 8 bones)으로 교체했다.
+초기 GLB(15,328 verts / 7 bones, 989,968 bytes)에서 여러 차례 미학 개선·재동기화를 거쳐 최종 텍스처드 GLB로 교체했다.
 
 - 다리·더듬이를 베벨 커브로 다듬어 형태를 정리.
 - 꼬리 부채(tail fan)를 정돈해 실루엣을 또렷하게.
-- 정점 수를 절반 이하로 줄여(989,968→441,728 bytes) 번들 용량 경감.
-- 품질 점수 7 → **8**.
-- bbox: X −3.495..+1.688(머리 −X, 꼬리부채 +X), Y −1.538..+0.163, Z −0.831..+0.831. 머리 −X 규약 유지 → `_align.rotation.y = Math.PI/2` 정렬 그대로, per-species `modelYaw` 불필요(스모크에서 측면 유영 없음).
+- 바디에 텍스처(머티리얼 2개)를 입혀 미학 강화.
+- **최종 커밋본**: 588,576 bytes, 7,782 verts(스킨 메시 7,740) / 7본(b00–b06)+neutral_bone / "Swim" 1–48.
+- 자체 미학 점수 4 → **8**(목표 달성).
+- bbox: `x −3.432..1.737, y −0.755..0.755, z −1.646..0.152`, 최장축 X. 머리 −X 규약 유지 → `_align.rotation.y = Math.PI/2` 정렬 그대로, per-species `modelYaw` 불필요(스모크에서 측면 유영 없음).
 
 ## 참고 이미지
 

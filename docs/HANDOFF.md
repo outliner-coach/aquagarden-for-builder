@@ -1,7 +1,43 @@
-# 핸드오프 — 인터랙션 UX 수정 (2026-05-25, 업데이트)
+# 핸드오프
 
 다음 세션이 이어서 작업할 수 있도록 현재 상태를 정리한다.
 먼저 `CLAUDE.md`(렌더링 함정·eval 규칙)와 `docs/ARCHITECTURE.md`를 읽을 것.
+
+---
+
+## ✅ 현재 상태 (2026-07-08 최신 — 아래 이력 섹션의 '미병합'·'현재 상태' 표기를 대체함)
+
+> **아래의 날짜별 섹션들은 시점별 append 로그다.** 각 섹션에 적힌 "main 미병합",
+> "브랜치: feat-…", 테스트 개수 등은 **작성 당시** 값이며 지금은 낡았다. 실제 최신 사실은 이 블록이 기준.
+
+- **main = `v0.6.0`.** 아래 이력에서 "미병합"으로 적힌 작업은 **모두 병합 완료**다:
+  어종 4종 추가(`feat-5-fish-species`), 새우 청소부(`feat-5-shrimp`), 컨트롤 패널 2열 재구성
+  (`feat-panel-2col`, reflog `merge feat-panel-2col`로 확인), 피드백 수정(`feat-6-feedback-fixes`).
+  해당 feature 브랜치들은 병합 후 남아 있으나(로컬), 커밋은 전부 main에서 도달 가능.
+- **게이트 그린**: `npm test` **446 통과** · `lint` 클린 · `build`(tsc+번들) OK · `npm run smoke` **pass=true**
+  (health.errors=[], `eval-report.json` `errorConsole` **0건**).
+- **2026-07-08 개선 세션(브랜치 `chore-cleanup-consistency`, main 미병합)** — 3갈래:
+  1. **정합성·경고 정리** — CSP 하드닝(`index.html` 메타) + PMREM 시그마 `0.5→0.04`(three 20샘플 클립
+     경고 제거, 시각 동일) → **smoke 콘솔 경고 3건→0건**. 이 HANDOFF 정합성 정리.
+  2. **ControlPanel a11y/정리** — 매직 hover색 3중복을 `COLORS.buttonBgHover`로 단일화, 인터랙티브
+     컨트롤 `:focus-visible` 링, 토글 `<input>`을 포커스 가능(시각적 숨김)+`aria-label`(키보드/스크린리더).
+  3. **신규 기능: 시간대 반응(무드) 조명** — 시각→밝기 배율+광원 틴트(`lighting/moodHelpers.ts` 순수,
+     config `MOOD` 키프레임), `Lighting.setMood` 합성(사용자 밝기가 마스터), '시간대 반응' 토글(기본 OFF·
+     영속·하위호환), `AQUA_SMOKE_MOOD`/`window.__AQUA_MOOD_HOUR__` 검증 훅.
+  - 검증: **test 462**·lint·build·smoke — 무드 OFF 무회귀(pass=true) + ON 20시(저녁) 따뜻 틴트 캡처(pass=true).
+
+### 실제로 열려 있는 후속 (우선순위)
+- **[구조]** `ControlPanel.ts`(여전히 큰 파일)의 ~175줄 인라인 CSS 템플릿을 실제 스타일시트(CSS 변수로
+  `COLORS` 유지)로 **전량 이관** + 갓오브젝트 분해. 패널은 smoke 픽셀검사 밖이라 **라이브 패널 QA 루프**에서 진행 권장.
+- **[라이브 QA 미검증]** ① 새우 1/4 축소(scale≈0.06~0.08) 후 오버레이 가시성·클릭 픽킹 ② 멀티모니터
+  보조 모니터 리사이즈 ③ 휠 줌 체감 ④ **무드 조명 실기기 체감**(저녁 따뜻/심야 청색이 은은한지)
+  ⑤ 토글 키보드 조작(Tab+Space)·포커스 링. (smoke는 단일 가상 디스플레이·collapsed 패널이라 못 잡음.)
+- **[제품]** 남은 기능 후보 `docs/ideas/2026-05-27-feature-ideation-backlog.md`
+  (상위: AI 사용량 앰비언트 모니터 ★차별성). 시간대/무드 반응은 위 3번에서 구현됨.
+
+---
+
+## 이력 (append 로그 — 시점별 기록, 위 '현재 상태'가 최신)
 
 ## 신규 개체 (2026-05-31) — 새우(아마노 새우) 추가 + 크기/거동 차별화 완료 (브랜치 `feat-5-shrimp`, main 미병합)
 
@@ -65,9 +101,9 @@
      상어 토글 ON·개체수 슬라이더 60→0 드래그 모두 동작(패널 hover로 click-through 중 컨트롤 재활성).
   - 부수 확인: 종료 버튼 3초 자동 disarm, per-종 reconcile(만타만 OFF 시 상어 유지).
 
-## 현재 상태
+## 현재 상태 (2026-05-25 시점 — 낡음, 최신은 문서 최상단 '✅ 현재 상태' 참조)
 
-- 브랜치: **`feat-4-fish-interactions`** (main 미병합).
+- 브랜치: **`feat-4-fish-interactions`** (main 미병합). *(당시 기준. 이후 v0.6.0까지 모두 병합됨.)*
 - 검증: `npm run test`(361) · `lint` · `build` · `smoke`(pass=true) 모두 통과.
 - 이번 세션에서 핸드오프의 인터랙션 UX 이슈 6건 + 발견된 패널 잘림 버그 1건을 모두 처리했다.
 

@@ -52,8 +52,12 @@ export const LIGHT = {
   minEnvIntensity: 0.15,
   maxEnvIntensity: 0.8,
   default01: 0.75,
-  /** PMREM 환경맵 생성 시 블러 시그마. 높을수록 RoomEnvironment의 직사각 패널이 부드럽게 퍼짐. */
-  envBlurSigma: 0.5,
+  /**
+   * PMREM 환경맵 생성 시 블러 시그마(라디안). RoomEnvironment의 직사각 패널을 부드럽게 편다.
+   * three의 blur는 패스당 최대 20샘플이라 이보다 크면 20으로 클립되며 콘솔 경고를 낸다.
+   * 0.04는 클립 없이 최대 블러에 도달하는 지점(three.js 예제 관례값)으로, 시각 결과는 동일하다.
+   */
+  envBlurSigma: 0.04,
 } as const
 
 export const BUBBLE = {

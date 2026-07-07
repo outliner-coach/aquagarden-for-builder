@@ -3,6 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    Content-Security-Policy: 원격 스크립트/리소스 로드를 차단하는 하드닝(오버레이 자산은 전부 로컬).
+    style-src 'unsafe-inline' = ControlPanel._injectStyles와 아래 인라인 <style>.
+    connect-src ws:/wss: = Vite dev HMR 웹소켓(dev 한정, prod 빌드에선 미사용).
+    img/worker blob: = three GLTFLoader가 만드는 텍스처/워커 blob URL.
+  -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: data: blob:; worker-src 'self' blob:"
+  />
   <title>Aquagarden</title>
   <style>
     * { margin: 0; padding: 0; }

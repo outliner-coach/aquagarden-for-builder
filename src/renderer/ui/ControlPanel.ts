@@ -565,7 +565,11 @@ export class ControlPanel {
     const input = document.createElement('input')
     input.type = 'checkbox'
     input.checked = initial
-    input.style.cssText = 'display:none;'
+    // 시각 라벨 span은 체크박스와 프로그램적으로 연결돼 있지 않으므로 접근성 이름을 직접 부여한다.
+    input.setAttribute('aria-label', label)
+    // display:none이면 키보드 포커스가 불가하다. 시각적으로만 숨기고(스크린리더/Tab 유지)
+    // 포커스 가능하게 둬 라벨의 .cp__toggle-track에 :focus-visible 링이 뜨도록 한다.
+    input.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none;'
 
     const track = document.createElement('span')
     track.className = 'cp__toggle-track'
@@ -596,7 +600,7 @@ export class ControlPanel {
         cursor:grab;color:${COLORS.textPrimary};
         transition:background 150ms;user-select:none;
       }
-      .cp__btn:hover { background:rgba(15,23,28,0.76); }
+      .cp__btn:hover { background:${COLORS.buttonBgHover}; }
 
       .cp__slider {
         -webkit-appearance:none;appearance:none;
@@ -617,6 +621,22 @@ export class ControlPanel {
         opacity:0.4;
         pointer-events:none;
         cursor:not-allowed;
+      }
+
+      /* 키보드 접근성: 포커스 이동 시에만 보이는 링(마우스 조작엔 미표시). */
+      .cp__btn:focus-visible,
+      .cp__feature-chip:focus-visible,
+      .cp__lure-btn:focus-visible,
+      .cp__quit-btn:focus-visible,
+      .cp__help-btn:focus-visible,
+      .cp__help-close:focus-visible,
+      .cp__slider:focus-visible {
+        outline:2px solid ${COLORS.point};
+        outline-offset:2px;
+      }
+      .cp__toggle input:focus-visible + .cp__toggle-track {
+        outline:2px solid ${COLORS.point};
+        outline-offset:2px;
       }
 
       .cp__toggle {
@@ -659,7 +679,7 @@ export class ControlPanel {
         font-size:12px;font-weight:500;text-align:left;
         cursor:pointer;transition:background 150ms,color 150ms,border-color 150ms;
       }
-      .cp__feature-chip:hover { background:rgba(15,23,28,0.76); }
+      .cp__feature-chip:hover { background:${COLORS.buttonBgHover}; }
       .cp__feature-chip-dot {
         width:9px;height:9px;border-radius:50%;flex:none;
         border:1.5px solid ${COLORS.textSecondary};
@@ -686,7 +706,7 @@ export class ControlPanel {
         transition:background 150ms,color 150ms,border-color 150ms;
       }
       .cp__lure-btn:hover {
-        background:rgba(15,23,28,0.76);
+        background:${COLORS.buttonBgHover};
       }
       .cp__lure-btn--active {
         border-color:${COLORS.point};

@@ -334,6 +334,7 @@ export const COLORS = {
   point: '#4fd1c5',
   panelBg: 'rgba(15, 23, 28, 0.82)',
   buttonBg: 'rgba(15, 23, 28, 0.7)',
+  buttonBgHover: 'rgba(15, 23, 28, 0.76)',
   border: 'rgba(255, 255, 255, 0.08)',
   textPrimary: 'rgba(255, 255, 255, 0.92)',
   textSecondary: 'rgba(255, 255, 255, 0.6)',

@@ -2,6 +2,7 @@ import { FISH, COLORS, ZOOM } from '../../shared/config'
 import { setupButtonDrag, setupPanelDrag } from './drag'
 import type { LureMode } from '../entities/FoodLure'
 import { zoomToSliderPercent, sliderPercentToZoom } from '../core/zoomHelpers'
+import './controlPanel.css'
 
 /** ControlPanel이 외부에 알려주는 콜백 인터페이스 */
 export interface ControlPanelCallbacks {
@@ -240,8 +241,8 @@ export class ControlPanel {
     // ── 이용 가이드 모달 ──
     this._buildHelpModal(container)
 
-    // ── CSS 주입 ──
-    this._injectStyles()
+    // ── 테마 변수 주입(패널 CSS는 controlPanel.css) ──
+    this._applyThemeVars()
 
     // ── 드래그 설정 ──
     // 버튼 드래그 → 창 전체 이동, 클릭 → 패널 토글
@@ -595,199 +596,23 @@ export class ControlPanel {
     return input
   }
 
-  private _injectStyles(): void {
-    if (document.getElementById('cp-styles')) return
-    const style = document.createElement('style')
-    style.id = 'cp-styles'
-    style.textContent = `
-      .cp__btn {
-        width:44px;height:44px;border-radius:50%;
-        background:${COLORS.buttonBg};border:1px solid ${COLORS.border};
-        display:flex;align-items:center;justify-content:center;
-        cursor:grab;color:${COLORS.textPrimary};
-        transition:background 150ms;user-select:none;
-      }
-      .cp__btn:hover { background:${COLORS.buttonBgHover}; }
-
-      .cp__slider {
-        -webkit-appearance:none;appearance:none;
-        width:100%;height:4px;border-radius:2px;outline:none;
-        background:${COLORS.sliderTrackEmpty};
-      }
-      .cp__slider::-webkit-slider-thumb {
-        -webkit-appearance:none;appearance:none;
-        width:14px;height:14px;border-radius:50%;
-        background:#fff;cursor:pointer;
-        margin-top:0;
-      }
-      .cp__slider::-webkit-slider-runnable-track {
-        height:4px;border-radius:2px;
-      }
-
-      .cp__control--disabled {
-        opacity:0.4;
-        pointer-events:none;
-        cursor:not-allowed;
-      }
-
-      /* 키보드 접근성: 포커스 이동 시에만 보이는 링(마우스 조작엔 미표시). */
-      .cp__btn:focus-visible,
-      .cp__feature-chip:focus-visible,
-      .cp__lure-btn:focus-visible,
-      .cp__quit-btn:focus-visible,
-      .cp__help-btn:focus-visible,
-      .cp__help-close:focus-visible,
-      .cp__slider:focus-visible {
-        outline:2px solid ${COLORS.point};
-        outline-offset:2px;
-      }
-      .cp__toggle input:focus-visible + .cp__toggle-track {
-        outline:2px solid ${COLORS.point};
-        outline-offset:2px;
-      }
-
-      .cp__toggle {
-        position:relative;display:inline-block;
-        width:36px;height:20px;cursor:pointer;
-      }
-      .cp__toggle-track {
-        position:absolute;top:0;left:0;right:0;bottom:0;
-        border-radius:10px;
-        background:${COLORS.toggleOff};
-        transition:background 150ms;
-      }
-      .cp__toggle-track::after {
-        content:'';position:absolute;
-        width:16px;height:16px;border-radius:50%;
-        left:2px;top:2px;background:#fff;
-        transition:transform 150ms;
-      }
-      .cp__toggle input:checked + .cp__toggle-track {
-        background:${COLORS.point};
-      }
-      .cp__toggle input:checked + .cp__toggle-track::after {
-        transform:translateX(16px);
-      }
-
-      .cp__body {
-        display:grid;
-        grid-template-columns:1fr 1fr;
-        column-gap:14px;
-      }
-      .cp__feature-chips {
-        display:flex;flex-direction:column;gap:6px;margin-bottom:12px;
-      }
-      .cp__feature-chip {
-        display:flex;align-items:center;gap:7px;
-        padding:6px 9px;border-radius:8px;
-        border:1px solid ${COLORS.border};
-        background:${COLORS.buttonBg};
-        color:${COLORS.textSecondary};
-        font-size:12px;font-weight:500;text-align:left;
-        cursor:pointer;transition:background 150ms,color 150ms,border-color 150ms;
-      }
-      .cp__feature-chip:hover { background:${COLORS.buttonBgHover}; }
-      .cp__feature-chip-dot {
-        width:9px;height:9px;border-radius:50%;flex:none;
-        border:1.5px solid ${COLORS.textSecondary};
-      }
-      .cp__feature-chip--on {
-        border-color:${COLORS.point};
-        background:rgba(63,208,201,0.15);
-        color:${COLORS.textPrimary};
-      }
-      .cp__feature-chip--on .cp__feature-chip-dot {
-        background:${COLORS.point};border-color:${COLORS.point};
-        box-shadow:0 0 6px rgba(63,208,201,0.5);
-      }
-
-      .cp__lure-btn {
-        flex:1;
-        padding:6px 0;
-        border:1px solid ${COLORS.border};
-        border-radius:6px;
-        background:${COLORS.buttonBg};
-        color:${COLORS.textSecondary};
-        font-size:12px;font-weight:500;
-        cursor:pointer;
-        transition:background 150ms,color 150ms,border-color 150ms;
-      }
-      .cp__lure-btn:hover {
-        background:${COLORS.buttonBgHover};
-      }
-      .cp__lure-btn--active {
-        border-color:${COLORS.point};
-        background:${COLORS.point};
-        color:#06201d;
-        font-weight:700;
-      }
-      .cp__lure-btn--active:hover {
-        background:${COLORS.point};
-      }
-
-      .cp__quit-btn {
-        width:100%;
-        margin-top:4px;
-        padding:7px 0;
-        border:1px solid ${COLORS.danger};
-        border-radius:6px;
-        background:transparent;
-        color:${COLORS.danger};
-        font-size:12px;font-weight:600;
-        cursor:pointer;
-        transition:background 120ms,color 120ms;
-      }
-      .cp__quit-btn:hover {
-        background:rgba(248,113,113,0.12);
-      }
-      .cp__quit-btn--armed {
-        background:${COLORS.dangerFill};
-        color:#1a0d0d;
-      }
-
-      .cp__help-btn {
-        width:20px;height:20px;flex:0 0 auto;
-        display:flex;align-items:center;justify-content:center;
-        border:1px solid ${COLORS.border};border-radius:50%;
-        background:${COLORS.buttonBg};color:${COLORS.textSecondary};
-        font-size:12px;font-weight:700;line-height:1;cursor:pointer;
-        padding:0;transition:background 120ms,color 120ms;
-      }
-      .cp__help-btn:hover { background:${COLORS.point};color:#06201d; }
-
-      .cp__help-backdrop {
-        display:none;position:fixed;inset:0;z-index:10001;
-        align-items:center;justify-content:center;
-        background:rgba(6,18,20,0.35);
-      }
-      .cp__help-card {
-        width:300px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);
-        overflow-y:auto;box-sizing:border-box;
-        background:${COLORS.panelBg};border:1px solid ${COLORS.border};
-        border-radius:12px;padding:16px 18px;
-        box-shadow:0 8px 32px rgba(0,0,0,0.4);
-      }
-      .cp__help-title-row {
-        display:flex;align-items:center;justify-content:space-between;
-        margin-bottom:12px;
-      }
-      .cp__help-title {
-        font-size:14px;font-weight:700;color:${COLORS.textPrimary};
-      }
-      .cp__help-close {
-        width:24px;height:24px;border:none;border-radius:6px;
-        background:transparent;color:${COLORS.textSecondary};
-        font-size:13px;cursor:pointer;line-height:1;padding:0;
-      }
-      .cp__help-close:hover { background:rgba(255,255,255,0.08);color:${COLORS.textPrimary}; }
-      .cp__help-item { margin-bottom:10px; }
-      .cp__help-term {
-        font-size:12px;font-weight:600;color:${COLORS.textPrimary};margin-bottom:2px;
-      }
-      .cp__help-desc {
-        font-size:11px;line-height:1.45;color:${COLORS.textSecondary};
-      }
-    `
-    document.head.appendChild(style)
+  /**
+   * 패널 CSS는 controlPanel.css(Vite 번들)에 있고, 색상은 CSS 변수(--cp-*)로 참조한다.
+   * 여기선 그 변수를 shared/config의 COLORS에서 :root에 주입해 COLORS를 단일 진실 원천으로 유지한다.
+   * (help 모달/백드롭은 .cp 밖 body에 붙으므로 :root=documentElement에 설정해 전역 캐스케이드.)
+   */
+  private _applyThemeVars(): void {
+    const r = document.documentElement.style
+    r.setProperty('--cp-point', COLORS.point)
+    r.setProperty('--cp-panel-bg', COLORS.panelBg)
+    r.setProperty('--cp-button-bg', COLORS.buttonBg)
+    r.setProperty('--cp-button-bg-hover', COLORS.buttonBgHover)
+    r.setProperty('--cp-border', COLORS.border)
+    r.setProperty('--cp-text-primary', COLORS.textPrimary)
+    r.setProperty('--cp-text-secondary', COLORS.textSecondary)
+    r.setProperty('--cp-toggle-off', COLORS.toggleOff)
+    r.setProperty('--cp-slider-track-empty', COLORS.sliderTrackEmpty)
+    r.setProperty('--cp-danger', COLORS.danger)
+    r.setProperty('--cp-danger-fill', COLORS.dangerFill)
   }
 }

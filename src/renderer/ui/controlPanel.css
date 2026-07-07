@@ -1,0 +1,283 @@
+/*
+ * 컨트롤 패널 스타일. 색상은 CSS 변수(--cp-*)로, 값은 런타임에 shared/config의 COLORS에서
+ * 주입한다(ControlPanel._applyThemeVars) — COLORS를 단일 진실 원천으로 유지.
+ * 비-COLORS 리터럴(글로우/그림자 등)은 여기 상수로 둔다.
+ */
+
+.cp__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--cp-button-bg);
+  border: 1px solid var(--cp-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--cp-text-primary);
+  transition: background 150ms;
+  user-select: none;
+}
+.cp__btn:hover {
+  background: var(--cp-button-bg-hover);
+}
+
+.cp__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  background: var(--cp-slider-track-empty);
+}
+.cp__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  margin-top: 0;
+}
+.cp__slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.cp__control--disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* 키보드 접근성: 포커스 이동 시에만 보이는 링(마우스 조작엔 미표시). */
+.cp__btn:focus-visible,
+.cp__feature-chip:focus-visible,
+.cp__lure-btn:focus-visible,
+.cp__quit-btn:focus-visible,
+.cp__help-btn:focus-visible,
+.cp__help-close:focus-visible,
+.cp__slider:focus-visible {
+  outline: 2px solid var(--cp-point);
+  outline-offset: 2px;
+}
+.cp__toggle input:focus-visible + .cp__toggle-track {
+  outline: 2px solid var(--cp-point);
+  outline-offset: 2px;
+}
+
+.cp__toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+}
+.cp__toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 10px;
+  background: var(--cp-toggle-off);
+  transition: background 150ms;
+}
+.cp__toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  left: 2px;
+  top: 2px;
+  background: #fff;
+  transition: transform 150ms;
+}
+.cp__toggle input:checked + .cp__toggle-track {
+  background: var(--cp-point);
+}
+.cp__toggle input:checked + .cp__toggle-track::after {
+  transform: translateX(16px);
+}
+
+.cp__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 14px;
+}
+.cp__feature-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cp__feature-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-button-bg);
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.cp__feature-chip:hover {
+  background: var(--cp-button-bg-hover);
+}
+.cp__feature-chip-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  border: 1.5px solid var(--cp-text-secondary);
+}
+.cp__feature-chip--on {
+  border-color: var(--cp-point);
+  background: rgba(63, 208, 201, 0.15);
+  color: var(--cp-text-primary);
+}
+.cp__feature-chip--on .cp__feature-chip-dot {
+  background: var(--cp-point);
+  border-color: var(--cp-point);
+  box-shadow: 0 0 6px rgba(63, 208, 201, 0.5);
+}
+
+.cp__lure-btn {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid var(--cp-border);
+  border-radius: 6px;
+  background: var(--cp-button-bg);
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.cp__lure-btn:hover {
+  background: var(--cp-button-bg-hover);
+}
+.cp__lure-btn--active {
+  border-color: var(--cp-point);
+  background: var(--cp-point);
+  color: #06201d;
+  font-weight: 700;
+}
+.cp__lure-btn--active:hover {
+  background: var(--cp-point);
+}
+
+.cp__quit-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 0;
+  border: 1px solid var(--cp-danger);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cp-danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.cp__quit-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+.cp__quit-btn--armed {
+  background: var(--cp-danger-fill);
+  color: #1a0d0d;
+}
+
+.cp__help-btn {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cp-border);
+  border-radius: 50%;
+  background: var(--cp-button-bg);
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms, color 120ms;
+}
+.cp__help-btn:hover {
+  background: var(--cp-point);
+  color: #06201d;
+}
+
+.cp__help-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 18, 20, 0.35);
+}
+.cp__help-card {
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: var(--cp-panel-bg);
+  border: 1px solid var(--cp-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+.cp__help-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cp__help-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cp-text-primary);
+}
+.cp__help-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cp-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.cp__help-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cp-text-primary);
+}
+.cp__help-item {
+  margin-bottom: 10px;
+}
+.cp__help-term {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-text-primary);
+  margin-bottom: 2px;
+}
+.cp__help-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--cp-text-secondary);
+}

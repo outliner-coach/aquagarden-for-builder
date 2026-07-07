@@ -22,6 +22,8 @@ export interface ControlPanelCallbacks {
   onLureModeChange: (mode: LureMode) => void
   /** 특별 개체 활성화 토글 변경. */
   onEnabledFeaturesChange: (ids: string[]) => void
+  /** 시간대 반응(무드) 조명 토글 변경. */
+  onMoodReactiveChange: (enabled: boolean) => void
   /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
   onQuit: () => void
 }
@@ -35,6 +37,7 @@ export interface ControlPanelState {
   clickThrough: boolean
   alwaysOnTop: boolean
   zoom: number
+  moodReactive: boolean
 }
 
 /**
@@ -63,6 +66,7 @@ export class ControlPanel {
   private readonly _hideToggle: HTMLInputElement
   private readonly _clickThroughToggle: HTMLInputElement
   private readonly _alwaysOnTopToggle: HTMLInputElement
+  private readonly _moodToggle: HTMLInputElement
   private readonly _feedBtn: HTMLButtonElement
   private readonly _scareBtn: HTMLButtonElement
   private _lureHint!: HTMLDivElement
@@ -188,6 +192,8 @@ export class ControlPanel {
       (checked) => callbacks.onClickThroughChange(checked))
     this._alwaysOnTopToggle = this._createToggle(rightCol, 'Always on Top', state.alwaysOnTop,
       (checked) => callbacks.onAlwaysOnTopChange(checked))
+    this._moodToggle = this._createToggle(rightCol, '시간대 반응', state.moodReactive,
+      (checked) => callbacks.onMoodReactiveChange(checked))
 
     // ── 하단(전폭): 상태 힌트 → 먹이/놀래키기 → 안내 → 종료 ──
     this._statusHint = document.createElement('div')
@@ -314,6 +320,7 @@ export class ControlPanel {
     this._hideToggle.checked = state.hidden
     this._clickThroughToggle.checked = state.clickThrough
     this._alwaysOnTopToggle.checked = state.alwaysOnTop
+    this._moodToggle.checked = state.moodReactive
     this._zoomSlider.value = String(zoomToSliderPercent(state.zoom))
     this._zoomValue.textContent = `${zoomToSliderPercent(state.zoom)}%`
     this._updateStatusHint()

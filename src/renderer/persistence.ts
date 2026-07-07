@@ -56,6 +56,8 @@ export function loadPersisted(): PersistedState | null {
         enabledFeatures: Array.isArray(s.enabledFeatures)
           ? s.enabledFeatures.filter((x): x is string => typeof x === 'string')
           : [],
+        // moodReactive: 하위호환(구버전 저장값엔 없음). boolean 아니면 false.
+        moodReactive: typeof s.moodReactive === 'boolean' ? s.moodReactive : false,
       },
       alwaysOnTop: typeof p.alwaysOnTop === 'boolean' ? p.alwaysOnTop : true,
       barWidth: p.barWidth,

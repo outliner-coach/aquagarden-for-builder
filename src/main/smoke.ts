@@ -126,6 +126,23 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(1200)
   }
 
+  // 선택: 시간대 반응(무드) 조명 렌더 검증. 강제 시각(AQUA_SMOKE_MOOD_HOUR, 기본 20=저녁 따뜻)을
+  // 주입하고 '시간대 반응' 토글을 켜(onMoodReactiveChange→applyMood→setMood 경로) 틴트를 캡처한다.
+  if (process.env['AQUA_SMOKE_MOOD'] === '1') {
+    const hour = Number(process.env['AQUA_SMOKE_MOOD_HOUR'] ?? 20)
+    await win.webContents
+      .executeJavaScript(
+        `(() => {
+          window.__AQUA_MOOD_HOUR__ = ${Number.isFinite(hour) ? hour : 20};
+          const t = document.querySelector('input[aria-label="시간대 반응"]');
+          if (t && !t.checked) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); }
+          return !!t;
+        })()`,
+      )
+      .catch(() => false)
+    await delay(1500)
+  }
+
   // 선택: 패널을 펼쳐(플로팅 버튼 클릭) 확장 상태의 캔버스 하단 가장자리(=가운데 가로선 후보)를 캡처.
   if (process.env['AQUA_SMOKE_OPEN_PANEL'] === '1') {
     await win.webContents

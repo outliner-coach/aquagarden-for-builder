@@ -17,7 +17,8 @@ import { computeInteractive } from './ui/interaction'
 import { zoomFromWheel } from './core/zoomHelpers'
 import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM } from '../shared/config'
+import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD } from '../shared/config'
+import { moodForHour, IDENTITY_MOOD } from './lighting/moodHelpers'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
@@ -100,9 +101,27 @@ const settings: AppSettings = persisted?.settings ?? {
   sceneTransparency01: SCENE.defaultTransparency01,
   zoom: ZOOM.default,
   enabledFeatures: [],
+  moodReactive: false,
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
 sceneRoot.setZoom(settings.zoom)
+
+// ── 시간대(무드) 반응 조명 ──
+// ON이면 시스템 시각을 밝기 배율+광원 틴트로 매핑해 조명에 얹는다(사용자 밝기 슬라이더가 마스터).
+// 시각은 window.__AQUA_MOOD_HOUR__(테스트/라이브 QA용 강제 시각)이 있으면 그 값을, 없으면 실제 시계를 쓴다.
+function readMoodHour(): number {
+  const forced = (window as unknown as { __AQUA_MOOD_HOUR__?: number }).__AQUA_MOOD_HOUR__
+  if (typeof forced === 'number' && Number.isFinite(forced)) return forced
+  const now = new Date()
+  return now.getHours() + now.getMinutes() / 60
+}
+function applyMood(): void {
+  lighting.setMood(settings.moodReactive ? moodForHour(readMoodHour(), MOOD.keyframes) : IDENTITY_MOOD)
+}
+// 시각은 천천히 변하므로 주기적으로만 재계산(렌더 루프와 독립, 숨김 중에도 무해).
+setInterval(() => {
+  if (settings.moodReactive) applyMood()
+}, MOOD.updateIntervalMs)
 
 // ── 영속화 ──
 // 펼친 상태(패널 open/'up' 이동)의 좌표를 저장하지 않도록, 접힌(resting) 상태 창 위치만 추적한다.
@@ -210,6 +229,7 @@ const controlPanel = new ControlPanel(
     clickThrough: settings.clickThrough,
     alwaysOnTop: currentAlwaysOnTop,
     zoom: settings.zoom,
+    moodReactive: settings.moodReactive,
   },
   {
     onFishCountChange(count: number) {
@@ -299,6 +319,11 @@ const controlPanel = new ControlPanel(
     onEnabledFeaturesChange(ids: string[]) {
       settings.enabledFeatures = ids
       fishSchool.setEnabledFeatures(ids as SpeciesId[])
+      persistSoon()
+    },
+    onMoodReactiveChange(enabled: boolean) {
+      settings.moodReactive = enabled
+      applyMood()
       persistSoon()
     },
     onLureModeChange(mode) {
@@ -408,3 +433,6 @@ if (persisted) {
 
 // 시작 시 패널 비활성 상태를 현재 설정에 맞춰 반영(예: 투과/숨김이 복원된 경우).
 applyInteractive()
+
+// 시작 시 무드 반영(복원된 moodReactive가 ON이면 즉시 적용, OFF면 항등 유지).
+applyMood()

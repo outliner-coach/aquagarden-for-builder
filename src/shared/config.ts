@@ -60,6 +60,24 @@ export const LIGHT = {
   envBlurSigma: 0.04,
 } as const
 
+/**
+ * 시간대(무드) 반응 조명. 시스템 시계 시각(0~24)을 밝기 배율 + 광원 색 틴트로 매핑한다.
+ * OFF(기본)일 때는 적용하지 않는다(배율 1·흰색 = 현행과 동일). 인접 키프레임 사이는 24h 원형 보간.
+ * 밤은 어둑·차가운 청색, 낮은 밝고 중립, 저녁은 따뜻한 앰버 톤 — 항상 떠 있는 힐링 위젯이라 은은하게.
+ */
+export const MOOD = {
+  /** 무드 재계산 주기(ms). 시각은 천천히 변하므로 60초면 충분(렌더 루프와 무관). */
+  updateIntervalMs: 60_000,
+  /** 시각별 키프레임 { hour, scale(밝기 배율 0~1), tint(RGB 0~1) }. hour 오름차순. */
+  keyframes: [
+    { hour: 2, scale: 0.6, tint: [0.72, 0.82, 1.0] }, // 심야 — 차갑고 어둑
+    { hour: 7, scale: 0.85, tint: [0.92, 0.96, 1.0] }, // 아침 — 서늘하고 맑음
+    { hour: 13, scale: 1.0, tint: [1.0, 1.0, 1.0] }, // 한낮 — 가장 밝고 중립
+    { hour: 18, scale: 0.9, tint: [1.0, 0.9, 0.78] }, // 저녁 — 따뜻한 골든
+    { hour: 21, scale: 0.72, tint: [1.0, 0.82, 0.68] }, // 밤 — 앰버, 어둑
+  ],
+} as const
+
 export const BUBBLE = {
   maxParticles: 80,
   surfaceY: 2.0,

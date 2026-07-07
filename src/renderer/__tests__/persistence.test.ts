@@ -22,6 +22,7 @@ const base: PersistedState = {
     clickThrough: false,
     zoom: 1.5,
     enabledFeatures: ['manta', 'whale'],
+    moodReactive: true,
   },
   alwaysOnTop: true,
   barWidth: 1200,
@@ -93,5 +94,30 @@ describe('persistence enabledFeatures', () => {
     delete (noFishCount.settings as Record<string, unknown>).fishCount
     localStorage.setItem('aquagarden.state.v1', JSON.stringify(noFishCount))
     expect(loadPersisted()).toBeNull()
+  })
+})
+
+describe('persistence moodReactive', () => {
+  beforeEach(() => installLocalStorage())
+
+  it('저장한 moodReactive를 그대로 복원', () => {
+    savePersisted(base)
+    expect(loadPersisted()?.settings.moodReactive).toBe(true)
+  })
+
+  it('moodReactive 없는 (구버전) 저장본도 유효 — false로 보정', () => {
+    const legacy = { ...base, settings: { ...base.settings } } as Record<string, unknown>
+    delete (legacy.settings as Record<string, unknown>).moodReactive
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(legacy))
+    const loaded = loadPersisted()
+    expect(loaded).not.toBeNull()
+    expect(loaded?.settings.moodReactive).toBe(false)
+    expect(loaded?.settings.fishCount).toBe(20) // 나머지 설정 보존
+  })
+
+  it('moodReactive가 boolean이 아니면 false', () => {
+    const bad = { ...base, settings: { ...base.settings, moodReactive: 'yes' } }
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad))
+    expect(loadPersisted()?.settings.moodReactive).toBe(false)
   })
 })

@@ -7,6 +7,8 @@ export interface AppSettings {
   zoom: number
   /** 켜진 특별 개체 종 id 목록. 유효성은 renderer에서 availableFeatures와 교집합으로 검증. */
   enabledFeatures: string[]
+  /** 시간대 반응(무드) 조명 on/off. 하위호환: 없으면 false. */
+  moodReactive: boolean
 }
 
 export interface MoveWindowByPayload {

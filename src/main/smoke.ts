@@ -143,17 +143,27 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(1500)
   }
 
-  // 선택: 패널을 펼쳐(플로팅 버튼 클릭) 확장 상태의 캔버스 하단 가장자리(=가운데 가로선 후보)를 캡처.
+  // 선택: 컨트롤 패널을 펼친 상태로 캡처(패널 UI 시각 검증용).
+  // smoke 모드는 IPC 핸들러를 등록하지 않아 창 성장 요청(setWindowSize)이 no-op이다.
+  // → 패널을 DOM에서 직접 표시하고, 캡처가 잘리지 않게 창 높이를 키운다(smoke 전용 계측).
   if (process.env['AQUA_SMOKE_OPEN_PANEL'] === '1') {
     await win.webContents
       .executeJavaScript(
         `(() => {
           const btn = document.querySelector('.cp__btn');
-          if (btn) { btn.click(); return true; }
-          return false;
+          if (btn) btn.click();
+          const panel = document.querySelector('.cp__panel');
+          if (panel) {
+            panel.style.opacity = '1';
+            panel.style.pointerEvents = 'auto';
+            panel.style.transform = 'none';
+          }
+          return !!panel;
         })()`,
       )
       .catch(() => false)
+    const b = win.getBounds()
+    win.setBounds({ x: b.x, y: b.y, width: b.width, height: Math.max(b.height, 700) })
     await delay(1500)
   }
 

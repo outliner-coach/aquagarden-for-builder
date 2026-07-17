@@ -52,14 +52,14 @@ npm run smoke    # 빌드 + headless 런타임 eval (셰이더/렌더 깨짐·�
 - **절전**: `RENDER.maxFps=30` 프레임 캡(`shouldTick`) + WebGL `powerPreference:'low-power'`.
 - **기타**: lure 20초 무활동 자동 해제, 도움말 항목 보강(확대·시간대·대사·단축키)·우측 정렬.
 
-### 테마 품질 개선 phase 9 (2026-07-18 — 브랜치 `feat-9-theme-quality`, main 미병합)
+### 테마 품질 개선 phase 9 (2026-07-18 — v0.9.0로 main 병합됨)
 사용자 라이브 평가("밀도 부족·테마별 지형 필요") 반영. 레퍼런스 기준: `docs/media/reference/`(CC0/PD 실사 2장+관찰 노트).
 - **지형**: `terrainHelpers.sandHeightAt`(순수·결정적 — edge taper·front-flat(z>−1.5, 크롤러 보호)·마운드 높이≤0.6(물고기 클리핑 방지) TDD 가드). 다시마 숲=암반 기복+큰바위 9개, 산호초=리프 마운드 2개+모래 채널, 미니멀=무변위(하위호환).
 - **다시마 군락화**: `generateKelpClusters` — 홀드패스트 18포기×4~6가닥=~86가닥, 원근 레이어(z→청록 헤이즈 색 lerp, 알파 불변), 황금-올리브 톤, leaflet 잎 실루엣.
 - **산호 피복**: `generateReefColonies` — 콜로니 30+개(뭉게 마운드 주역+가지 thicket, 대20/중40/소40)를 타입×팔레트 병합 렌더. fan은 빨간 세로선 아티팩트로 제거. 분홍/마젠타+크림/골드 팔레트.
 - 게이트: test **621**·lint·build·테마별 smoke·비전 채점(인증 복구, 실채점) 통과. 미결: 마운드 융기감이 높이 상한 탓에 약함(비전 hardscape 45 지적, 라이브 확인 항목).
 
-### 배경 테마 시스템 추가 (2026-07-18 — 브랜치 `feat-8-background-themes`, main 미병합)
+### 배경 테마 시스템 추가 (2026-07-18 — v0.9.0로 main 병합됨)
 배경(아쿠아스케이프)을 **교체형 테마 3종**으로 확장. 설계: `docs/superpowers/specs/2026-07-17-background-themes-design.md`, 하네스 `phases/8-background-themes`(step 0~6). test **572**·lint·build·smoke pass. 요약:
 - **테마 3종**: 미니멀(기존 그대로, 기본값·하위호환)·다시마 숲(절차적 리본 26개, 가장자리·뒤쪽 집중 배치+버텍스 셰이더 벤딩으로 굽이침)·산호초(가지·뇌·부채 산호 클러스터+밝은 낮은 암반). `THEME` 상수(`src/shared/config.ts`)+`themeRegistry.ts`(조회·기본값·하위호환 로드)로 데이터 정의, `Aquascape.setTheme()`이 dispose→rebuild. 순수 헬퍼: `kelpHelpers.ts`(배치 폴오프·벤딩), `coralHelpers.ts`(가지 분기 트리·클러스터 배치), `rockHelpers.ts`(변위 바위 — 다시마숲 큰 바위·산호초 암반 공용).
 - **UI·영속**: 패널 '배경 테마' 세그먼트(`themeSegment.ts`, `THEME_REGISTRY` 순회라 테마 추가 시 버튼 자동 반영)에서 전환, `persistence.ts`가 `themeId` 저장(미저장 시 미니멀).

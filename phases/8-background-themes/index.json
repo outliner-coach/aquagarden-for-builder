@@ -65,9 +65,12 @@
     {
       "step": 6,
       "name": "polish-docs",
-      "status": "pending",
+      "status": "completed",
       "eval": true,
-      "model": "sonnet"
+      "model": "sonnet",
+      "started_at": "2026-07-18T00:55:00+0900",
+      "summary": "3테마 최종 조율(config 값만): 캡처 비교로 오케스트레이터 미학 메모 4건 처리 — ① 가지 산호 '마른 나뭇가지' 인상을 CORAL.branch(childCount [2,3]→[2,4], radiusDecay 0.68→0.74, spreadAngle 0.62→0.72) 소폭 상향으로 완화(컬러 팝·클러스터 중앙 트임은 원래도 양호해 미변경). ② 부채 산호 '성게' 인상을 CORAL.fan(veinCount 11→8, veinGapRatio 0.5→0.36, fanHalfAngle 1.35→1.05, yawJitter 1.2→0.55, baseSolidRatio 0.1→0.18) 2회 반복(config만)으로 완화 — 캡처에서 방사형 가시 다발이 두꺼운 갈래+한 방향에 가까운 부채 실루엣으로 변함. ③ 패널 '다시마 숲' 라벨 2줄 줌바꿈: displayName 공백 제거만으론 미해결(한글은 word-break 기본값상 공백 없어도 음절 경계에서 줄바꿈 허용 — 캡처로 직접 확인 후 원인 특정) → controlPanel.css `.cp__theme-btn`에 white-space:nowrap+font-size 11→10px+padding 6px 4px→6px 2px로 해결(레이아웃 구조·flex 1등분 불변). displayName은 스펙 문서와의 정합을 위해 '다시마 숲'(공백 유지)으로 원복. ④ HANDOFF 라이브 QA 미검증 목록에 '패널 테마 클릭→앱 재시작 복원 왕복(라이브 GUI, step5는 유닛/코드 추적만)' 추가. 문서 갱신: CLAUDE.md '현재 구현 상태'에 '배경 테마 시스템 추가(2026-07-18)' 섹션 신설(테마 3종·주요 파일·AQUA_SMOKE_THEME·eval_vision.py 플래그·미학 조율 요약) + 런타임eval 훅 나열에 AQUA_SMOKE_THEME 추가(기존 누락 보완); HANDOFF.md 최상단 '✅ 현재 상태' 블록에 새 불릿(날짜 2026-07-18로 갱신) + 라이브 QA 미검증 5항목(step6.md 4개 + 오케스트레이터 메모 1개); README.md 기능 목록에 '배경 테마' 1줄 + 컨트롤 표에 행 추가(패널 실제 순서와 정합); docs/UI_GUIDE.md에 '세그먼트 버튼(배경 테마 선택)' 컴포넌트 스펙 추가(토글 다음). docs/media/themes/ 신설, 대표 캡처 3장(theme-minimal/kelp-forest/coral-reef.png) 커밋. 하위호환 재확인: 기본 npm run smoke(AQUA_SMOKE_THEME 미설정)의 health.theme='minimal' 확인(fresh localStorage). 검증: test 572(무변화, 이 step은 조율+문서라 신규 테스트 없음)·lint·build·smoke 3종(기본/kelp-forest/coral-reef, 전부 pass=true·errorConsole=[]·theme 리드백 일치) 전부 통과. eval_vision.py 2종은 CLI 인증 만료로 skipped(pass=true, 정상 — CLAUDE.md 기존 지침대로 미학 최종 판정은 캡처 직접 비교로 수행). phase 8-background-themes 전체 완료 — 미니멀/다시마숲/산호초 3테마가 패널에서 전환·영속 가능한 상태.",
+      "completed_at": "2026-07-18T01:15:00+0900"
     }
   ],
   "created_at": "2026-07-17T22:18:55+0900"

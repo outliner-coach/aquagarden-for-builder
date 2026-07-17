@@ -75,9 +75,14 @@ export interface BackgroundThemeHardscape {
   }
 }
 
-/** 다시마 숲 테마의 kelp 배치·색 구성(kelpHelpers.generateKelpInstances 입력과 대응). */
+/** 다시마 숲 테마의 kelp 배치·색 구성(kelpHelpers.generateKelpClusters 입력과 대응). */
 export interface BackgroundThemeKelp {
-  readonly count: number
+  /** 홀드패스트(포기) 개수. 포기당 bladesPerCluster개 가닥이 솟는다. */
+  readonly clusterCount: number
+  /** 포기당 가닥 수 [min, max] (정수, 포함). */
+  readonly bladesPerCluster: readonly [number, number]
+  /** 가닥이 홀드패스트 중심에서 흩어지는 최대 반경(월드 유닛). */
+  readonly clusterRadius: number
   readonly minHeight: number
   readonly maxHeight: number
   readonly minScale: number

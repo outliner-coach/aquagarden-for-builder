@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { generateKelpInstances, kelpTaperHalfWidth } from '../kelpHelpers'
-import type { KelpParams } from '../kelpHelpers'
+import { generateKelpInstances, generateKelpClusters, kelpTaperHalfWidth } from '../kelpHelpers'
+import type { KelpParams, KelpClusterParams } from '../kelpHelpers'
 
 /** THEME kelp-forest 초기값과 같은 스케일의 현실적 파라미터 */
 const defaultParams: KelpParams = {
@@ -119,6 +119,113 @@ describe('generateKelpInstances', () => {
     const midZ = (area.minZ + area.maxZ) / 2
     const range = area.maxZ - area.minZ
     expect(Math.abs(meanZ - midZ)).toBeLessThan(range * 0.1)
+  })
+})
+
+const clusterParams: KelpClusterParams = {
+  ...defaultParams,
+  bladesPerCluster: [3, 6],
+  clusterRadius: 0.25,
+}
+
+describe('generateKelpClusters', () => {
+  it('총 가닥 수가 clusterCount×[min,max] 범위 안이다', () => {
+    const blades = generateKelpClusters(42, 15, area, clusterParams)
+    expect(blades.length).toBeGreaterThanOrEqual(15 * 3)
+    expect(blades.length).toBeLessThanOrEqual(15 * 6)
+  })
+
+  it('bladesPerCluster가 고정([k,k])이면 총 가닥 = clusterCount×k (정확)', () => {
+    const p: KelpClusterParams = { ...clusterParams, bladesPerCluster: [4, 4] }
+    const blades = generateKelpClusters(7, 10, area, p)
+    expect(blades).toHaveLength(10 * 4)
+  })
+
+  it('같은 시드는 완전 동일한 출력을 낸다 (결정적)', () => {
+    const a = generateKelpClusters(707, 16, area, clusterParams)
+    const b = generateKelpClusters(707, 16, area, clusterParams)
+    expect(a).toEqual(b)
+  })
+
+  it('다른 시드는 다른 결과를 낸다', () => {
+    const a = generateKelpClusters(1, 12, area, clusterParams)
+    const b = generateKelpClusters(2, 12, area, clusterParams)
+    const samePos = a.length === b.length && a.every((inst, i) => inst.x === b[i].x && inst.z === b[i].z)
+    expect(samePos).toBe(false)
+  })
+
+  it('clusterCount 0이면 빈 배열', () => {
+    expect(generateKelpClusters(1, 0, area, clusterParams)).toHaveLength(0)
+  })
+
+  it('모든 가닥이 area 내에 있다 (홀드패스트 분산 후 클램프)', () => {
+    const blades = generateKelpClusters(99, 40, area, clusterParams)
+    for (const inst of blades) {
+      expect(inst.x).toBeGreaterThanOrEqual(area.minX)
+      expect(inst.x).toBeLessThanOrEqual(area.maxX)
+      expect(inst.z).toBeGreaterThanOrEqual(area.minZ)
+      expect(inst.z).toBeLessThanOrEqual(area.maxZ)
+    }
+  })
+
+  it('한 포기(연속 k가닥)는 서로 clusterRadius×2 안에 모여 있다 (다발 응집)', () => {
+    const k = 4
+    const radius = 0.25
+    const p: KelpClusterParams = { ...clusterParams, bladesPerCluster: [k, k], clusterRadius: radius }
+    const blades = generateKelpClusters(313, 8, area, p)
+    // 클러스터 단위로 방출되므로 [ki, ki+k)가 한 포기. 각 가닥은 홀드패스트에서 radius 이내이므로
+    // 임의 두 가닥은 2×radius 이내(클램프는 거리만 줄이므로 상한 불변).
+    for (let g = 0; g < blades.length; g += k) {
+      for (let i = g; i < g + k; i++) {
+        for (let j = i + 1; j < g + k; j++) {
+          const dx = blades[i].x - blades[j].x
+          const dz = blades[i].z - blades[j].z
+          const d = Math.sqrt(dx * dx + dz * dz)
+          expect(d).toBeLessThanOrEqual(2 * radius + 1e-6)
+        }
+      }
+    }
+  })
+
+  it('height/scale이 범위 내, yaw/phase가 [0,2π)', () => {
+    const blades = generateKelpClusters(55, 30, area, clusterParams)
+    for (const inst of blades) {
+      expect(inst.height).toBeGreaterThanOrEqual(clusterParams.minHeight)
+      expect(inst.height).toBeLessThanOrEqual(clusterParams.maxHeight)
+      expect(inst.scale).toBeGreaterThanOrEqual(clusterParams.minScale)
+      expect(inst.scale).toBeLessThanOrEqual(clusterParams.maxScale)
+      expect(inst.yaw).toBeGreaterThanOrEqual(0)
+      expect(inst.yaw).toBeLessThan(Math.PI * 2)
+      expect(inst.phase).toBeGreaterThanOrEqual(0)
+      expect(inst.phase).toBeLessThan(Math.PI * 2)
+    }
+  })
+
+  it('각 가닥에 baseColor/tipColor(3요소)가 존재한다', () => {
+    const blades = generateKelpClusters(10, 6, area, clusterParams)
+    for (const inst of blades) {
+      expect(inst.baseColor).toHaveLength(3)
+      expect(inst.tipColor).toHaveLength(3)
+    }
+  })
+
+  it('중앙 영역(|x| < centerGap) 밀도가 가장자리보다 낮다 (통계)', () => {
+    const blades = generateKelpClusters(707, 200, area, clusterParams)
+    const gap = clusterParams.centerGap
+    const centerWidth = gap * 2
+    const edgeWidth = area.maxX - area.minX - centerWidth
+    const centerCount = blades.filter((i) => Math.abs(i.x) < gap).length
+    const edgeCount = blades.length - centerCount
+    const centerDensity = centerCount / centerWidth
+    const edgeDensity = edgeCount / edgeWidth
+    expect(centerDensity).toBeLessThan(edgeDensity * 0.5)
+  })
+
+  it('z는 뒤쪽(minZ) 가중: 평균 z가 영역 중앙보다 뒤에 있다 (통계)', () => {
+    const blades = generateKelpClusters(707, 200, area, clusterParams)
+    const meanZ = blades.reduce((s, i) => s + i.z, 0) / blades.length
+    const midZ = (area.minZ + area.maxZ) / 2
+    expect(meanZ).toBeLessThan(midZ)
   })
 })
 

@@ -244,6 +244,15 @@ export const KELP = {
   zSwayRatio: 0.45,
   /** 프래그먼트 가장자리 음영(0=없음). 중앙 1+e, 가장자리 1-e 배율로 원통감 힌트 */
   edgeShade: 0.14,
+  /**
+   * 원근 레이어(spec §2): 뒤쪽 z일수록 이 밝은 청록(물빛)으로 색을 lerp해 "먼 열은 흐릿한
+   * 헤이즈로 가라앉음"을 만든다. 알파/블렌딩은 건드리지 않고 색만 lerp한다 — 무정렬 투명 겹침
+   * 아티팩트(CLAUDE.md 투명 오버레이 함정)를 피하기 위함(spec 금지사항: 색 lerp/디더로).
+   */
+  depthFadeColor: [0.42, 0.72, 0.72] as [number, number, number],
+  /** 가장 뒤(depth01=1)에서의 최대 lerp 비율(0=원근 없음). 앞 열(depth01=0)은 선명·진함.
+   *  0.68: 근경(황금-올리브) 우세는 유지하되 원경 열은 청록 헤이즈로 뚜렷이 가라앉혀 깊이감↑. */
+  depthFadeStrength: 0.68,
   /** blade 알파 텍스처(캔버스) — 길쭉하고 가장자리가 물결치는 잎 실루엣 */
   blade: {
     texWidth: 64,
@@ -264,6 +273,21 @@ export const KELP = {
     meanderRootLock: 0.7,
     /** 팁 라운딩 구간(t 비율) — 마지막 구간에서 반폭을 0으로 수렴 */
     tipRoundSpan: 0.06,
+    /**
+     * 줄기 옆 leaflet(작은 잎) 돌기(spec §3) — "맨 리본"을 "잎 달린 줄기"로. 좌우 가장자리 반폭에
+     * 정류(rectified) 사인 로브를 가산해 잎이 교대로 뾰족하게 돌출한다(edgeWave의 매끈한 물결과
+     * 달리 사이가 벌어진 이산 잎). 좌우 위상을 어긋내(π) 잎이 지그재그로 달린다.
+     */
+    leaflet: {
+      /** 한 변(좌/우)당 잎 돌기 반복 수. */
+      count: 9,
+      /** 돌기 최대 진폭(반폭 대비 비율, 반폭에 가산). */
+      amp: 0.55,
+      /** 돌기 시작 t(뿌리 근처는 매끈한 줄기로 남김). */
+      startT: 0.12,
+      /** 로브 첨예도 지수(클수록 뾰족한 잎 + 사이 간격 넓음). */
+      sharpness: 1.5,
+    },
   },
 } as const
 
@@ -448,20 +472,31 @@ export const THEME = {
        * 수치는 비전 eval 루프에서 조정하는 출발점.
        */
       kelp: {
-        count: 26,
-        minHeight: 2.5,
-        maxHeight: 3.3,
+        // spec §1: 낱장 26개 → 포기(홀드패스트) 18개 × 4~6가닥 = 총 ~90가닥(다발 밀도·부피감↑).
+        clusterCount: 18,
+        bladesPerCluster: [4, 6] as [number, number],
+        // 가닥이 홀드패스트 중심에서 흩어지는 반경(월드 유닛). 작을수록 촘촘한 다발.
+        clusterRadius: 0.3,
+        // spec §2 세로 충전: 얇은 바 상단까지 채우도록 키를 크게(3.0~5.0). 팁 y≈1.2~3.2로 프레임 위쪽을 메운다.
+        minHeight: 3.0,
+        maxHeight: 5.0,
         minScale: 0.95,
-        maxScale: 1.3,
-        baseColor: [0.13, 0.23, 0.09] as [number, number, number], // 짙은 갈록
-        tipColor: [0.38, 0.45, 0.17] as [number, number, number], // 올리브
-        colorVariation: 0.06,
-        area: { minX: -16.5, maxX: 16.5, minZ: -5.4, maxZ: -2.6 },
-        // seed 708: 좌/우 클러스터 균형(14:12) + 중앙 침범이 정중앙을 비껴감(오프라인 배치 분석)
-        seed: 708,
-        centerGap: 5.5,
+        maxScale: 1.35,
+        // spec §4: 황금-올리브/앰버 톤(짙은 갈록 대신 노란기). base=짙은 앰버-올리브 밑동, tip=황금-올리브.
+        baseColor: [0.22, 0.2, 0.07] as [number, number, number],
+        tipColor: [0.55, 0.48, 0.16] as [number, number, number],
+        colorVariation: 0.07,
+        // spec §2: area 좌우 폭(±20)으로 18개 다발을 촘촘히 — 초광각 바(aspect≈8.7)의 좌우 충전.
+        // seed 707: 좌/우 43:43 균형 + 중앙 통로(|x|<centerGap)에 가닥 0(오프라인 배치 분석) →
+        // 물고기 시야가 완전히 트이고 좌우가 대칭으로 채워진다.
+        area: { minX: -20, maxX: 20, minZ: -5.4, maxZ: -2.6 },
+        seed: 707,
+        // centerGap 5.5→6.5: 물고기 시야(중앙 통로)를 더 넓게 확보 — 다발은 좌우로 밀린다.
+        centerGap: 6.5,
         centerProbability: 0.05,
-        backBias: 1.6,
+        // backBias 1.6→1.3: 앞 열(황금-올리브)이 더 많아지고 앞/뒤가 고루 섞여 원근이 읽히되
+        // 톤은 황금 우세(레퍼런스 인상). 뒤 열은 헤이즈로 가라앉음.
+        backBias: 1.3,
       },
       hardscape: {
         seed: 505,

@@ -3,8 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { SceneEntity } from '../core/SceneRoot'
 import { advanceTime, generatePlantInstances, generateHardscape, mulberry32 } from './aquascapeHelpers'
 import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
-import { generateKelpInstances, kelpTaperHalfWidth } from './kelpHelpers'
-import type { KelpParams } from './kelpHelpers'
+import { generateKelpClusters, kelpTaperHalfWidth } from './kelpHelpers'
+import type { KelpClusterParams } from './kelpHelpers'
 import { displaceRockPositions } from './rockHelpers'
 import { sandHeightAt } from './terrainHelpers'
 import { generateBranchCoral, generateCoralClusters } from './coralHelpers'
@@ -105,6 +105,8 @@ const KELP_VERT = /* glsl */ `
   uniform float uWorldFreq;
   uniform float uWaveAlongBlade;
   uniform float uZSwayRatio;
+  uniform float uKelpMinZ;
+  uniform float uKelpMaxZ;
 
   attribute vec3 instanceOffset;   // x, y(=sandY), z
   attribute float instanceYaw;
@@ -117,11 +119,15 @@ const KELP_VERT = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vBaseColor;
   varying vec3 vTipColor;
+  varying float vDepth;
 
   void main() {
     vUv = uv;
     vBaseColor = instanceBaseColor;
     vTipColor = instanceTipColor;
+
+    // 원근 깊이(spec §2): 앞 열(maxZ)=0, 뒤 열(minZ)=1. 프래그에서 물빛 헤이즈 lerp에 쓴다.
+    vDepth = clamp((uKelpMaxZ - instanceOffset.z) / max(uKelpMaxZ - uKelpMinZ, 1e-4), 0.0, 1.0);
 
     // Scale ribbon by instance height/scale
     vec3 pos = position;
@@ -169,10 +175,13 @@ const KELP_FRAG = /* glsl */ `
   uniform float uSceneOpacity;
   uniform vec3 uMoodColor;
   uniform float uEdgeShade;
+  uniform vec3 uDepthFadeColor;
+  uniform float uDepthFadeStrength;
 
   varying vec2 vUv;
   varying vec3 vBaseColor;
   varying vec3 vTipColor;
+  varying float vDepth;
 
   void main() {
     float alpha = texture2D(uLeafAlpha, vUv).a;
@@ -181,6 +190,10 @@ const KELP_FRAG = /* glsl */ `
     vec3 col = mix(vBaseColor, vTipColor, vUv.y) * uMoodColor;
     // 리본 폭 방향 음영(중앙 밝게·가장자리 어둡게) — 알파-discard만 사용, 블렌딩 불변
     col *= (1.0 - uEdgeShade) + (2.0 * uEdgeShade) * sin(vUv.x * 3.141592653589793);
+    // 원근 헤이즈(spec §2): 먼 열일수록 물빛(depthFadeColor×무드)으로 색을 lerp해 흐릿하게
+    // 가라앉힌다. 알파는 불변(uSceneOpacity 유지) — 색 lerp만이라 무정렬 투명 겹침 아티팩트 없음.
+    vec3 haze = uDepthFadeColor * uMoodColor;
+    col = mix(col, haze, vDepth * uDepthFadeStrength);
     gl_FragColor = vec4(col, uSceneOpacity);
   }
 `
@@ -505,22 +518,32 @@ function createKelpBladeAlphaTexture(): THREE.CanvasTexture {
   const yAt = (t: number): number => H * (1 - t)
   const centerX = (t: number): number =>
     W * (0.5 + cfg.meanderAmp * Math.sin(t * cfg.meanderCount * TWO_PI) * Math.pow(t, cfg.meanderRootLock))
-  const halfAt = (t: number, phase: number): number => {
+  const lf = cfg.leaflet
+  // edgePhase=가장자리 물결 위상, leafletPhase=잎 로브 위상(좌우 π 차로 지그재그).
+  const halfAt = (t: number, edgePhase: number, leafletPhase: number): number => {
     const base = W * (cfg.rootHalf + (cfg.tipHalf - cfg.rootHalf) * t)
-    const wave = 1 + cfg.edgeWaveAmp * Math.sin(t * cfg.edgeWaveCount * TWO_PI + phase)
+    const wave = 1 + cfg.edgeWaveAmp * Math.sin(t * cfg.edgeWaveCount * TWO_PI + edgePhase)
     const tipRound = Math.min(1, (1 - t) / cfg.tipRoundSpan)
-    return base * wave * tipRound
+    // leaflet(작은 잎) 로브: startT 이후 정류(rectified) 사인 험프를 반폭에 가산 → 줄기 옆으로
+    // 뾰족한 잎이 돌출(맨 리본 제거, spec §3). max(0,·)^sharpness로 잎 사이가 벌어진다.
+    let leaf = 0
+    if (t > lf.startT) {
+      const lt = (t - lf.startT) / (1 - lf.startT)
+      const s = Math.sin(lt * lf.count * TWO_PI + leafletPhase)
+      leaf = lf.amp * Math.pow(Math.max(0, s), lf.sharpness)
+    }
+    return base * tipRound * (wave + leaf)
   }
 
   ctx.beginPath()
-  ctx.moveTo(centerX(0) - halfAt(0, 0), yAt(0))
+  ctx.moveTo(centerX(0) - halfAt(0, 0, 0), yAt(0))
   for (let i = 1; i <= N; i++) {
     const t = i / N
-    ctx.lineTo(centerX(t) - halfAt(t, 0), yAt(t))
+    ctx.lineTo(centerX(t) - halfAt(t, 0, 0), yAt(t))
   }
   for (let i = N; i >= 0; i--) {
     const t = i / N
-    ctx.lineTo(centerX(t) + halfAt(t, cfg.edgePhaseOffset), yAt(t))
+    ctx.lineTo(centerX(t) + halfAt(t, cfg.edgePhaseOffset, Math.PI), yAt(t))
   }
   ctx.closePath()
 
@@ -909,7 +932,7 @@ export class Aquascape implements SceneEntity {
     const bladeTex = createKelpBladeAlphaTexture()
     this._disposables.push({ texture: bladeTex })
 
-    const params: KelpParams = {
+    const params: KelpClusterParams = {
       minHeight: kelpCfg.minHeight,
       maxHeight: kelpCfg.maxHeight,
       minScale: kelpCfg.minScale,
@@ -920,8 +943,11 @@ export class Aquascape implements SceneEntity {
       centerGap: kelpCfg.centerGap,
       centerProbability: kelpCfg.centerProbability,
       backBias: kelpCfg.backBias,
+      bladesPerCluster: [...kelpCfg.bladesPerCluster] as [number, number],
+      clusterRadius: kelpCfg.clusterRadius,
     }
-    const instances = generateKelpInstances(kelpCfg.seed, kelpCfg.count, kelpCfg.area, params)
+    // spec §1: 낱장이 아닌 포기(홀드패스트 다발) 단위 배치 → 평탄 가닥 배열(인스턴싱 경로 불변).
+    const instances = generateKelpClusters(kelpCfg.seed, kelpCfg.clusterCount, kelpCfg.area, params)
     const count = instances.length
 
     const iGeo = createKelpRibbonGeometry(KELP.segments, KELP.baseHalfWidth, KELP.tipRatio)
@@ -973,6 +999,11 @@ export class Aquascape implements SceneEntity {
         uWaveAlongBlade: { value: KELP.waveAlongBlade },
         uZSwayRatio: { value: KELP.zSwayRatio },
         uEdgeShade: { value: KELP.edgeShade },
+        // 원근 레이어(spec §2): 인스턴스 z 범위(area.minZ/maxZ)를 넘겨 프래그에서 물빛 헤이즈 lerp.
+        uKelpMinZ: { value: kelpCfg.area.minZ },
+        uKelpMaxZ: { value: kelpCfg.area.maxZ },
+        uDepthFadeColor: { value: new THREE.Color(...KELP.depthFadeColor) },
+        uDepthFadeStrength: { value: KELP.depthFadeStrength },
         uLeafAlpha: { value: bladeTex },
         uAlphaTest: { value: KELP.alphaTest },
         uSceneOpacity: { value: 1.0 },

@@ -1,5 +1,9 @@
 import type { AppSettings } from '../shared/types'
 import { ZOOM } from '../shared/config'
+import { resolveThemeId } from './entities/themeHelpers'
+import { THEME_REGISTRY, DEFAULT_THEME_ID } from './entities/themeRegistry'
+
+const VALID_THEME_IDS = THEME_REGISTRY.map((t) => t.id)
 
 /**
  * 재시작 간 유지되는 상태(localStorage). 렌더러 상태(설정·바 크기·창 위치)를 저장/복원한다.
@@ -58,6 +62,8 @@ export function loadPersisted(): PersistedState | null {
           : [],
         // moodReactive: 하위호환(구버전 저장값엔 없음). boolean 아니면 false.
         moodReactive: typeof s.moodReactive === 'boolean' ? s.moodReactive : false,
+        // themeId: 하위호환(구버전 저장값엔 없음). 누락/비문자열/유령 id는 기본 테마로 보정.
+        themeId: resolveThemeId(s.themeId, VALID_THEME_IDS, DEFAULT_THEME_ID),
       },
       alwaysOnTop: typeof p.alwaysOnTop === 'boolean' ? p.alwaysOnTop : true,
       barWidth: p.barWidth,

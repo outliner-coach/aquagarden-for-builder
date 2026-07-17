@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { loadPersisted, savePersisted, type PersistedState } from '../persistence'
 import { ZOOM } from '../../shared/config'
+import { DEFAULT_THEME_ID } from '../entities/themeRegistry'
 
 // jsdom localStorage가 없으면 메모리 목으로 대체
 function installLocalStorage(): void {
@@ -23,6 +24,7 @@ const base: PersistedState = {
     zoom: 1.5,
     enabledFeatures: ['manta', 'whale'],
     moodReactive: true,
+    themeId: 'kelp-forest',
   },
   alwaysOnTop: true,
   barWidth: 1200,
@@ -119,5 +121,40 @@ describe('persistence moodReactive', () => {
     const bad = { ...base, settings: { ...base.settings, moodReactive: 'yes' } }
     localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad))
     expect(loadPersisted()?.settings.moodReactive).toBe(false)
+  })
+})
+
+describe('persistence themeId', () => {
+  beforeEach(() => installLocalStorage())
+
+  it('저장한 themeId를 그대로 복원', () => {
+    savePersisted(base)
+    expect(loadPersisted()?.settings.themeId).toBe('kelp-forest')
+  })
+
+  it('themeId 없는 (구버전) 저장본도 유효 — 기본 테마로 보정', () => {
+    const legacy = { ...base, settings: { ...base.settings } } as Record<string, unknown>
+    delete (legacy.settings as Record<string, unknown>).themeId
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(legacy))
+    const loaded = loadPersisted()
+    expect(loaded).not.toBeNull()
+    expect(loaded?.settings.themeId).toBe(DEFAULT_THEME_ID)
+    expect(loaded?.settings.fishCount).toBe(20) // 나머지 설정 보존
+  })
+
+  it('themeId가 유령(미등록) id면 기본 테마로 보정', () => {
+    const bad = { ...base, settings: { ...base.settings, themeId: 'atlantis' } }
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad))
+    expect(loadPersisted()?.settings.themeId).toBe(DEFAULT_THEME_ID)
+  })
+
+  it('themeId가 비문자열이면 기본 테마로 보정', () => {
+    const bad1 = { ...base, settings: { ...base.settings, themeId: 42 } }
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad1))
+    expect(loadPersisted()?.settings.themeId).toBe(DEFAULT_THEME_ID)
+
+    const bad2 = { ...base, settings: { ...base.settings, themeId: null } }
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad2))
+    expect(loadPersisted()?.settings.themeId).toBe(DEFAULT_THEME_ID)
   })
 })

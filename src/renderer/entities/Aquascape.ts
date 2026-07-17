@@ -5,6 +5,7 @@ import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
 import { AQUASCAPE, PLANT, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
+import { getTheme, DEFAULT_THEME_ID, type BackgroundTheme } from './themeRegistry'
 
 /* ── Grass card vertex shader: height-weighted sway, instanced ── */
 const GRASS_CARD_VERT = /* glsl */ `
@@ -85,10 +86,6 @@ const GRASS_CARD_FRAG = /* glsl */ `
     gl_FragColor = vec4(col, uSceneOpacity);
   }
 `
-
-/* ── Layout constants ── */
-// 밝은 크림색은 화면을 지배해 물고기 대비를 떨어뜨린다 → 차분한 탄(tan)으로 낮춤.
-const SAND_COLOR = 0x9c8a6e
 
 /* ── Procedural sand normal map (CanvasTexture, no external file) ── */
 function createSandNormalTexture(size = 256): THREE.CanvasTexture {
@@ -234,16 +231,19 @@ interface Disposable {
 export class Aquascape implements SceneEntity {
   readonly object3d: THREE.Group
   private _time = 0
+  private _theme: BackgroundTheme
   private readonly _grassMaterials: THREE.ShaderMaterial[] = []
   private readonly _disposables: Disposable[] = []
   /** 불투명 머티리얼(MeshStandard) — baseOpacity=1 고정 */
   private readonly _opaqueMaterials: THREE.MeshStandardMaterial[] = []
+  /** setTheme 재빌드 직후 재적용하기 위해 보관하는 직전 값(리빌드로 투명도/무드가 풀리는 버그 방지). */
+  private _lastOpacityFactor = 1
+  private _lastMood: readonly [number, number, number] = [1, 1, 1]
 
-  constructor() {
+  constructor(theme: BackgroundTheme = getTheme(DEFAULT_THEME_ID)) {
     this.object3d = new THREE.Group()
-    this._buildSand()
-    this._buildGrassCards()
-    this._buildHardscape()
+    this._theme = theme
+    this._buildAll()
   }
 
   update(dt: number): void {
@@ -255,10 +255,25 @@ export class Aquascape implements SceneEntity {
   }
 
   /**
+   * 배경 테마를 교체한다: 기존 자식 메시/지오메트리/머티리얼/텍스처를 정리하고 새 테마로 재빌드한다.
+   * CRITICAL: object3d(Group) 인스턴스 자체는 유지한다 — SceneRoot가 이 참조를 scene에 이미
+   * 추가해 두었으므로, 여기서 새 Group을 만들면 화면에서 사라진다. children만 비우고 다시 채운다.
+   */
+  setTheme(theme: BackgroundTheme): void {
+    this._theme = theme
+    this._clearBuild()
+    this._buildAll()
+    // 리빌드로 새로 만들어진 머티리얼은 기본값(불투명·흰 무드)이므로 직전 상태를 재적용한다.
+    this.setSceneOpacity(this._lastOpacityFactor)
+    this.setMood(this._lastMood[0], this._lastMood[1], this._lastMood[2])
+  }
+
+  /**
    * 시간대 무드(틴트×배율 프리멀티 RGB)를 비조명 수초 셰이더에 반영한다.
    * (모래·바위·유목은 MeshStandardMaterial이라 광원 무드가 자동 반영됨. 커스틱은 caustics.setCausticMood.)
    */
   setMood(r: number, g: number, b: number): void {
+    this._lastMood = [r, g, b]
     for (const mat of this._grassMaterials) {
       const c = mat.uniforms.uMoodColor.value as THREE.Color
       c.setRGB(r, g, b)
@@ -268,6 +283,7 @@ export class Aquascape implements SceneEntity {
   /** factor 1=평소(불투명), 0=완전 투명. 물고기 제외, 밝기와 곱연산으로 공존 */
   setSceneOpacity(factor: number): void {
     const f = Math.max(0, Math.min(1, factor))
+    this._lastOpacityFactor = f
     const invisible = f <= SCENE.invisibleThreshold
 
     // 불투명 머티리얼(모래·바위·유목) → transparent + opacity
@@ -290,6 +306,21 @@ export class Aquascape implements SceneEntity {
   }
 
   dispose(): void {
+    this._clearBuild()
+  }
+
+  /** 현 테마로 모래/수초/하드스케이프를 빌드한다. */
+  private _buildAll(): void {
+    this._buildSand()
+    this._buildGrassCards()
+    this._buildHardscape()
+  }
+
+  /**
+   * 자식 메시·지오메트리·머티리얼·텍스처를 정리한다(dispose와 setTheme 재빌드가 공유).
+   * object3d(Group) 인스턴스 자체는 유지 — children만 비운다.
+   */
+  private _clearBuild(): void {
     for (const d of this._disposables) {
       d.geometry?.dispose()
       d.material?.dispose()
@@ -297,6 +328,8 @@ export class Aquascape implements SceneEntity {
     }
     this._disposables.length = 0
     this._grassMaterials.length = 0
+    this._opaqueMaterials.length = 0
+    this.object3d.clear()
   }
 
   /* ── Sand floor with procedural color variation + normal map ── */
@@ -309,7 +342,7 @@ export class Aquascape implements SceneEntity {
     // Vertex color variation for subtle sand grain color
     const count = geo.attributes.position.count
     const colors = new Float32Array(count * 3)
-    const baseColor = new THREE.Color(SAND_COLOR)
+    const baseColor = new THREE.Color(this._theme.sandColor)
     const cv = HARDSCAPE.sand.colorVariation
     for (let i = 0; i < count; i++) {
       const px = geo.attributes.position.getX(i)
@@ -326,7 +359,7 @@ export class Aquascape implements SceneEntity {
     this._disposables.push({ texture: normalTex })
 
     const mat = new THREE.MeshStandardMaterial({
-      color: SAND_COLOR,
+      color: this._theme.sandColor,
       vertexColors: true,
       normalMap: normalTex,
       normalScale: new THREE.Vector2(HARDSCAPE.sand.normalStrength, HARDSCAPE.sand.normalStrength),
@@ -348,7 +381,7 @@ export class Aquascape implements SceneEntity {
     const leafTex = createLeafAlphaTexture()
     this._disposables.push({ texture: leafTex })
 
-    for (const speciesCfg of PLANT.species) {
+    for (const speciesCfg of this._theme.plants) {
       const params: PlantSpeciesParams = {
         minHeight: speciesCfg.minHeight,
         maxHeight: speciesCfg.maxHeight,
@@ -439,37 +472,38 @@ export class Aquascape implements SceneEntity {
 
   /* ── Rocks, pebbles & driftwood (generateHardscape 기반) ── */
   private _buildHardscape(): void {
+    const theme = this._theme.hardscape
     const hsConfig: HardscapeConfig = {
-      rockCount: HARDSCAPE.rockCount,
-      pebbleCount: HARDSCAPE.pebbleCount,
-      driftwoodCount: HARDSCAPE.driftwoodCount,
-      clusterCount: HARDSCAPE.clusterCount,
-      clusterSpread: HARDSCAPE.clusterSpread,
+      rockCount: theme.rockCount,
+      pebbleCount: theme.pebbleCount,
+      driftwoodCount: theme.driftwoodCount,
+      clusterCount: theme.clusterCount,
+      clusterSpread: theme.clusterSpread,
       rock: {
-        minScale: HARDSCAPE.rock.minScale,
-        maxScale: HARDSCAPE.rock.maxScale,
-        maxHeightAboveSand: HARDSCAPE.rock.maxHeightAboveSand,
+        minScale: theme.rock.minScale,
+        maxScale: theme.rock.maxScale,
+        maxHeightAboveSand: theme.rock.maxHeightAboveSand,
       },
       pebble: {
-        minScale: HARDSCAPE.pebble.minScale,
-        maxScale: HARDSCAPE.pebble.maxScale,
+        minScale: theme.pebble.minScale,
+        maxScale: theme.pebble.maxScale,
       },
       driftwood: {
-        minLength: HARDSCAPE.driftwood.minLength,
-        maxLength: HARDSCAPE.driftwood.maxLength,
-        minRadius: HARDSCAPE.driftwood.minRadius,
-        maxRadius: HARDSCAPE.driftwood.maxRadius,
-        maxHeightAboveSand: HARDSCAPE.driftwood.maxHeightAboveSand,
+        minLength: theme.driftwood.minLength,
+        maxLength: theme.driftwood.maxLength,
+        minRadius: theme.driftwood.minRadius,
+        maxRadius: theme.driftwood.maxRadius,
+        maxHeightAboveSand: theme.driftwood.maxHeightAboveSand,
       },
     }
     const hs = generateHardscape(
-      HARDSCAPE.seed,
-      HARDSCAPE.area,
+      theme.seed,
+      theme.area,
       AQUASCAPE.sandY,
       hsConfig,
     )
 
-    const rockColors = HARDSCAPE.rock.colors
+    const rockColors = theme.rock.colors
     const rockGeoBase = new THREE.DodecahedronGeometry(1, 0)
     const pebbleGeoBase = new THREE.SphereGeometry(1, 5, 4)
     this._disposables.push({ geometry: rockGeoBase }, { geometry: pebbleGeoBase })
@@ -477,7 +511,7 @@ export class Aquascape implements SceneEntity {
     // Rocks & pebbles (first ROCK_COUNT are large rocks, rest are pebbles)
     for (let i = 0; i < hs.rocks.length; i++) {
       const p = hs.rocks[i]
-      const isLargeRock = i < HARDSCAPE.rockCount
+      const isLargeRock = i < theme.rockCount
       const colorHex = rockColors[i % rockColors.length]
       const mat = new THREE.MeshStandardMaterial({
         color: colorHex,
@@ -498,7 +532,7 @@ export class Aquascape implements SceneEntity {
 
     // Driftwood — alternate between two tones for variety
     const dwGeo = createDriftwoodGeometry()
-    const dwColors = [HARDSCAPE.driftwood.color, HARDSCAPE.driftwood.colorAlt]
+    const dwColors = [theme.driftwood.color, theme.driftwood.colorAlt]
     this._disposables.push({ geometry: dwGeo })
 
     for (let i = 0; i < hs.driftwood.length; i++) {

@@ -20,6 +20,7 @@ import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER } from '../shared/config'
 import { moodForHour, IDENTITY_MOOD, type Mood } from './lighting/moodHelpers'
 import { setCausticMood } from './entities/caustics'
+import { getTheme, DEFAULT_THEME_ID } from './entities/themeRegistry'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
@@ -45,7 +46,9 @@ const sceneRoot = new SceneRoot(container)
 const lighting = new Lighting(sceneRoot.scene)
 sceneRoot.add(lighting)
 
-const aquascape = new Aquascape()
+// 복원된 themeId(없으면 기본 테마)로 Aquascape를 생성 — persistence.loadPersisted가 이미
+// 하위호환 보정(누락/비문자열/유령 id → 기본값)을 거쳤으므로 여기서는 그대로 조회한다.
+const aquascape = new Aquascape(getTheme(persisted?.settings.themeId ?? DEFAULT_THEME_ID))
 sceneRoot.add(aquascape)
 
 const fishSchool = new FishSchool()
@@ -113,6 +116,7 @@ const settings: AppSettings = persisted?.settings ?? {
   zoom: ZOOM.default,
   enabledFeatures: [],
   moodReactive: false,
+  themeId: DEFAULT_THEME_ID,
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
 sceneRoot.setZoom(settings.zoom)

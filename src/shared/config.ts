@@ -243,6 +243,96 @@ export const HARDSCAPE = {
   },
 } as const
 
+/**
+ * 배경 테마(교체형). 테마별로 모래색·수초 종 배열(PLANT.species 항목 형식)·하드스케이프
+ * 구성을 결정한다. 미니멀은 기존 상수를 그대로 참조해(복붙 중복 없음) 기존 사용자에게
+ * 무변화(하위호환)다. kelp(다시마)·coral(산호) 시각 요소 config 필드는 이후 phase에서
+ * 추가된다 — themeRegistry.ts의 BackgroundTheme는 인터페이스라 확장 가능.
+ */
+export const THEME = {
+  defaultId: 'minimal',
+  themes: [
+    {
+      id: 'minimal',
+      displayName: '미니멀',
+      // 과거 Aquascape.ts 로컬 상수 SAND_COLOR(0x9c8a6e)를 이곳으로 이동(하드코딩 제거).
+      sandColor: 0x9c8a6e,
+      plants: PLANT.species,
+      hardscape: {
+        seed: HARDSCAPE.seed,
+        rockCount: HARDSCAPE.rockCount,
+        pebbleCount: HARDSCAPE.pebbleCount,
+        driftwoodCount: HARDSCAPE.driftwoodCount,
+        clusterCount: HARDSCAPE.clusterCount,
+        clusterSpread: HARDSCAPE.clusterSpread,
+        area: HARDSCAPE.area,
+        rock: HARDSCAPE.rock,
+        pebble: HARDSCAPE.pebble,
+        driftwood: HARDSCAPE.driftwood,
+      },
+    },
+    {
+      id: 'kelp-forest',
+      displayName: '다시마 숲',
+      // 미니멀보다 약간 어둡게 — 초록-갈색 분위기 예고(다시마 시각 요소 자체는 step 2 범위).
+      sandColor: 0x7d6e58,
+      // 카펫은 유지(다시마는 이후 step에서 추가되는 별도 요소).
+      plants: PLANT.species,
+      hardscape: {
+        seed: 505,
+        // 큰 바위 강조 초기값: 개수는 줄이고 스케일을 키워 존재감을 높인다
+        // (노이즈 변위 지오메트리로의 업그레이드는 step 3 범위 — 여기선 배치/색만).
+        rockCount: 8,
+        pebbleCount: 10,
+        driftwoodCount: HARDSCAPE.driftwoodCount,
+        clusterCount: HARDSCAPE.clusterCount,
+        clusterSpread: HARDSCAPE.clusterSpread,
+        area: HARDSCAPE.area,
+        rock: {
+          minScale: 0.3,
+          maxScale: 0.75,
+          maxHeightAboveSand: 0.95,
+          colors: [0x4a463f, 0x3d3a34, 0x565248, 0x2f2c27] as readonly number[],
+        },
+        pebble: HARDSCAPE.pebble,
+        driftwood: HARDSCAPE.driftwood,
+      },
+    },
+    {
+      id: 'coral-reef',
+      displayName: '산호초',
+      // 밝은 산호모래(산호 시각 요소 자체는 step 4 범위 — 여기선 낮은 암반 준비만).
+      sandColor: 0xe0cbb0,
+      // 카펫 축소: 산호초는 바닥 수초보다 개방된 모래·암반이 특징. 기존 종 배열을 참조해
+      // count만 낮춘다(색·영역·시드 등 나머지 값은 복붙하지 않고 그대로 참조).
+      plants: [
+        { ...PLANT.species[0], count: 60 },
+        { ...PLANT.species[1], count: 65 },
+        { ...PLANT.species[2], count: 35 },
+        { ...PLANT.species[3], count: 25 },
+        { ...PLANT.species[4], count: 20 },
+      ],
+      hardscape: {
+        seed: 606,
+        rockCount: 6,
+        pebbleCount: 14,
+        driftwoodCount: 0, // 산호초에 유목은 어울리지 않음(산호 클러스터가 이후 step 4에서 대체)
+        clusterCount: HARDSCAPE.clusterCount,
+        clusterSpread: 4.2,
+        area: HARDSCAPE.area,
+        rock: {
+          minScale: 0.2,
+          maxScale: 0.5,
+          maxHeightAboveSand: 0.45, // 낮은 암반(다음 step에서 산호와 어우러질 준비)
+          colors: [0xcfc4ab, 0xd8cdb4, 0xc2b79c, 0xe0d6c0] as readonly number[],
+        },
+        pebble: HARDSCAPE.pebble,
+        driftwood: HARDSCAPE.driftwood,
+      },
+    },
+  ],
+} as const
+
 export const CAUSTIC = {
   intensity: 0.55,
   contrast: 0.75,

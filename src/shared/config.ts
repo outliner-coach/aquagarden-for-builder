@@ -8,6 +8,8 @@ export const WINDOW = {
   // 캔버스 하단 페이드(px). 수조 바 아래 가장자리에서 불투명한 모래가 하드 컷되어 (특히 패널
   // 펼침 시) 투명 영역 위에 가로선으로 보이던 것을 마스크 그라디언트로 부드럽게 용해한다.
   canvasBottomFadePx: 26,
+  // 캔버스 좌우 페이드(px). 창 경계에서 모래·수초가 세로선으로 뚝 끊기던 것을 하단과 동일하게 용해.
+  canvasEdgeFadePx: 26,
   // 모서리 드래그 리사이즈 범위 (clampSize)
   minWidth: 400,
   minHeight: 80,
@@ -30,6 +32,12 @@ export const FISH = {
     minZ: -2.5,
     maxZ: 0.5,
   },
+  /**
+   * z축(카메라 방향) 유영 속도 상한. 얇은 바 수조에서 정면 유영이 잦으면 로우폴리 정면
+   * 실루엣("반투명 상자")이 자주 노출된다 — 측면 유영 위주가 되도록 z만 상한한다.
+   * (crawler 새우는 제외 — 바닥 거동 불변 가드)
+   */
+  maxZSpeed: 0.35,
 } as const
 
 /** 새우(바닥 기는 청소부) 전용 거동 상수. 일반 어종 유영과 차별화. */
@@ -68,13 +76,19 @@ export const LIGHT = {
 export const MOOD = {
   /** 무드 재계산 주기(ms). 시각은 천천히 변하므로 60초면 충분(렌더 루프와 무관). */
   updateIntervalMs: 60_000,
-  /** 시각별 키프레임 { hour, scale(밝기 배율 0~1), tint(RGB 0~1) }. hour 오름차순. */
+  /** 무드 변경 시 조명이 목표로 수렴하는 전환 시간(초). 토글 순간의 급변 방지 + 변화 인지. */
+  transitionSeconds: 1.5,
+  /**
+   * 시각별 키프레임 { hour, scale(밝기 배율 0~1), tint(RGB 0~1) }. hour 오름차순.
+   * 2026-07 강화: 라이브 QA에서 "심야에 켜도 차이를 못 느낌" 피드백 → 밤 배율을 크게 낮추고
+   * 틴트 채도를 올렸다. 심야는 한낮의 절반 이하(테스트 가드).
+   */
   keyframes: [
-    { hour: 2, scale: 0.6, tint: [0.72, 0.82, 1.0] }, // 심야 — 차갑고 어둑
-    { hour: 7, scale: 0.85, tint: [0.92, 0.96, 1.0] }, // 아침 — 서늘하고 맑음
+    { hour: 2, scale: 0.42, tint: [0.55, 0.72, 1.0] }, // 심야 — 확연히 어둑, 문라이트 블루
+    { hour: 7, scale: 0.85, tint: [0.9, 0.96, 1.0] }, // 아침 — 서늘하고 맑음
     { hour: 13, scale: 1.0, tint: [1.0, 1.0, 1.0] }, // 한낮 — 가장 밝고 중립
-    { hour: 18, scale: 0.9, tint: [1.0, 0.9, 0.78] }, // 저녁 — 따뜻한 골든
-    { hour: 21, scale: 0.72, tint: [1.0, 0.82, 0.68] }, // 밤 — 앰버, 어둑
+    { hour: 18, scale: 0.8, tint: [1.0, 0.82, 0.6] }, // 저녁 — 진한 골든아워
+    { hour: 21, scale: 0.6, tint: [1.0, 0.72, 0.52] }, // 밤 — 깊은 앰버
   ],
 } as const
 
@@ -310,9 +324,31 @@ export const DIALOGUE = {
   maxWidth: 220,
   /** 화면 경계 여백 (px) */
   edgePadding: 12,
+  /** 화자 연결 꼬리(◆ 회전 사각형) 한 변 px. 누가 말했는지 클릭 지점을 가리킨다. */
+  tailSize: 10,
+} as const
+
+/** 렌더 성능. 힐링 위젯이므로 표시 중에도 CPU/GPU를 아낀다. */
+export const RENDER = {
+  /**
+   * 렌더 FPS 상한(0=무제한, 디스플레이 주사율). 30이면 표시 중 CPU가 대략 절반이 된다.
+   * 물고기 유영은 저속이라 30fps로도 부드럽다(dt 보정이라 이동 속도는 불변).
+   */
+  maxFps: 30,
+} as const
+
+/** 전역 단축키. 트레이 아이콘이 노치/메뉴바 혼잡으로 안 보일 때의 복구 경로. */
+export const SHORTCUTS = {
+  /** 창 위치 초기화(화면 상단 전폭) + 표시. Electron accelerator 형식. */
+  recovery: 'CommandOrControl+Alt+A',
 } as const
 
 export const LURE = {
+  /**
+   * armed 상태 무활동 자동 해제(ms). 모드를 켜 둔 채 잊으면 물고기 클릭 대사가 계속 억제되므로
+   * (lure가 대사보다 우선) 한동안 클릭이 없으면 스스로 풀린다. 클릭할 때마다 타이머 리셋.
+   */
+  armedIdleTimeoutMs: 20_000,
   /** attract 조향 가중치 (부드럽게 모임) */
   attractWeight: 0.8,
   /** attract 유효 반경 */

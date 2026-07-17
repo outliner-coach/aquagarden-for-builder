@@ -31,11 +31,20 @@ function buildIcon(): Electron.NativeImage {
   return img
 }
 
-/** 창을 현재 디스플레이 상단 전폭(기본 위치)으로 되돌리고 표시 — 버튼을 잃었을 때 복구용. */
-function resetPosition(win: BrowserWindow): void {
+/**
+ * 창을 현재 디스플레이 상단 전폭(기본 위치)으로 되돌리고 표시 — 버튼을 잃었을 때 복구용.
+ * 트레이 메뉴와 전역 단축키(SHORTCUTS.recovery)가 공유한다. (노치 맥북에선 메뉴바 혼잡으로
+ * 트레이 아이콘이 밀려 안 보일 수 있어 단축키가 최후 복구 경로다.)
+ */
+export function resetPosition(win: BrowserWindow): void {
   const area = screen.getDisplayMatching(win.getBounds()).workArea
   win.setBounds({ x: area.x, y: area.y, width: area.width, height: WINDOW.height })
   if (!win.isVisible()) win.show()
+}
+
+/** 플랫폼별 복구 단축키 표기(메뉴/도움말 표시용). */
+export function recoveryShortcutLabel(): string {
+  return process.platform === 'darwin' ? '⌥⌘A' : 'Ctrl+Alt+A'
 }
 
 /**
@@ -56,7 +65,7 @@ export function createTray(win: BrowserWindow): Tray {
           rebuild()
         },
       },
-      { label: '위치 초기화(상단으로)', click: () => resetPosition(win) },
+      { label: `위치 초기화(상단으로) ${recoveryShortcutLabel()}`, click: () => resetPosition(win) },
       { type: 'separator' },
       {
         label: '로그인 시 시작',

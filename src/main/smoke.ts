@@ -98,11 +98,12 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(2000)
   }
 
-  // 선택: 격리 캡처용 밝기/투명도 슬라이더 구동. 슬라이더 DOM 순서 = [어종수, 밝기, 투명도, 줌].
+  // 선택: 격리 캡처용 개체수/밝기/투명도 슬라이더 구동. 슬라이더 DOM 순서 = [어종수, 밝기, 투명도, 줌].
   // 가운데 까만 선(모래 지평선 등) 아티팩트는 고밝기+밝은 배경에서만 드러나므로 이 노브로 재현한다.
+  const fishEnv = process.env['AQUA_SMOKE_FISH']
   const brightnessEnv = process.env['AQUA_SMOKE_BRIGHTNESS']
   const transparencyEnv = process.env['AQUA_SMOKE_TRANSPARENCY']
-  if (brightnessEnv !== undefined || transparencyEnv !== undefined) {
+  if (fishEnv !== undefined || brightnessEnv !== undefined || transparencyEnv !== undefined) {
     await win.webContents
       .executeJavaScript(
         `(() => {
@@ -114,20 +115,24 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
             el.dispatchEvent(new Event('input', { bubbles: true }));
             return true;
           };
+          const f = ${fishEnv !== undefined ? Number(fishEnv) : 'null'};
           const b = ${brightnessEnv !== undefined ? Number(brightnessEnv) : 'null'};
           const t = ${transparencyEnv !== undefined ? Number(transparencyEnv) : 'null'};
-          const r = { count: sliders.length, brightness: false, transparency: false };
+          const r = { count: sliders.length, fish: false, brightness: false, transparency: false };
+          if (f !== null) r.fish = drive(0, f);
           if (b !== null) r.brightness = drive(1, b);
           if (t !== null) r.transparency = drive(2, t);
           return JSON.stringify(r);
         })()`,
       )
       .catch(() => '')
-    await delay(1200)
+    // 개체수 스폰은 분할(async) 처리라 여유를 더 둔다.
+    await delay(fishEnv !== undefined ? 3000 : 1200)
   }
 
   // 선택: 시간대 반응(무드) 조명 렌더 검증. 강제 시각(AQUA_SMOKE_MOOD_HOUR, 기본 20=저녁 따뜻)을
   // 주입하고 '시간대 반응' 토글을 켜(onMoodReactiveChange→applyMood→setMood 경로) 틴트를 캡처한다.
+  let moodHook: string | null = null
   if (process.env['AQUA_SMOKE_MOOD'] === '1') {
     const hour = Number(process.env['AQUA_SMOKE_MOOD_HOUR'] ?? 20)
     await win.webContents
@@ -135,12 +140,25 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
         `(() => {
           window.__AQUA_MOOD_HOUR__ = ${Number.isFinite(hour) ? hour : 20};
           const t = document.querySelector('input[aria-label="시간대 반응"]');
-          if (t && !t.checked) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); }
-          return !!t;
+          if (!t) return false;
+          // 이미 ON이어도(영속 복원 등) 강제 시각이 반영되도록 off→on으로 재적용한다.
+          if (t.checked) { t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); }
+          t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
         })()`,
       )
       .catch(() => false)
-    await delay(1500)
+    // 무드는 MOOD.transitionSeconds에 걸쳐 점진 수렴하므로 전환 완료 후 캡처한다.
+    await delay(3000)
+    // 훅이 실제로 걸렸는지 리드백(토글 상태·강제 시각) — 조용한 실패로 "무변화 캡처"가 나오는 것 방지.
+    moodHook = await win.webContents
+      .executeJavaScript(
+        `(() => {
+          const t = document.querySelector('input[aria-label="시간대 반응"]');
+          return JSON.stringify({ checked: !!(t && t.checked), hour: window.__AQUA_MOOD_HOUR__ ?? null });
+        })()`,
+      )
+      .catch((e: unknown) => `error: ${String(e)}`)
   }
 
   // 선택: 컨트롤 패널을 펼친 상태로 캡처(패널 UI 시각 검증용).
@@ -193,6 +211,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     pixel,
     screenshot: SHOT,
     errorConsole: consoleMsgs.filter((m) => m.level >= 2).slice(0, 50),
+    ...(moodHook !== null ? { moodHook } : {}),
   }
   writeFileSync(REPORT, JSON.stringify(report, null, 2))
 

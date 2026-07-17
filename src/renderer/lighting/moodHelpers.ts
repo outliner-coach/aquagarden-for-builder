@@ -24,6 +24,29 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
+/** 두 무드 사이 선형 보간(t는 0~1 클램프). Lighting의 부드러운 전환(수렴)에 쓴다. */
+export function moodLerp(a: Mood, b: Mood, t: number): Mood {
+  const k = Math.max(0, Math.min(1, t))
+  return {
+    brightnessScale: lerp(a.brightnessScale, b.brightnessScale, k),
+    tint: [
+      lerp(a.tint[0], b.tint[0], k),
+      lerp(a.tint[1], b.tint[1], k),
+      lerp(a.tint[2], b.tint[2], k),
+    ],
+  }
+}
+
+/** 허용 오차 내 동일 무드 판정 — 전환 수렴 시 목표로 스냅하고 재계산을 멈추는 데 쓴다. */
+export function moodEquals(a: Mood, b: Mood, eps: number): boolean {
+  return (
+    Math.abs(a.brightnessScale - b.brightnessScale) <= eps &&
+    Math.abs(a.tint[0] - b.tint[0]) <= eps &&
+    Math.abs(a.tint[1] - b.tint[1]) <= eps &&
+    Math.abs(a.tint[2] - b.tint[2]) <= eps
+  )
+}
+
 /**
  * 시각(0~24, 실수 허용, 24시간 wrap)을 무드로 매핑한다.
  * 인접 키프레임 사이를 원형(자정 넘김 포함) 선형 보간한다. 키프레임이 비면 항등 무드.

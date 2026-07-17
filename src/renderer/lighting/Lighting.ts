@@ -1,8 +1,11 @@
 import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
-import { LIGHT } from '../../shared/config'
+import { LIGHT, MOOD } from '../../shared/config'
 import { brightnessToIntensity, brightnessToAmbient, brightnessToEnvIntensity } from './lightingHelpers'
-import { IDENTITY_MOOD, type Mood } from './moodHelpers'
+import { IDENTITY_MOOD, moodLerp, moodEquals, type Mood } from './moodHelpers'
+
+/** 전환 수렴 스냅 허용 오차 — 이보다 가까우면 목표로 스냅하고 재계산을 멈춘다. */
+const MOOD_EPS = 0.002
 
 export class Lighting implements SceneEntity {
   readonly object3d: THREE.Group
@@ -11,7 +14,9 @@ export class Lighting implements SceneEntity {
   private readonly _scene: THREE.Scene
   // 사용자 밝기(슬라이더)와 시간대 무드를 분리 보관하고 _apply에서 합성한다.
   private _userB01: number = LIGHT.default01
+  // 무드는 목표(_moodTarget)를 향해 update(dt)에서 점진 수렴한다(_mood가 현재 적용값).
   private _mood: Mood = IDENTITY_MOOD
+  private _moodTarget: Mood = IDENTITY_MOOD
 
   constructor(scene: THREE.Scene) {
     this.object3d = new THREE.Group()
@@ -37,12 +42,20 @@ export class Lighting implements SceneEntity {
   }
 
   /**
-   * 시간대 무드 적용. 밝기 배율(사용자 밝기에 곱)과 광원 색 틴트를 반영한다.
+   * 현재 적용 중인(전환 보간된) 무드. 비조명 요소(수초 셰이더·커스틱)가 같은 무드를
+   * 따라가도록 main 렌더 루프가 읽는다. 수렴 후에는 참조가 안정되므로 참조 비교로 변화 감지 가능.
+   */
+  get currentMood(): Mood {
+    return this._mood
+  }
+
+  /**
+   * 시간대 무드 목표 설정. 실제 적용은 update(dt)가 MOOD.transitionSeconds에 걸쳐
+   * 부드럽게 수렴시킨다(토글 순간의 급변 방지 + 변화가 눈에 들어오게).
    * 시간대 반응 OFF 시 main이 IDENTITY_MOOD를 넣어 현행(흰색·배율 1)으로 되돌린다.
    */
   setMood(mood: Mood): void {
-    this._mood = mood
-    this._apply()
+    this._moodTarget = mood
   }
 
   private _apply(): void {
@@ -60,9 +73,21 @@ export class Lighting implements SceneEntity {
     this._ambient.color.setRGB(r, g, b)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  /** 무드 전환 수렴. 목표와 같으면 아무 일도 하지 않는다(평상시 비용 0). */
   update(dt: number): void {
-    // no-op: 조명은 정적. 슬라이더 연동은 step 9에서.
+    if (moodEquals(this._mood, this._moodTarget, MOOD_EPS)) {
+      if (this._mood !== this._moodTarget) {
+        this._mood = this._moodTarget // 스냅(잔여 오차 제거·재계산 중단)
+        this._apply()
+      }
+      return
+    }
+    // 지수 수렴: transitionSeconds 안에 사실상 도달(3τ). dt가 전환 시간 이상이면 즉시 도달.
+    const alpha =
+      dt >= MOOD.transitionSeconds ? 1 : 1 - Math.exp((-3 * dt) / MOOD.transitionSeconds)
+    this._mood = moodLerp(this._mood, this._moodTarget, alpha)
+    if (moodEquals(this._mood, this._moodTarget, MOOD_EPS)) this._mood = this._moodTarget
+    this._apply()
   }
 
   dispose(): void {

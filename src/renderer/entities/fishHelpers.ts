@@ -53,3 +53,14 @@ export function headingYaw(vx: number, vz: number): number {
 export function forwardDirAfterYaw(yaw: number): { x: number; z: number } {
   return { x: Math.cos(yaw), z: -Math.sin(yaw) }
 }
+
+/**
+ * z(카메라 방향) 속도 성분을 ±maxAbs로 클램프한다(부호 보존).
+ * 얇은 바 수조에서 정면 유영이 잦으면 로우폴리 정면 실루엣이 어색하게 노출된다 —
+ * 측면(x축) 유영 위주가 되도록 z만 상한한다. crawler(새우)에는 적용하지 않는다.
+ */
+export function clampZSpeed(vz: number, maxAbs: number): number {
+  if (vz > maxAbs) return maxAbs
+  if (vz < -maxAbs) return -maxAbs
+  return vz
+}

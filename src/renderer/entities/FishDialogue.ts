@@ -92,6 +92,23 @@ export class FishDialogue {
       'word-break:keep-all',
     ].join(';')
 
+    // 화자 연결 꼬리 — 말풍선 하단에서 클릭한 물고기 쪽을 가리키는 45° 회전 사각형.
+    // 배경·테두리를 말풍선과 맞춰 이어져 보이게 한다(어느 물고기의 대사인지 시각 연결).
+    const tail = document.createElement('div')
+    const ts = DIALOGUE.tailSize
+    tail.style.cssText = [
+      'position:absolute',
+      `width:${ts}px`,
+      `height:${ts}px`,
+      `bottom:${-ts / 2 - 1}px`,
+      `background:${COLORS.panelBg}`,
+      `border-right:1px solid ${COLORS.border}`,
+      `border-bottom:1px solid ${COLORS.border}`,
+      'transform:rotate(45deg)',
+      'pointer-events:none',
+    ].join(';')
+    bubble.appendChild(tail)
+
     this._container.appendChild(bubble)
     this._bubble = bubble
 
@@ -109,6 +126,9 @@ export class FishDialogue {
 
       bubble.style.left = `${left}px`
       bubble.style.top = `${top}px`
+      // 꼬리를 클릭 x에 맞춰 말풍선 내에서 좌우 이동(모서리 라운드 안쪽으로 클램프)
+      const tailLeft = Math.max(10, Math.min(clickX - left - ts / 2, bw - ts - 10))
+      tail.style.left = `${tailLeft}px`
       bubble.style.opacity = '1'
     })
 

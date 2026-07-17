@@ -108,6 +108,34 @@ export function clampPositionToDisplays(
 }
 
 /**
+ * 창 상단(top)이 어느 디스플레이의 work area보다 위로 올라가지 못하게 클램프한다(순수, 크기 보존).
+ *
+ * clampPositionToDisplays의 자유 이동 규칙(어디든 minVisible만 보이면 허용)만으로는 창 top이
+ * 화면 위(-140px 등)로 올라갈 수 있는데, 컨트롤(플로팅 버튼·패널 헤더)은 창 상단부에 있어
+ * 메뉴바 뒤로 사라지면 조작 불가가 된다(라이브 QA 재현). 좌·우·하단 부분 이탈은 버튼이 남으므로
+ * 자유 이동을 유지하고, 상단만 막는다.
+ *
+ * 허용 최소 y = 창과 수평으로 충분히 겹치는 디스플레이들의 work area top 중 최솟값.
+ * (위로 배치된 보조 모니터가 있으면 그 top까지 올라갈 수 있다 — 모니터 간 이동 보존)
+ */
+export function clampTopToWorkAreas(
+  bounds: Bounds,
+  displays: DisplayArea[],
+  minVisible: number,
+): Bounds {
+  if (displays.length === 0) return bounds
+  const needW = Math.min(minVisible, bounds.width)
+  let minY: number | null = null
+  for (const d of displays) {
+    const overlapW =
+      Math.min(bounds.x + bounds.width, d.x + d.width) - Math.max(bounds.x, d.x)
+    if (overlapW >= needW) minY = minY === null ? d.y : Math.min(minY, d.y)
+  }
+  if (minY === null || bounds.y >= minY) return bounds
+  return { ...bounds, y: minY }
+}
+
+/**
  * 마우스 이벤트 무시(click-through) 설정.
  * forward:true로 hover(mousemove)는 계속 renderer에 전달되어, 컨트롤 위에서
  * renderer가 다시 ignore=false로 복원할 수 있게 한다. (수조만 통과, 버튼은 조작)
@@ -116,12 +144,13 @@ export function setMouseIgnore(win: BrowserWindow, ignore: boolean): void {
   win.setIgnoreMouseEvents(ignore, { forward: true })
 }
 
-/** 플로팅 버튼 드래그로 창 전체를 dx/dy만큼 이동한다. 모니터 간 이동은 허용하되 완전 이탈만 방지. */
+/** 플로팅 버튼 드래그로 창 전체를 dx/dy만큼 이동한다. 모니터 간 이동은 허용하되 완전 이탈·상단 이탈만 방지. */
 export function moveWindowBy(win: BrowserWindow, dx: number, dy: number): void {
   const current = win.getBounds()
   const moved = applyDelta(current, dx, dy)
   // 전체 디스플레이의 work area를 모두 넘겨, 창이 어느 모니터든 충분히 걸쳐 있으면 이동을 허용한다.
   // (단일 디스플레이로 클램프하면 전폭 바가 좌우로 못 움직이고 다른 모니터로도 못 넘어갔다.)
   const areas = screen.getAllDisplays().map((d) => d.workArea)
-  win.setBounds(clampPositionToDisplays(moved, areas, WINDOW.minVisibleOnMove))
+  const clamped = clampPositionToDisplays(moved, areas, WINDOW.minVisibleOnMove)
+  win.setBounds(clampTopToWorkAreas(clamped, areas, WINDOW.minVisibleOnMove))
 }

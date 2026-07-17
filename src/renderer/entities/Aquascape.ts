@@ -71,6 +71,7 @@ const GRASS_CARD_FRAG = /* glsl */ `
   uniform sampler2D uLeafAlpha;
   uniform float uAlphaTest;
   uniform float uSceneOpacity;
+  uniform vec3 uMoodColor;
 
   varying vec2 vUv;
   varying vec3 vBaseColor;
@@ -79,7 +80,8 @@ const GRASS_CARD_FRAG = /* glsl */ `
   void main() {
     float alpha = texture2D(uLeafAlpha, vUv).a;
     if (alpha < uAlphaTest) discard;
-    vec3 col = mix(vBaseColor, vTipColor, vUv.y);
+    // 수초는 비조명 셰이더라 광원 무드가 자동 반영되지 않는다 — 무드(틴트×배율)를 직접 곱한다.
+    vec3 col = mix(vBaseColor, vTipColor, vUv.y) * uMoodColor;
     gl_FragColor = vec4(col, uSceneOpacity);
   }
 `
@@ -252,6 +254,17 @@ export class Aquascape implements SceneEntity {
     updateCausticTime(this._time)
   }
 
+  /**
+   * 시간대 무드(틴트×배율 프리멀티 RGB)를 비조명 수초 셰이더에 반영한다.
+   * (모래·바위·유목은 MeshStandardMaterial이라 광원 무드가 자동 반영됨. 커스틱은 caustics.setCausticMood.)
+   */
+  setMood(r: number, g: number, b: number): void {
+    for (const mat of this._grassMaterials) {
+      const c = mat.uniforms.uMoodColor.value as THREE.Color
+      c.setRGB(r, g, b)
+    }
+  }
+
   /** factor 1=평소(불투명), 0=완전 투명. 물고기 제외, 밝기와 곱연산으로 공존 */
   setSceneOpacity(factor: number): void {
     const f = Math.max(0, Math.min(1, factor))
@@ -404,6 +417,7 @@ export class Aquascape implements SceneEntity {
           uLeafAlpha: { value: leafTex },
           uAlphaTest: { value: PLANT.alphaTest },
           uSceneOpacity: { value: 1.0 },
+          uMoodColor: { value: new THREE.Color(1, 1, 1) },
         },
         transparent: true,
         side: THREE.DoubleSide,

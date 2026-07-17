@@ -92,9 +92,16 @@ def _step_prompt(shot_abs: str, step_goal: str, intent: str) -> str:
 
 def _run_claude(prompt: str, timeout: int) -> tuple[bool, str]:
     """(ok, text). ok=False면 skip 사유가 text."""
+    # 채점 모델(토큰 효율): 루브릭 채점은 sonnet으로 충분하며 호출 빈도가 높다.
+    # AQUA_EVAL_VISION_MODEL로 override, 빈 문자열이면 CLI 기본 모델 사용.
+    cmd = ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json"]
+    model = os.environ.get("AQUA_EVAL_VISION_MODEL", "sonnet")
+    if model:
+        cmd += ["--model", model]
+    cmd.append(prompt)
     try:
         r = subprocess.run(
-            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
+            cmd,
             cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
         )
     except FileNotFoundError:

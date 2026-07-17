@@ -38,6 +38,10 @@
 - 끄기: `--no-eval` 또는 `AQUA_EVAL=0`. 비전만 끄기: `AQUA_EVAL_VISION=0`.
 - 주의: eval은 GPU/디스플레이 필요(로컬 macOS OK, headless CI는 xvfb 등 필요).
 
+## 모델 배정 (토큰 효율)
+- **step 세션 모델**: phase `index.json`의 step 항목에 `"model": "sonnet"|"opus"` 지정(없으면 `AQUA_STEP_MODEL` env, 그것도 없으면 CLI 기본). 구조·배선·UI step은 sonnet, 셰이더·미학 반복 step은 opus 권장 — 재시도 1회가 세션 통째 재실행이라 실패 위험 큰 step에만 상위 모델.
+- **비전 채점 모델**: 기본 `sonnet`(`AQUA_EVAL_VISION_MODEL`로 override, 빈 문자열이면 CLI 기본). 루브릭 채점은 sonnet으로 충분하고 호출 빈도가 가장 높은 지점.
+
 ## 무엇을 잡고 무엇을 못 잡나
 - ✅ 스모크: 셰이더/런타임 에러, 블랭크, 물고기 부재, 투과 깨짐 (객관·결정적)
 - ✅ 유닛테스트: 물고기 머리-선행 방향(`headingYaw`), 기타 순수 로직

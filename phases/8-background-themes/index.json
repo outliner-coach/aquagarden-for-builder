@@ -9,7 +9,8 @@
       "eval": true,
       "model": "sonnet",
       "started_at": "2026-07-17T22:18:55+0900",
-      "summary": "config.ts에 THEME 상수(minimal/kelp-forest/coral-reef, sandColor+plants+hardscape) 추가, themeRegistry.ts(BackgroundTheme 인터페이스·getTheme·DEFAULT_THEME_ID)와 themeHelpers.ts(resolveThemeId, TDD)를 신설. Aquascape는 생성자에 BackgroundTheme를 받고 setTheme(theme)으로 dispose→rebuild하며, object3d Group 인스턴스는 유지하고 직전 opacity/mood를 필드에 보관해 재빌드 후 재적용(_lastOpacityFactor/_lastMood). AppSettings.themeId?(옵셔널) 추가, persistence.loadPersisted가 resolveThemeId로 하위호환 보정, main.ts는 복원된 themeId로 Aquascape를 생성(UI 없음, step5 범위). 미니멀 테마 값은 기존 PLANT.species/HARDSCAPE를 그대로 참조(복붙 없음)해 시각 무변화 확인(smoke pass, 스크린샷 비교). kelp-forest/coral-reef도 임시로 강제해 smoke pass 확인 후 되돌림(다시마/산호 시각 요소는 아직 없음 — step2/4 범위). 다음 step(theme-eval-hooks)이 참조할 것: getTheme(id)/THEME_REGISTRY/DEFAULT_THEME_ID로 테마 전체 순회 가능, Aquascape.setTheme(theme)로 런타임 전환 가능(AQUA_SMOKE_THEME 훅 연결 지점)."
+      "summary": "config.ts에 THEME 상수(minimal/kelp-forest/coral-reef, sandColor+plants+hardscape) 추가, themeRegistry.ts(BackgroundTheme 인터페이스·getTheme·DEFAULT_THEME_ID)와 themeHelpers.ts(resolveThemeId, TDD)를 신설. Aquascape는 생성자에 BackgroundTheme를 받고 setTheme(theme)으로 dispose→rebuild하며, object3d Group 인스턴스는 유지하고 직전 opacity/mood를 필드에 보관해 재빌드 후 재적용(_lastOpacityFactor/_lastMood). AppSettings.themeId?(옵셔널) 추가, persistence.loadPersisted가 resolveThemeId로 하위호환 보정, main.ts는 복원된 themeId로 Aquascape를 생성(UI 없음, step5 범위). 미니멀 테마 값은 기존 PLANT.species/HARDSCAPE를 그대로 참조(복붙 없음)해 시각 무변화 확인(smoke pass, 스크린샷 비교). kelp-forest/coral-reef도 임시로 강제해 smoke pass 확인 후 되돌림(다시마/산호 시각 요소는 아직 없음 — step2/4 범위). 다음 step(theme-eval-hooks)이 참조할 것: getTheme(id)/THEME_REGISTRY/DEFAULT_THEME_ID로 테마 전체 순회 가능, Aquascape.setTheme(theme)로 런타임 전환 가능(AQUA_SMOKE_THEME 훅 연결 지점).",
+      "completed_at": "2026-07-17T22:45:30+0900"
     },
     {
       "step": 1,

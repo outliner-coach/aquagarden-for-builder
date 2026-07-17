@@ -2,7 +2,7 @@
   "project": "Aquagarden Overlay",
   "phase": "9-theme-quality",
   "steps": [
-    { "step": 0, "name": "terrain", "status": "pending", "eval": true, "model": "opus" },
+    { "step": 0, "name": "terrain", "status": "completed", "eval": true, "model": "opus", "summary": "테마별 지형 차별화. terrainHelpers.sandHeightAt(순수·결정적, 경계제약 4종 TDD 가드: edge taper·front-flat z>-1.5·maxHeight≤0.6 물고기클리핑방지·no-Math.random) 신설. _buildSand가 terrain 있을 때 PlaneGeometry 120x32 버텍스 Y 변위+computeVertexNormals+정점 crestColor 변조(미니멀은 80x20·무변위 유지=하위호환). worldZ=localZ+AQUASCAPE.sandZ 변환으로 마운드·산호·하드스케이프가 한 좌표계. 수초/다시마/하드스케이프/산호를 _terrainLift로 지형 표면에 안착. kelp-forest=암반 기복(roll amp0.26)+큰바위 5→9(크기분산 0.28~0.9). coral-reef=리프 마운드 2개(x-6/+7,z-3.4/-3.6,중앙 x[-2,2] 스테이지 비움)+완만 기복+암반 슬랩 마운드대역 배치, crestColor를 모래와 대비되는 암반색으로. test 572→597(+25), lint/build/smoke·테마별 캡처 3종 종료코드 0. 밝은배경 캡처로 가장자리 수평선 아티팩트 없음 확인." },
     { "step": 1, "name": "kelp-density", "status": "pending", "eval": true, "model": "opus" },
     { "step": 2, "name": "coral-density", "status": "pending", "eval": true, "model": "opus" }
   ]

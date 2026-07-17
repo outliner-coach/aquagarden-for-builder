@@ -122,6 +122,12 @@ export const ZOOM = {
 
 export const AQUASCAPE = {
   sandY: -1.8,
+  /**
+   * 모래 평면 메시의 월드 z 오프셋. 평면 로컬 z(PlaneGeometry.getZ)를 월드 z로 변환할 때 쓴다
+   * (worldZ = localZ + sandZ). terrainHelpers.sandHeightAt는 월드 좌표를 받으므로, 산호 클러스터·
+   * 하드스케이프(월드 좌표 배치)와 지형 높이가 한 좌표계로 맞물리게 한다.
+   */
+  sandZ: -4,
 } as const
 
 export const PLANT = {
@@ -459,25 +465,47 @@ export const THEME = {
       },
       hardscape: {
         seed: 505,
-        // 큰 바위 3~5개(spec §3.2) — step3(rocks-upgrade)에서 노이즈 변위 지오메트리로 격상.
-        rockCount: 5,
-        pebbleCount: 10,
+        // 큰 바위 8~10개(phase9 step0: 다시마는 바위에 붙어 자람 — 암반 무더기 밀도↑).
+        // 크기 분산 확대(minScale↓·maxScale↑)로 큰 바위/작은 바위가 섞인 무더기 실루엣.
+        rockCount: 9,
+        pebbleCount: 14,
         driftwoodCount: HARDSCAPE.driftwoodCount,
-        clusterCount: HARDSCAPE.clusterCount,
-        clusterSpread: HARDSCAPE.clusterSpread,
-        area: HARDSCAPE.area,
+        clusterCount: 4,
+        clusterSpread: 4.5,
+        // 뒤쪽·군락 예정지(가장자리·후방) 주변에 바위가 모이도록 z를 뒤로, x를 넓게.
+        area: { minX: -14, maxX: 16, minZ: -5.4, maxZ: -2.8 },
         rock: {
-          minScale: 0.3,
-          maxScale: 0.75,
+          // 크기 분산 확대(0.28~0.9): 기존(0.3~0.75)보다 큰 바위/작은 바위 편차↑. maxScale를
+          // 과도(1.05)로 올리면 깊이 페이드로 유리질처럼 창백해져(waterDepth) 0.9로 절제.
+          minScale: 0.28,
+          maxScale: 0.9,
           maxHeightAboveSand: 0.95,
           colors: [0x4a463f, 0x3d3a34, 0x565248, 0x2f2c27] as readonly number[],
           // 노이즈 변위 로우폴리(step3) — 어두운 회갈 큰 바위의 자연스러운 울퉁불퉁 실루엣.
           rockStyle: 'displaced',
           displaceSeed: 811,
-          displaceStrength: 0.24,
+          displaceStrength: 0.28,
         },
         pebble: HARDSCAPE.pebble,
         driftwood: HARDSCAPE.driftwood,
+      },
+      /**
+       * 지형(phase9 step0): 다시마 숲 = 어둡고 울퉁불퉁한 암반 바닥. feature 마운드 없이
+       * 저주파 기복(rollAmplitude·rollScale)만 — "바위 무더기"는 위 hardscape 큰 바위가 담당.
+       * frontFlatZ 앞은 평탄(새우 크롤러 보호), |x|>edgeTaperStart는 0으로 페이드(가장자리 보존).
+       */
+      terrain: {
+        rollAmplitude: 0.26,
+        rollScale: 0.46,
+        mounds: [],
+        edgeTaperStart: 13,
+        edgeTaperEnd: 17,
+        frontFlatZ: -1.5,
+        frontTaperWidth: 2.0,
+        maxHeight: 0.6,
+        // 기복 정점을 어두운 암반색으로 살짝 변조해 지형이 읽히게(모래색보다 짙은 회갈).
+        crestColor: 0x4a463f,
+        crestColorStrength: 0.55,
       },
     },
     {
@@ -496,12 +524,15 @@ export const THEME = {
       ],
       hardscape: {
         seed: 606,
-        rockCount: 6,
+        // 암반 슬랩을 리프 마운드 대역(아래 terrain.mounds 주변)에 집중 배치(phase9 step0).
+        // 슬랩은 렌더 시 지형 높이만큼 들어 올려 마운드 표면에 얹힌다(Aquascape._terrainLift).
+        rockCount: 8,
         pebbleCount: 14,
         driftwoodCount: 0, // 산호초에 유목은 어울리지 않음(산호 클러스터가 이후 step 4에서 대체)
         clusterCount: HARDSCAPE.clusterCount,
-        clusterSpread: 4.2,
-        area: HARDSCAPE.area,
+        clusterSpread: 3.6,
+        // 마운드(x≈−6·+7, z≈−3.5) 주변으로 좁혀 슬랩이 마운드 위/주변에 모이게 한다.
+        area: { minX: -9.5, maxX: 11.5, minZ: -4.6, maxZ: -2.8 },
         rock: {
           minScale: 0.2,
           maxScale: 0.5,
@@ -515,6 +546,30 @@ export const THEME = {
         },
         pebble: HARDSCAPE.pebble,
         driftwood: HARDSCAPE.driftwood,
+      },
+      /**
+       * 지형(phase9 step0): 산호초 = 모래에서 솟아오른 리프 마운드 2개가 주인공(다음 step에서
+       * 산호가 그 표면을 뒤덮는다). 중앙 x∈[−2,+2]는 비워 물고기 스테이지를 유지하고, 마운드는
+       * 좌중(−6)·우중(+7)에 둔다. z는 −3.4/−3.6(뷰 깊이 <9, 새우 크롤러 범위 z≥−2.5 앞). 완만
+       * 기복(rollAmplitude)을 더해 마운드 사이 모래가 채널처럼 읽히게 한다. maxHeight로 물고기
+       * 클리핑(sandY+h ≤ FISH.bounds.minY) 방지.
+       */
+      terrain: {
+        rollAmplitude: 0.09,
+        rollScale: 0.3,
+        mounds: [
+          { x: -6, z: -3.4, radius: 4.5, height: 0.51 }, // 좌중 큰 마운드
+          { x: 7, z: -3.6, radius: 3.6, height: 0.44 }, // 우중 작은 마운드
+        ],
+        edgeTaperStart: 13,
+        edgeTaperEnd: 17,
+        frontFlatZ: -1.5,
+        frontTaperWidth: 2.0,
+        maxHeight: 0.6,
+        // 마운드 정점을 밝은 모래보다 확연히 어둡고 차가운 암반색으로 변조 — "리프 rock platform"이
+        // 밝은 모래 채널과 대비되어 읽히게. (기존 0xcfc4ab는 모래색과 거의 같아 무변화였음.)
+        crestColor: 0x8f8478,
+        crestColorStrength: 0.65,
       },
       /**
        * 산호 클러스터 배치(step4). 형태·색은 config.CORAL, 여기는 seed/count/area만.

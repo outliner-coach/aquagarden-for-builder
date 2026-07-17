@@ -109,6 +109,34 @@ export interface BackgroundThemeCoral {
   }
 }
 
+/** 지형 feature 마운드 하나(리프 덩어리 등). terrainHelpers.TerrainMound와 동일 형태. */
+export interface BackgroundThemeTerrainMound {
+  readonly x: number
+  readonly z: number
+  readonly radius: number
+  readonly height: number
+}
+
+/**
+ * 테마별 모래바닥 지형(heightfield) 구성. terrainHelpers.SandTerrainConfig와 동일 형태 —
+ * Aquascape가 이 값을 그대로 sandHeightAt에 넘겨 PlaneGeometry 버텍스를 변위한다. 다시마 숲·
+ * 산호초만 갖는 선택 필드(미니멀은 undefined → 변위 경로 자체를 타지 않음, 하위호환).
+ */
+export interface BackgroundThemeTerrain {
+  readonly rollAmplitude: number
+  readonly rollScale: number
+  readonly mounds: readonly BackgroundThemeTerrainMound[]
+  readonly edgeTaperStart: number
+  readonly edgeTaperEnd: number
+  readonly frontFlatZ: number
+  readonly frontTaperWidth: number
+  readonly maxHeight: number
+  /** 마운드/기복 정점 버텍스 컬러 변조 색(바위/암반 톤). */
+  readonly crestColor: number
+  /** 정점 컬러 변조 강도(0=무변조, 1=완전 crestColor). */
+  readonly crestColorStrength: number
+}
+
 /**
  * 배경 테마 하나의 구성. 인터페이스이므로 확장 가능. kelp는 다시마 숲, coral은 산호초 테마만
  * 갖는 선택 필드(형태·색 파라미터는 config.KELP/CORAL, 여기 필드는 배치 seed/count/area).
@@ -121,6 +149,8 @@ export interface BackgroundTheme {
   readonly hardscape: BackgroundThemeHardscape
   readonly kelp?: BackgroundThemeKelp
   readonly coral?: BackgroundThemeCoral
+  /** 모래바닥 지형(heightfield). 미니멀은 없음(평평, 하위호환). */
+  readonly terrain?: BackgroundThemeTerrain
 }
 
 /* ── Registry ── */

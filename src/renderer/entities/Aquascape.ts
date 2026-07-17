@@ -6,6 +6,7 @@ import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
 import { generateKelpInstances, kelpTaperHalfWidth } from './kelpHelpers'
 import type { KelpParams } from './kelpHelpers'
 import { displaceRockPositions } from './rockHelpers'
+import { sandHeightAt } from './terrainHelpers'
 import { generateBranchCoral, generateCoralClusters } from './coralHelpers'
 import { AQUASCAPE, PLANT, KELP, CORAL, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
@@ -692,6 +693,16 @@ export class Aquascape implements SceneEntity {
     this._clearBuild()
   }
 
+  /**
+   * 월드 (x, z)에서의 지형 높이(sandY 기준 상대 변위). 수초·다시마·하드스케이프·산호를 지형
+   * 표면에 안착시켜(떠 있거나 파묻히지 않게) 배치 y에 더한다. 지형 없는 테마(미니멀)는 항상
+   * 0을 반환해 기존 평면 배치를 그대로 유지한다(하위호환).
+   */
+  private _terrainLift(x: number, z: number): number {
+    const t = this._theme.terrain
+    return t ? sandHeightAt(x, z, t) : 0
+  }
+
   /** 현 테마로 모래/수초/다시마/하드스케이프/산호를 빌드한다. */
   private _buildAll(): void {
     this._buildSand()
@@ -723,28 +734,54 @@ export class Aquascape implements SceneEntity {
     this.object3d.clear()
   }
 
-  /* ── Sand floor with procedural color variation + normal map ── */
+  /* ── Sand floor with procedural color variation + normal map ──
+   * 테마에 terrain이 있으면 PlaneGeometry 버텍스 Y를 sandHeightAt로 변위하고(마운드/기복),
+   * computeVertexNormals로 실루엣 셰이딩을 만든다. 세그먼트를 80x20→120x32로 올려 마운드가
+   * 각지지 않게 한다. 미니멀(terrain 없음)은 80x20·무변위로 기존과 동일(하위호환).
+   * CRITICAL(CLAUDE.md): 가장자리 알파 페이드는 sandHeightAt의 edge/front taper가 그 영역을
+   * 변위 0으로 남겨 보존한다(하드컷 수평선 아티팩트 재발 방지). */
   private _buildSand(): void {
-    const segW = 80
-    const segH = 20
+    const terrain = this._theme.terrain
+    const segW = terrain ? 120 : 80
+    const segH = terrain ? 32 : 20
     const geo = new THREE.PlaneGeometry(200, 14, segW, segH)
     geo.rotateX(-Math.PI / 2)
 
     // Vertex color variation for subtle sand grain color
-    const count = geo.attributes.position.count
+    const pos = geo.attributes.position
+    const count = pos.count
     const colors = new Float32Array(count * 3)
     const baseColor = new THREE.Color(this._theme.sandColor)
     const cv = HARDSCAPE.sand.colorVariation
+    const crest = terrain ? new THREE.Color(terrain.crestColor) : null
     for (let i = 0; i < count; i++) {
-      const px = geo.attributes.position.getX(i)
-      const pz = geo.attributes.position.getZ(i)
+      const px = pos.getX(i)
+      const pz = pos.getZ(i)
       // Deterministic noise based on position
       const n = Math.sin(px * 1.3 + pz * 0.9) * 0.5 + Math.sin(px * 3.7 - pz * 2.1) * 0.25
-      colors[i * 3] = baseColor.r + n * cv
-      colors[i * 3 + 1] = baseColor.g + n * cv * 0.8
-      colors[i * 3 + 2] = baseColor.b + n * cv * 0.6
+      let r = baseColor.r + n * cv
+      let g = baseColor.g + n * cv * 0.8
+      let b = baseColor.b + n * cv * 0.6
+
+      if (terrain) {
+        // 평면 로컬 z → 월드 z(worldZ = localZ + sandZ) 변환 후 높이 계산·버텍스 변위.
+        const h = sandHeightAt(px, pz + AQUASCAPE.sandZ, terrain)
+        pos.setY(i, h)
+        // 마운드/기복 정점을 crestColor(암반색)로 변조해 지형이 읽히게(정규화 높이 기준, 정점만).
+        const heightN = Math.max(0, Math.min(1, h / terrain.maxHeight))
+        const blend = heightN * terrain.crestColorStrength
+        if (blend > 0 && crest) {
+          r += (crest.r - r) * blend
+          g += (crest.g - g) * blend
+          b += (crest.b - b) * blend
+        }
+      }
+      colors[i * 3] = r
+      colors[i * 3 + 1] = g
+      colors[i * 3 + 2] = b
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    if (terrain) geo.computeVertexNormals() // 변위 표면의 셰이딩(마운드 실루엣) — 노멀맵과 공존
 
     const normalTex = createSandNormalTexture()
     this._disposables.push({ texture: normalTex })
@@ -761,7 +798,7 @@ export class Aquascape implements SceneEntity {
     applyCausticToStandardMaterial(mat, 'sand-caustic')
     applyWaterDepthToMaterial(mat)
     const mesh = new THREE.Mesh(geo, mat)
-    mesh.position.set(0, AQUASCAPE.sandY, -4)
+    mesh.position.set(0, AQUASCAPE.sandY, AQUASCAPE.sandZ)
     this.object3d.add(mesh)
     this._opaqueMaterials.push(mat)
     this._disposables.push({ geometry: geo, material: mat })
@@ -807,7 +844,8 @@ export class Aquascape implements SceneEntity {
       for (let i = 0; i < count; i++) {
         const inst = instances[i]
         offsets[i * 3] = inst.x
-        offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+        // 지형 표면에 안착(뿌리가 마운드/기복 위에 얹히도록). 미니멀은 lift=0.
+        offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005 + this._terrainLift(inst.x, inst.z)
         offsets[i * 3 + 2] = inst.z
         yaws[i] = inst.yaw
         scales[i] = inst.scale
@@ -899,7 +937,8 @@ export class Aquascape implements SceneEntity {
     for (let i = 0; i < count; i++) {
       const inst = instances[i]
       offsets[i * 3] = inst.x
-      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+      // 다시마 뿌리를 암반 기복 표면에 안착(다시마는 바위에 붙어 자람). 미니멀은 lift=0.
+      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005 + this._terrainLift(inst.x, inst.z)
       offsets[i * 3 + 2] = inst.z
       yaws[i] = inst.yaw
       scales[i] = inst.scale
@@ -1016,7 +1055,8 @@ export class Aquascape implements SceneEntity {
       applyWaterDepthToMaterial(mat)
       const geo = isLargeRock ? rockGeoBase : pebbleGeoBase
       const mesh = new THREE.Mesh(geo, mat)
-      mesh.position.set(p.x, p.y, p.z)
+      // 지형 표면에 안착(마운드 위/기복 위에 얹히도록 — 파묻힘/뜸 방지). 미니멀은 lift=0.
+      mesh.position.set(p.x, p.y + this._terrainLift(p.x, p.z), p.z)
       // flattenY는 큰 바위에만 적용 — 자갈 스케일은 기존과 동일.
       const scaleY = isLargeRock ? p.scaleY * flattenY : p.scaleY
       mesh.scale.set(p.scaleX, scaleY, p.scaleZ)
@@ -1041,7 +1081,7 @@ export class Aquascape implements SceneEntity {
       applyCausticToStandardMaterial(mat, 'driftwood-caustic')
       applyWaterDepthToMaterial(mat)
       const mesh = new THREE.Mesh(dwGeo, mat)
-      mesh.position.set(p.x, p.y, p.z)
+      mesh.position.set(p.x, p.y + this._terrainLift(p.x, p.z), p.z)
       mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
       mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
@@ -1095,7 +1135,9 @@ export class Aquascape implements SceneEntity {
         // 갈색으로 죽인다(캡처 루프 확인). 산호는 근경(z≥−4)이라 가장자리 알파 용해도 불필요.
         // 투명 슬라이더는 _opaqueMaterials 등록으로 동작한다.
         const mesh = new THREE.Mesh(geo, mat)
-        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.branch.sinkDepth, cluster.z)
+        // 리프 마운드 표면에 안착(모래에서 솟은 암초를 산호가 덮는 배치). 미니멀엔 coral 없음.
+        const lift = this._terrainLift(cluster.x, cluster.z)
+        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.branch.sinkDepth + lift, cluster.z)
         mesh.rotation.y = cluster.yaw
         this.object3d.add(mesh)
         this._opaqueMaterials.push(mat)
@@ -1118,7 +1160,8 @@ export class Aquascape implements SceneEntity {
         applyCausticToStandardMaterial(mat, 'coral-brain-caustic')
         // waterDepth 미적용 — 가지 산호와 동일 사유(청록 틴트의 갈색화 방지).
         const mesh = new THREE.Mesh(geo, mat)
-        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.brain.sinkDepth, cluster.z)
+        const lift = this._terrainLift(cluster.x, cluster.z)
+        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.brain.sinkDepth + lift, cluster.z)
         mesh.rotation.y = cluster.yaw
         mesh.scale.setScalar(cluster.scale)
         this.object3d.add(mesh)
@@ -1170,7 +1213,7 @@ export class Aquascape implements SceneEntity {
     for (let i = 0; i < count; i++) {
       const card = fanCards[i]
       offsets[i * 3] = card.x
-      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005 + this._terrainLift(card.x, card.z)
       offsets[i * 3 + 2] = card.z
       yaws[i] = card.yaw
       scales[i] = card.scale

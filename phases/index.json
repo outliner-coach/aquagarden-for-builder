@@ -35,6 +35,10 @@
       "dir": "8-background-themes",
       "status": "completed",
       "completed_at": "2026-07-18T01:28:21+0900"
+    },
+    {
+      "dir": "9-theme-quality",
+      "status": "pending"
     }
   ]
 }

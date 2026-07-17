@@ -1,0 +1,9 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "9-theme-quality",
+  "steps": [
+    { "step": 0, "name": "terrain", "status": "pending", "eval": true, "model": "opus" },
+    { "step": 1, "name": "kelp-density", "status": "pending", "eval": true, "model": "opus" },
+    { "step": 2, "name": "coral-density", "status": "pending", "eval": true, "model": "opus" }
+  ]
+}

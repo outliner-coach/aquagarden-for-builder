@@ -21,3 +21,4 @@ eval-screenshot.png
 *.mov
 .DS_Store
 /eval-theme-*
+/eval-panel-*

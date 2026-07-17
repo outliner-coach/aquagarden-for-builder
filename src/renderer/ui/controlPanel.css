@@ -56,6 +56,7 @@
 .cp__btn:focus-visible,
 .cp__feature-chip:focus-visible,
 .cp__lure-btn:focus-visible,
+.cp__theme-btn:focus-visible,
 .cp__quit-btn:focus-visible,
 .cp__help-btn:focus-visible,
 .cp__help-close:focus-visible,
@@ -172,6 +173,37 @@
   font-weight: 700;
 }
 .cp__lure-btn--active:hover {
+  background: var(--cp-point);
+}
+
+.cp__theme-segment {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cp__theme-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid var(--cp-border);
+  border-radius: 6px;
+  background: var(--cp-button-bg);
+  color: var(--cp-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.cp__theme-btn:hover {
+  background: var(--cp-button-bg-hover);
+}
+.cp__theme-btn--active {
+  border-color: var(--cp-point);
+  background: var(--cp-point);
+  color: #06201d;
+  font-weight: 700;
+}
+.cp__theme-btn--active:hover {
   background: var(--cp-point);
 }
 

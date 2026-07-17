@@ -1,7 +1,9 @@
 import { FISH, COLORS, ZOOM } from '../../shared/config'
 import { setupButtonDrag, setupPanelDrag } from './drag'
 import type { LureMode } from '../entities/FoodLure'
+import { THEME_REGISTRY } from '../entities/themeRegistry'
 import { zoomToSliderPercent, sliderPercentToZoom } from '../core/zoomHelpers'
+import { computeThemeSegmentState } from './themeSegment'
 import './controlPanel.css'
 
 /** ControlPanel이 외부에 알려주는 콜백 인터페이스 */
@@ -25,6 +27,8 @@ export interface ControlPanelCallbacks {
   onEnabledFeaturesChange: (ids: string[]) => void
   /** 시간대 반응(무드) 조명 토글 변경. */
   onMoodReactiveChange: (enabled: boolean) => void
+  /** 배경 테마 변경(THEME_REGISTRY id). */
+  onThemeChange: (id: string) => void
   /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
   onQuit: () => void
 }
@@ -83,6 +87,8 @@ export class ControlPanel {
   private _closedTransform = 'translateY(-4px)'
   private _helpModal!: HTMLDivElement
   private readonly _featureGroupBody: HTMLDivElement
+  /** 배경 테마 세그먼트 버튼(id→엘리먼트). setTheme이 선택 상태 갱신 시 조회한다. */
+  private readonly _themeButtons = new Map<string, HTMLButtonElement>()
 
   constructor(
     container: HTMLElement,
@@ -200,6 +206,25 @@ export class ControlPanel {
     this._moodToggle = this._createToggle(rightCol, '시간대 반응', state.moodReactive,
       (checked) => callbacks.onMoodReactiveChange(checked))
 
+    // ── 배경 테마 세그먼트(THEME_REGISTRY 기반 — id/displayName 하드코딩 금지. 테마 추가 시 자동 반영) ──
+    this._appendSectionLabel(rightCol, '배경 테마')
+    const themeRow = document.createElement('div')
+    themeRow.className = 'cp__theme-segment'
+    for (const theme of THEME_REGISTRY) {
+      const btn = document.createElement('button')
+      btn.className = 'cp__theme-btn'
+      btn.textContent = theme.displayName
+      btn.setAttribute('aria-pressed', 'false')
+      btn.setAttribute('aria-label', `배경 테마: ${theme.displayName}`)
+      btn.addEventListener('click', () => {
+        this.setTheme(theme.id)
+        callbacks.onThemeChange(theme.id)
+      })
+      themeRow.appendChild(btn)
+      this._themeButtons.set(theme.id, btn)
+    }
+    rightCol.appendChild(themeRow)
+
     // ── 하단(전폭): 먹이/놀래키기 → 고정 힌트 슬롯 → 종료 ──
     this._hideToggle.addEventListener('change', () => this._updateHintSlot())
     this._clickThroughToggle.addEventListener('change', () => this._updateHintSlot())
@@ -310,6 +335,20 @@ export class ControlPanel {
     this._feedBtn.classList.toggle('cp__lure-btn--active', mode === 'feed')
     this._scareBtn.classList.toggle('cp__lure-btn--active', mode === 'scare')
     this._updateHintSlot()
+  }
+
+  /**
+   * 외부에서 배경 테마 선택 상태를 UI에 반영한다. 초기 선택 상태 주입(재시작 복원)과
+   * 이후 동기화에 겸용 — 클릭 핸들러도 콜백 호출 전에 이 메서드로 자기 상태를 갱신한다.
+   */
+  setTheme(id: string): void {
+    const states = computeThemeSegmentState(THEME_REGISTRY, id)
+    for (const s of states) {
+      const btn = this._themeButtons.get(s.id)
+      if (!btn) continue
+      btn.setAttribute('aria-pressed', String(s.active))
+      btn.classList.toggle('cp__theme-btn--active', s.active)
+    }
   }
 
   /** 외부에서 상태를 갱신하면 UI를 동기화 */
@@ -469,6 +508,7 @@ export class ControlPanel {
       ['투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
       ['확대', '수조 위에서 마우스 휠을 굴리거나 슬라이더로 1~2배 확대해 감상합니다.'],
       ['시간대 반응', '시각에 따라 조명 무드가 은은히 변합니다 — 심야는 어둑한 청색, 저녁은 골든 앰버.'],
+      ['배경 테마', '수조 배경을 미니멀·다시마 숲·산호초 중에서 선택합니다.'],
       ['수조 숨김', '렌더링을 멈춰 절전합니다. 플로팅 버튼만 남습니다.'],
       ['마우스 투과', '수조 영역의 클릭이 뒤쪽 화면(바탕화면)으로 통과됩니다. 이 패널이 열려 있는 동안은 일시 해제됩니다.'],
       ['Always on Top', '항상 다른 창 위에 표시합니다.'],

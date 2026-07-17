@@ -369,6 +369,12 @@ const controlPanel = new ControlPanel(
       applyMood()
       persistSoon()
     },
+    onThemeChange(id: string) {
+      settings.themeId = id
+      aquascape.setTheme(getTheme(id))
+      setAppliedTheme(id)
+      persistSoon()
+    },
     onLureModeChange(mode) {
       foodLure.setMode(mode)
     },
@@ -377,6 +383,9 @@ const controlPanel = new ControlPanel(
     },
   },
 )
+
+// 복원된(또는 기본) themeId를 패널 세그먼트의 초기 선택 상태로 주입한다.
+controlPanel.setTheme(initialThemeId)
 
 // FoodLure → ControlPanel 모드 동기화 (토글 해제 시 UI 반영)
 foodLure.onModeChange = (mode) => {

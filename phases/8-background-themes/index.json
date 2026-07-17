@@ -1,0 +1,13 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "8-background-themes",
+  "steps": [
+    { "step": 0, "name": "theme-foundation", "status": "pending", "eval": true },
+    { "step": 1, "name": "theme-eval-hooks", "status": "pending", "eval": true },
+    { "step": 2, "name": "kelp", "status": "pending", "eval": true },
+    { "step": 3, "name": "rocks-upgrade", "status": "pending", "eval": true },
+    { "step": 4, "name": "coral", "status": "pending", "eval": true },
+    { "step": 5, "name": "theme-ui", "status": "pending", "eval": true },
+    { "step": 6, "name": "polish-docs", "status": "pending", "eval": true }
+  ]
+}

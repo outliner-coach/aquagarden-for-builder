@@ -34,14 +34,19 @@ export interface BranchCoralParams {
   radiusDecay: number
 }
 
-export type CoralType = 'branch' | 'brain' | 'fan'
+/**
+ * 산호 타입. 'mound'(뭉게 nub 마운드, step2 신설)가 리프 피복의 주역이고 branch/brain/fan은 조연.
+ * 기존 generateCoralClusters는 branch/brain/fan 3종만 배정한다(하위호환) — 'mound'는
+ * generateReefColonies(리프 피복)만 생성한다.
+ */
+export type CoralType = 'mound' | 'branch' | 'brain' | 'fan'
 
 /** 산호 클러스터 하나의 배치·타입·색 인덱스. 렌더가 type에 따라 지오메트리를 생성한다. */
 export interface ClusterSpec {
   x: number
   z: number
   type: CoralType
-  /** 팔레트(주황/분홍/보라) 인덱스. */
+  /** 팔레트 인덱스(CORAL.palette / paletteWeights 순서). */
   paletteIndex: number
   scale: number
   yaw: number
@@ -180,6 +185,190 @@ export function generateCoralClusters(
     const type = CORAL_TYPES[i % CORAL_TYPES.length]
 
     out.push({ x, z, type, paletteIndex, scale, yaw, seed: subSeed })
+  }
+
+  return out
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * 리프 피복 배치(generateReefColonies) — step2 coral-density
+ *
+ * generateCoralClusters(맨모래 스트라타 배치)의 발전형. 레퍼런스(Palmyra)처럼 "솟은 리프 마운드
+ * 표면을 수십 콜로니가 빈틈없이 뒤덮는" 피복감을 만든다. 배치 전략이 근본적으로 달라(스트라타 →
+ * 마운드 disk 밀집) 기존 함수는 그대로 두고 새 생성기를 둔다. y(지형 높이)는 렌더가 sandHeightAt으로
+ * 스냅하므로 여기선 x/z만 뿌린다.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** 리프 마운드 하나(피복 대상). 지형 마운드와 좌표를 맞추되 산호 배치용 반경·콜로니 수를 갖는다. */
+export interface ReefMound {
+  readonly x: number
+  readonly z: number
+  /** 콜로니를 뿌릴 disk 반경(월드 유닛). 지형 마운드보다 살짝 작게 두면 표면만 덮는다. */
+  readonly radius: number
+  /** 이 마운드에 얹을 콜로니 수(12~20 권장 = 피복 밀도). */
+  readonly colonyCount: number
+}
+
+/** generateReefColonies 파라미터(배치는 THEME coral-reef.coral, 비율은 CORAL.reef에서 유래). */
+export interface ReefColonyParams {
+  readonly seed: number
+  /** 피복 대상 마운드들. */
+  readonly mounds: readonly ReefMound[]
+  /** 마운드 밖 채널 가장자리에 흩는 소수 콜로니. */
+  readonly scatter: {
+    readonly count: number
+    readonly area: { readonly minX: number; readonly maxX: number; readonly minZ: number; readonly maxZ: number }
+    /** 중앙 물고기 스테이지 반폭(|x| < 이 값은 비워 시야 확보). */
+    readonly stageHalfWidth: number
+  }
+  /** 타입 가중치 [mound, branch, brain, fan] — mound 주역(뭉게 마운드 다수). */
+  readonly typeWeights: readonly [number, number, number, number]
+  /** 크기 버킷 가중치 [large, medium, small] — 대20/중40/소40 등. */
+  readonly sizeWeights: readonly [number, number, number]
+  /** 크기 버킷별 scale 범위(cluster.scale). 버킷은 비겹침 authoring 권장(역판정 안정). */
+  readonly sizeScales: {
+    readonly large: readonly [number, number]
+    readonly medium: readonly [number, number]
+    readonly small: readonly [number, number]
+  }
+  /** 팔레트 인덱스별 가중치(길이 = CORAL.palette 색 수). 분홍/마젠타 인덱스를 크게. */
+  readonly paletteWeights: readonly number[]
+}
+
+/** 타입 배분 순서(typeWeights 인덱스와 대응). */
+const REEF_TYPE_ORDER: readonly CoralType[] = ['mound', 'branch', 'brain', 'fan']
+
+/**
+ * 가중치를 정수 개수로 결정적 배분한다(합 = total). 각 카테고리에 floor(비율) 배정 후, 남은 잔여를
+ * 소수부 큰 순서(동점은 낮은 인덱스)로 1개씩 나눠준다 — 소표본에서도 목표 비율을 정확히 지켜(미학
+ * 안정) 타입/크기/색이 매번 같은 균형으로 나온다. 가중치 합이 0이면 첫 카테고리에 몰아준다(결정적).
+ */
+export function allocateCounts(total: number, weights: readonly number[]): number[] {
+  const n = weights.length
+  const counts = new Array<number>(n).fill(0)
+  if (total <= 0 || n === 0) return counts
+
+  let sum = 0
+  for (const w of weights) sum += Math.max(0, w)
+  if (sum <= 0) {
+    counts[0] = total
+    return counts
+  }
+
+  const raw = weights.map((w) => (Math.max(0, w) / sum) * total)
+  let assigned = 0
+  for (let i = 0; i < n; i++) {
+    counts[i] = Math.floor(raw[i])
+    assigned += counts[i]
+  }
+  const rem = total - assigned // ∈ [0, n)
+  const order = raw
+    .map((r, i) => ({ frac: r - Math.floor(r), i }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i)
+  for (let k = 0; k < rem; k++) counts[order[k].i]++
+  return counts
+}
+
+/** Fisher-Yates 결정적 셔플(제자리). rng 소비 = 최대 arr.length-1회. */
+function shuffleInPlace<T>(arr: T[], rng: () => number): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    const tmp = arr[i]
+    arr[i] = arr[j]
+    arr[j] = tmp
+  }
+}
+
+/**
+ * 리프 콜로니 배치를 결정적으로 생성한다(마운드 표면 피복 + 채널 스캐터).
+ *
+ * 불변식(테스트 가드):
+ * - 총 콜로니 = Σ mounds.colonyCount + scatter.count.
+ * - 같은 params → 완전 동일(결정적, Math.random 미사용 — mulberry32).
+ * - 마운드 콜로니는 해당 마운드 반경 내(uniform disk, r ∝ √u).
+ * - 타입/크기/팔레트가 가중치대로 정확히 배분(allocateCounts + 셔플).
+ * - 스캐터 콜로니는 중앙 스테이지(|x| < stageHalfWidth) 밖 + area 내.
+ *
+ * rng 소비 순서(마운드마다 순차, 그다음 스캐터): 위치(콜로니당 2) → 타입/크기/팔레트 셔플 →
+ * per-콜로니(scale·yaw·seed 각 1). 이 순서를 바꾸면 결정성 스냅샷이 달라진다.
+ */
+export function generateReefColonies(params: ReefColonyParams): ClusterSpec[] {
+  const rng = mulberry32(params.seed)
+  const TWO_PI = Math.PI * 2
+  const out: ClusterSpec[] = []
+
+  // 위치 배열을 받아 타입/크기/색을 배분·셔플하고 인스턴스 변주를 붙여 out에 push.
+  const emitGroup = (positions: ReadonlyArray<{ x: number; z: number }>): void => {
+    const n = positions.length
+    if (n === 0) return
+
+    const typeCounts = allocateCounts(n, params.typeWeights)
+    const types: CoralType[] = []
+    for (let t = 0; t < REEF_TYPE_ORDER.length; t++) {
+      for (let k = 0; k < typeCounts[t]; k++) types.push(REEF_TYPE_ORDER[t])
+    }
+    shuffleInPlace(types, rng)
+
+    const sizeCounts = allocateCounts(n, params.sizeWeights)
+    const sizes: number[] = []
+    for (let s = 0; s < 3; s++) {
+      for (let k = 0; k < sizeCounts[s]; k++) sizes.push(s)
+    }
+    shuffleInPlace(sizes, rng)
+
+    const palCounts = allocateCounts(n, params.paletteWeights)
+    const palettes: number[] = []
+    for (let pi = 0; pi < palCounts.length; pi++) {
+      for (let k = 0; k < palCounts[pi]; k++) palettes.push(pi)
+    }
+    shuffleInPlace(palettes, rng)
+
+    for (let i = 0; i < n; i++) {
+      const bucket =
+        sizes[i] === 0
+          ? params.sizeScales.large
+          : sizes[i] === 1
+            ? params.sizeScales.medium
+            : params.sizeScales.small
+      const scale = bucket[0] + rng() * (bucket[1] - bucket[0])
+      const yaw = rng() * TWO_PI * 0.9999
+      const seed = Math.floor(rng() * 1_000_000_000)
+      out.push({ x: positions[i].x, z: positions[i].z, type: types[i], paletteIndex: palettes[i], scale, yaw, seed })
+    }
+  }
+
+  // 1) 마운드 표면 피복 — uniform disk(r ∝ √u)로 표면을 고르게 뒤덮는다.
+  for (const m of params.mounds) {
+    const positions: Array<{ x: number; z: number }> = []
+    for (let i = 0; i < m.colonyCount; i++) {
+      const r = m.radius * Math.sqrt(rng())
+      const a = rng() * TWO_PI
+      positions.push({ x: m.x + Math.cos(a) * r, z: m.z + Math.sin(a) * r })
+    }
+    emitGroup(positions)
+  }
+
+  // 2) 채널 가장자리 스캐터 — 중앙 스테이지를 비운 좌/우 유효 폭에 매핑(재추출 없이 결정적).
+  const sc = params.scatter
+  if (sc.count > 0) {
+    const half = sc.stageHalfWidth
+    const leftW = Math.max(0, -half - sc.area.minX) // [minX, -half]
+    const rightW = Math.max(0, sc.area.maxX - half) // [half, maxX]
+    const usableW = leftW + rightW
+    const positions: Array<{ x: number; z: number }> = []
+    for (let i = 0; i < sc.count; i++) {
+      const xU = rng()
+      let x: number
+      if (usableW <= 0) {
+        x = sc.area.minX + xU * (sc.area.maxX - sc.area.minX) // 방어적 폴백(스테이지가 area를 덮는 경우)
+      } else {
+        const u = xU * usableW
+        x = u < leftW ? sc.area.minX + u : half + (u - leftW)
+      }
+      const z = sc.area.minZ + rng() * (sc.area.maxZ - sc.area.minZ)
+      positions.push({ x, z })
+    }
+    emitGroup(positions)
   }
 
   return out

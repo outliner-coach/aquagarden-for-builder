@@ -7,7 +7,8 @@ import { generateKelpClusters, kelpTaperHalfWidth } from './kelpHelpers'
 import type { KelpClusterParams } from './kelpHelpers'
 import { displaceRockPositions } from './rockHelpers'
 import { sandHeightAt } from './terrainHelpers'
-import { generateBranchCoral, generateCoralClusters } from './coralHelpers'
+import { generateBranchCoral, generateReefColonies } from './coralHelpers'
+import type { CoralType } from './coralHelpers'
 import { AQUASCAPE, PLANT, KELP, CORAL, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
@@ -357,6 +358,56 @@ function createBrainCoralGeometry(seed: number): THREE.BufferGeometry {
   const merged = mergeGeometries([main, side], false)
   main.dispose()
   side.dispose()
+  return merged ?? new THREE.BufferGeometry()
+}
+
+/* ── 뭉게 마운드 산호 지오메트리: 반구(dome) 여러 개 클램프 병합 + 굵고 깊은 nub 변위 ──
+ * 뇌 산호의 발전형(뇌=매끈한 큰 요철 하나, 마운드=여러 반구가 뭉친 cauliflower + 굵은 폴립 nub).
+ * 각 반구는 상단 반구(thetaLength=π/2, y≥0 클램프)라 밑면이 열려 지형 표면에 앉는다. displaceRock-
+ * Positions(고빈도·큰 strength)로 오돌토돌한 폴립을 내고, 서브돔을 중심 주변·위로 얹어 뭉게 실루엣.
+ * 크기는 기본(cfg.radius) 단위 — _buildCoral이 콜로니별 scale/yaw/위치를 matrix로 굽고 팔레트별 병합. */
+function createMoundCoralGeometry(seed: number): THREE.BufferGeometry {
+  const cfg = CORAL.mound
+  const rng = mulberry32(seed)
+  const TWO_PI = Math.PI * 2
+
+  const makeDome = (
+    domeSeed: number,
+    radius: number,
+    offX: number,
+    offY: number,
+    offZ: number,
+  ): THREE.BufferGeometry => {
+    const geo = new THREE.SphereGeometry(
+      radius,
+      cfg.widthSegments,
+      cfg.heightSegments,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI / 2, // 상단 반구(밑면 개방 — 표면에 앉음)
+    )
+    // 반경 방향 큰 nub 변위(뇌 산호보다 굵고 깊게). indexed 공유 버텍스라 찢어짐 없음(rockHelpers 가드).
+    const displaced = displaceRockPositions(geo.attributes.position.array, domeSeed, cfg.nubStrength)
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(displaced, 3))
+    geo.computeVertexNormals() // smooth 셰이딩(둥근 폴립) — flat 아님
+    geo.translate(offX, offY, offZ)
+    return geo
+  }
+
+  const parts: THREE.BufferGeometry[] = []
+  parts.push(makeDome(seed, cfg.radius, 0, 0, 0)) // 메인 반구
+  // 서브돔: 중심 주변(domeSpread)·위로(domeLift) 얹어 울퉁불퉁한 뭉게 상단.
+  for (let d = 1; d < cfg.domeCount; d++) {
+    const ang = rng() * TWO_PI
+    const dist = cfg.radius * cfg.domeSpread * (0.45 + rng() * 0.55)
+    const r = cfg.radius * (cfg.domeScaleMin + rng() * (cfg.domeScaleMax - cfg.domeScaleMin))
+    const lift = cfg.radius * cfg.domeLift * rng()
+    parts.push(makeDome(seed + d * 131, r, Math.cos(ang) * dist, lift, Math.sin(ang) * dist))
+  }
+
+  const merged = mergeGeometries(parts, false)
+  for (const p of parts) p.dispose()
   return merged ?? new THREE.BufferGeometry()
 }
 
@@ -1121,19 +1172,28 @@ export class Aquascape implements SceneEntity {
     }
   }
 
-  /* ── Coral clusters (산호초 테마 전용) ──
-   * 가지 산호 = BranchSpec 실린더 병합(클러스터당 드로우콜 1) — MeshStandard(_opaqueMaterials).
-   * 뇌 산호   = 노이즈 변위 반구(smooth) — MeshStandard(_opaqueMaterials).
-   * 부채 산호 = alpha-discard 카드(그래스 셰이더 재사용, 스웨이 미세) — 전체 fan을 하나의
-   *             InstancedMesh로 모아 드로우콜 1, 머티리얼은 _grassMaterials 편승(무드/투명 자동).
+  /* ── Coral reef colonies (산호초 테마 전용) — step2 리프 피복 ──
+   * generateReefColonies가 마운드 표면을 30~45 콜로니로 뒤덮는다(피복). 타입 믹스:
+   * 뭉게 마운드(mound, 주역) = 반구 병합 + 굵은 nub 변위 / 가지(branch) = 실린더 트리 병합 /
+   * 뇌(brain) = 변위 반구 + groove 무늬 — 셋 다 (타입,팔레트색)별 mergeGeometries 병합으로
+   * 드로우콜을 타입×색 수준(개별 mesh 금지). 부채(fan) = alpha-discard 카드 InstancedMesh 1개
+   * (그래스 셰이더 재사용, _grassMaterials 편승 — 무드/투명 자동).
    * additive/반투명 대형 평면 금지(CLAUDE.md 투명 오버레이 함정) — 불투명 메시와 discard 카드만. */
   private _buildCoral(): void {
     const coralCfg = this._theme.coral
     if (!coralCfg) return
 
-    const clusters = generateCoralClusters(coralCfg.seed, coralCfg.count, coralCfg.area)
+    const colonies = generateReefColonies({
+      seed: coralCfg.seed,
+      mounds: coralCfg.mounds,
+      scatter: coralCfg.scatter,
+      typeWeights: CORAL.reef.typeWeights,
+      sizeWeights: CORAL.reef.sizeWeights,
+      sizeScales: CORAL.reef.sizeScales,
+      paletteWeights: CORAL.reef.paletteWeights,
+    })
 
-    // 뇌 산호 무늬 텍스처 — brain 클러스터끼리 공유(lazy 1회 생성)
+    // 뇌 산호 무늬 텍스처 — brain 콜로니끼리 공유(lazy 1회 생성)
     let grooveTex: THREE.CanvasTexture | null = null
 
     interface FanCard {
@@ -1148,58 +1208,58 @@ export class Aquascape implements SceneEntity {
     }
     const fanCards: FanCard[] = []
 
-    for (const cluster of clusters) {
+    /* 불투명 콜로니(mound/branch/brain)를 (타입, 팔레트색)별로 모아 mergeGeometries → 드로우콜을
+     * 타입×색 수준으로 유지한다(콜로니 30~45개를 개별 mesh로 만들면 드로우콜 폭증 — 금지). 각 콜로니
+     * 지오메트리는 타입기본 크기 — 여기서 콜로니별 scale·yaw·위치(지형 표면 안착 lift 포함)를 matrix로
+     * 굽고 같은 (타입,색) 그룹끼리 병합한다. */
+    interface SolidGroup {
+      type: CoralType
+      colorHex: number
+      parts: THREE.BufferGeometry[]
+    }
+    const solidGroups = new Map<string, SolidGroup>()
+    const tmpMat4 = new THREE.Matrix4()
+    const tmpPos = new THREE.Vector3()
+    const tmpQuat = new THREE.Quaternion()
+    const tmpScale = new THREE.Vector3()
+    const yAxis = new THREE.Vector3(0, 1, 0)
+
+    const pushSolid = (
+      type: CoralType,
+      colorHex: number,
+      geo: THREE.BufferGeometry,
+      sinkDepth: number,
+      cluster: { x: number; z: number; yaw: number; scale: number; paletteIndex: number },
+    ): void => {
+      // 지형 표면(마운드/기복)에 안착 + 콜로니 변주(scale·yaw·위치)를 지오메트리에 굽는다(월드 좌표).
+      const lift = this._terrainLift(cluster.x, cluster.z)
+      tmpPos.set(cluster.x, AQUASCAPE.sandY - sinkDepth + lift, cluster.z)
+      tmpQuat.setFromAxisAngle(yAxis, cluster.yaw)
+      tmpScale.setScalar(cluster.scale)
+      tmpMat4.compose(tmpPos, tmpQuat, tmpScale)
+      geo.applyMatrix4(tmpMat4)
+      const key = `${type}:${cluster.paletteIndex}`
+      let grp = solidGroups.get(key)
+      if (!grp) {
+        grp = { type, colorHex, parts: [] }
+        solidGroups.set(key, grp)
+      }
+      grp.parts.push(geo)
+    }
+
+    for (const cluster of colonies) {
       const colorHex = CORAL.palette[cluster.paletteIndex % CORAL.palette.length]
 
-      if (cluster.type === 'branch') {
-        const geo = createBranchCoralGeometry(cluster.seed, CORAL.branch.scale * cluster.scale)
-        const mat = new THREE.MeshStandardMaterial({
-          color: colorHex,
-          roughness: CORAL.branch.roughness,
-          metalness: 0,
-          // 은은한 자기 색 자발광 — 어두운 무드에서도 채도가 완전히 죽지 않게(생기 보존).
-          emissive: colorHex,
-          emissiveIntensity: CORAL.emissiveIntensity,
-        })
-        applyCausticToStandardMaterial(mat, 'coral-branch-caustic')
-        // 주의: applyWaterDepthToMaterial은 적용하지 않는다 — 청록 깊이 틴트가 주황/분홍을
-        // 갈색으로 죽인다(캡처 루프 확인). 산호는 근경(z≥−4)이라 가장자리 알파 용해도 불필요.
-        // 투명 슬라이더는 _opaqueMaterials 등록으로 동작한다.
-        const mesh = new THREE.Mesh(geo, mat)
-        // 리프 마운드 표면에 안착(모래에서 솟은 암초를 산호가 덮는 배치). 미니멀엔 coral 없음.
-        const lift = this._terrainLift(cluster.x, cluster.z)
-        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.branch.sinkDepth + lift, cluster.z)
-        mesh.rotation.y = cluster.yaw
-        this.object3d.add(mesh)
-        this._opaqueMaterials.push(mat)
-        this._disposables.push({ geometry: geo, material: mat })
+      if (cluster.type === 'mound') {
+        pushSolid('mound', colorHex, createMoundCoralGeometry(cluster.seed), CORAL.mound.sinkDepth, cluster)
+      } else if (cluster.type === 'branch') {
+        // worldScale=CORAL.branch.scale만 지오메트리에 굽고 cluster.scale은 matrix에서(기존과 등가 결과).
+        // 가지는 팔레트 대신 전용 골드-탄색(레퍼런스 staghorn) — 크림팔레트면 창백한 흰 나뭇가지로 뜬다.
+        pushSolid('branch', CORAL.branch.color, createBranchCoralGeometry(cluster.seed, CORAL.branch.scale), CORAL.branch.sinkDepth, cluster)
       } else if (cluster.type === 'brain') {
-        if (!grooveTex) {
-          grooveTex = createBrainCoralTexture()
-          this._disposables.push({ texture: grooveTex })
-        }
-        const geo = createBrainCoralGeometry(cluster.seed)
-        const mat = new THREE.MeshStandardMaterial({
-          color: colorHex,
-          roughness: CORAL.brain.roughness,
-          metalness: 0,
-          emissive: colorHex,
-          emissiveIntensity: CORAL.emissiveIntensity,
-          map: grooveTex, // 미로 무늬(그레이스케일 × 팔레트 색)
-          emissiveMap: grooveTex, // emissive 가산이 무늬를 씻지 않도록 같은 무늬로 변조
-        })
-        applyCausticToStandardMaterial(mat, 'coral-brain-caustic')
-        // waterDepth 미적용 — 가지 산호와 동일 사유(청록 틴트의 갈색화 방지).
-        const mesh = new THREE.Mesh(geo, mat)
-        const lift = this._terrainLift(cluster.x, cluster.z)
-        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.brain.sinkDepth + lift, cluster.z)
-        mesh.rotation.y = cluster.yaw
-        mesh.scale.setScalar(cluster.scale)
-        this.object3d.add(mesh)
-        this._opaqueMaterials.push(mat)
-        this._disposables.push({ geometry: geo, material: mat })
+        pushSolid('brain', colorHex, createBrainCoralGeometry(cluster.seed), CORAL.brain.sinkDepth, cluster)
       } else {
-        // fan: 클러스터 중심 주변에 perCluster장 흩뿌림(클러스터 seed 기반 결정적 변주)
+        // fan: 콜로니 중심 주변에 perCluster장 흩뿌림(콜로니 seed 기반 결정적 변주)
         const rng = mulberry32(cluster.seed)
         const col = new THREE.Color(colorHex)
         const base = col.clone().multiplyScalar(CORAL.fan.baseShade)
@@ -1223,6 +1283,45 @@ export class Aquascape implements SceneEntity {
           })
         }
       }
+    }
+
+    // (타입,색) 그룹별 병합 mesh — brain은 groove 무늬 텍스처 공유. 지오메트리에 월드 변환이 이미
+    // 구워져 있으니 mesh 변환은 항등(mesh.position=0).
+    const hasBrain = [...solidGroups.values()].some((g) => g.type === 'brain')
+    if (hasBrain) {
+      grooveTex = createBrainCoralTexture()
+      this._disposables.push({ texture: grooveTex })
+    }
+    for (const grp of solidGroups.values()) {
+      const merged = mergeGeometries(grp.parts, false)
+      for (const p of grp.parts) p.dispose()
+      if (!merged) continue
+      const roughness =
+        grp.type === 'mound'
+          ? CORAL.mound.roughness
+          : grp.type === 'branch'
+            ? CORAL.branch.roughness
+            : CORAL.brain.roughness
+      const mat = new THREE.MeshStandardMaterial({
+        color: grp.colorHex,
+        roughness,
+        metalness: 0,
+        // 은은한 자기 색 자발광 — 어두운 무드에서도 채도가 완전히 죽지 않게(생기 보존).
+        emissive: grp.colorHex,
+        emissiveIntensity: CORAL.emissiveIntensity,
+      })
+      if (grp.type === 'brain' && grooveTex) {
+        mat.map = grooveTex // 미로 무늬(그레이스케일 × 팔레트 색)
+        mat.emissiveMap = grooveTex // emissive 가산이 무늬를 씻지 않도록 같은 무늬로 변조
+      }
+      applyCausticToStandardMaterial(mat, `coral-${grp.type}-caustic`)
+      // 주의: applyWaterDepthToMaterial 미적용 — 청록 깊이 틴트가 분홍/마젠타를 갈색으로 죽인다
+      // (캡처 루프 확인). 산호는 근경(z≥−4)이라 가장자리 알파 용해도 불필요. 투명 슬라이더는
+      // _opaqueMaterials 등록으로 동작한다.
+      const mesh = new THREE.Mesh(merged, mat)
+      this.object3d.add(mesh)
+      this._opaqueMaterials.push(mat)
+      this._disposables.push({ geometry: merged, material: mat })
     }
 
     if (fanCards.length === 0) return

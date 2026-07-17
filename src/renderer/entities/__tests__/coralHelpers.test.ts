@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { generateBranchCoral, generateCoralClusters } from '../coralHelpers'
-import type { BranchCoralParams, CoralType } from '../coralHelpers'
+import { generateBranchCoral, generateCoralClusters, generateReefColonies } from '../coralHelpers'
+import type { BranchCoralParams, CoralType, ReefColonyParams } from '../coralHelpers'
 
 /** THEME coral-reef 초기값과 같은 스케일의 현실적 파라미터 */
 const branchParams: BranchCoralParams = {
@@ -251,5 +251,165 @@ describe('generateCoralClusters', () => {
       const b = generateBranchCoral(branchClusters[1].seed, branchParams)
       expect(a).not.toEqual(b)
     }
+  })
+})
+
+/* ── 리프 피복 배치(generateReefColonies) ──
+ * step2 coral-density: 마운드 표면을 수십 콜로니로 뒤덮고(피복), 타입(뭉게 마운드 다수)·크기·색을
+ * 결정적 비율로 배분한다. 아래 params는 THEME coral-reef.coral + CORAL.reef 초기값과 같은 성격. */
+const reefParams: ReefColonyParams = {
+  seed: 344,
+  mounds: [
+    { x: -6, z: -3.4, radius: 3.6, colonyCount: 16 },
+    { x: 7, z: -3.6, radius: 3.0, colonyCount: 12 },
+  ],
+  scatter: {
+    count: 6,
+    area: { minX: -10.5, maxX: 12.5, minZ: -4.0, maxZ: -2.4 },
+    stageHalfWidth: 2.2,
+  },
+  typeWeights: [5, 2, 1.5, 1.5], // [mound, branch, brain, fan] — mound 주역
+  sizeWeights: [2, 4, 4], // [large, medium, small] — 대20/중40/소40
+  sizeScales: {
+    large: [1.25, 1.6],
+    medium: [0.9, 1.15],
+    small: [0.55, 0.85],
+  },
+  paletteWeights: [3, 3, 2.4, 1.4, 0.8], // 분홍/마젠타 다수 + 크림골드 + 라벤더 소수
+}
+
+/** 비겹침 스케일 범위(sizeScales)로 scale→크기버킷 역판정. */
+function sizeBucketOf(scale: number, p: ReefColonyParams): 'large' | 'medium' | 'small' | 'none' {
+  const inRange = (r: readonly [number, number]): boolean => scale >= r[0] && scale <= r[1]
+  if (inRange(p.sizeScales.large)) return 'large'
+  if (inRange(p.sizeScales.medium)) return 'medium'
+  if (inRange(p.sizeScales.small)) return 'small'
+  return 'none'
+}
+
+describe('generateReefColonies', () => {
+  it('총 콜로니 수 = Σ 마운드 colonyCount + scatter.count', () => {
+    const colonies = generateReefColonies(reefParams)
+    expect(colonies).toHaveLength(16 + 12 + 6)
+  })
+
+  it('마운드·스캐터 모두 0이면 빈 배열', () => {
+    const colonies = generateReefColonies({ ...reefParams, mounds: [], scatter: { ...reefParams.scatter, count: 0 } })
+    expect(colonies).toHaveLength(0)
+  })
+
+  it('같은 params는 완전 동일한 출력을 낸다 (결정적)', () => {
+    expect(generateReefColonies(reefParams)).toEqual(generateReefColonies(reefParams))
+  })
+
+  it('다른 seed는 다른 배치를 낸다', () => {
+    const a = generateReefColonies(reefParams)
+    const b = generateReefColonies({ ...reefParams, seed: 345 })
+    const samePos = a.every((c, i) => c.x === b[i].x && c.z === b[i].z)
+    expect(samePos).toBe(false)
+  })
+
+  it('모든 콜로니 type은 mound/branch/brain/fan 중 하나다', () => {
+    const valid: CoralType[] = ['mound', 'branch', 'brain', 'fan']
+    for (const c of generateReefColonies(reefParams)) {
+      expect(valid).toContain(c.type)
+    }
+  })
+
+  it('마운드 콜로니는 해당 마운드 반경 내에 밀집한다 (피복)', () => {
+    const single: ReefColonyParams = {
+      ...reefParams,
+      mounds: [{ x: -6, z: -3.4, radius: 3.6, colonyCount: 200 }],
+      scatter: { ...reefParams.scatter, count: 0 },
+    }
+    for (const c of generateReefColonies(single)) {
+      const d = Math.hypot(c.x - -6, c.z - -3.4)
+      expect(d).toBeLessThanOrEqual(3.6 + 1e-9)
+    }
+  })
+
+  it('타입은 가중치 비율대로 정확히 배분된다 (mound 주역)', () => {
+    // weights 합이 colonyCount(100)와 비례해 라운딩 없이 정확히 떨어지는 구성으로 검증.
+    const p: ReefColonyParams = {
+      ...reefParams,
+      mounds: [{ x: 0, z: -3.5, radius: 4, colonyCount: 100 }],
+      scatter: { ...reefParams.scatter, count: 0 },
+      typeWeights: [50, 20, 15, 15],
+    }
+    const colonies = generateReefColonies(p)
+    const counts = { mound: 0, branch: 0, brain: 0, fan: 0 } as Record<CoralType, number>
+    for (const c of colonies) counts[c.type]++
+    expect(counts.mound).toBe(50)
+    expect(counts.branch).toBe(20)
+    expect(counts.brain).toBe(15)
+    expect(counts.fan).toBe(15)
+  })
+
+  it('크기는 가중치 비율대로 정확히 배분된다 (대20/중40/소40)', () => {
+    const p: ReefColonyParams = {
+      ...reefParams,
+      mounds: [{ x: 0, z: -3.5, radius: 4, colonyCount: 100 }],
+      scatter: { ...reefParams.scatter, count: 0 },
+      sizeWeights: [20, 40, 40],
+    }
+    const colonies = generateReefColonies(p)
+    const buckets = { large: 0, medium: 0, small: 0, none: 0 }
+    for (const c of colonies) buckets[sizeBucketOf(c.scale, p)]++
+    expect(buckets.none).toBe(0) // 모든 scale이 정의된 버킷 범위 안
+    expect(buckets.large).toBe(20)
+    expect(buckets.medium).toBe(40)
+    expect(buckets.small).toBe(40)
+  })
+
+  it('팔레트는 가중치 비율대로 정확히 배분된다 (분홍/마젠타 다수)', () => {
+    const p: ReefColonyParams = {
+      ...reefParams,
+      mounds: [{ x: 0, z: -3.5, radius: 4, colonyCount: 100 }],
+      scatter: { ...reefParams.scatter, count: 0 },
+      paletteWeights: [30, 30, 24, 10, 6],
+    }
+    const colonies = generateReefColonies(p)
+    const counts = [0, 0, 0, 0, 0]
+    for (const c of colonies) counts[c.paletteIndex]++
+    expect(counts).toEqual([30, 30, 24, 10, 6])
+  })
+
+  it('paletteIndex는 paletteWeights 인덱스 범위 내 정수다', () => {
+    for (const c of generateReefColonies(reefParams)) {
+      expect(Number.isInteger(c.paletteIndex)).toBe(true)
+      expect(c.paletteIndex).toBeGreaterThanOrEqual(0)
+      expect(c.paletteIndex).toBeLessThan(reefParams.paletteWeights.length)
+    }
+  })
+
+  it('스캐터 콜로니는 중앙 물고기 스테이지(|x|<stageHalfWidth) 밖 + area 내에 있다', () => {
+    const p: ReefColonyParams = {
+      ...reefParams,
+      mounds: [],
+      scatter: { count: 100, area: { minX: -10.5, maxX: 12.5, minZ: -4.0, maxZ: -2.4 }, stageHalfWidth: 2.2 },
+    }
+    for (const c of generateReefColonies(p)) {
+      expect(Math.abs(c.x)).toBeGreaterThanOrEqual(2.2 - 1e-9)
+      expect(c.x).toBeGreaterThanOrEqual(-10.5 - 1e-9)
+      expect(c.x).toBeLessThanOrEqual(12.5 + 1e-9)
+      expect(c.z).toBeGreaterThanOrEqual(-4.0 - 1e-9)
+      expect(c.z).toBeLessThanOrEqual(-2.4 + 1e-9)
+    }
+  })
+
+  it('scale은 양수, yaw는 [0,2π), seed는 정수', () => {
+    for (const c of generateReefColonies(reefParams)) {
+      expect(c.scale).toBeGreaterThan(0)
+      expect(c.yaw).toBeGreaterThanOrEqual(0)
+      expect(c.yaw).toBeLessThan(Math.PI * 2)
+      expect(Number.isInteger(c.seed)).toBe(true)
+    }
+  })
+
+  it('콜로니별 seed가 서로 달라 형태 다양성을 만든다', () => {
+    const colonies = generateReefColonies(reefParams)
+    const seeds = new Set(colonies.map((c) => c.seed))
+    // 완전 유일까진 아니어도 대부분 달라야(결정적 서브시드)
+    expect(seeds.size).toBeGreaterThan(colonies.length * 0.8)
   })
 })

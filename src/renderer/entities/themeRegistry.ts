@@ -102,15 +102,30 @@ export interface BackgroundThemeKelp {
   readonly backBias: number
 }
 
-/** 산호초 테마의 coral 클러스터 배치 구성(coralHelpers.generateCoralClusters 입력과 대응). */
+/** 산호초 리프 마운드 하나(피복 대상). coralHelpers.ReefMound와 동일 형태. */
+export interface BackgroundThemeReefMound {
+  readonly x: number
+  readonly z: number
+  readonly radius: number
+  readonly colonyCount: number
+}
+
+/** 산호초 테마의 coral 리프 피복 배치 구성(coralHelpers.generateReefColonies 입력과 대응). */
 export interface BackgroundThemeCoral {
   readonly seed: number
-  readonly count: number
-  readonly area: {
-    readonly minX: number
-    readonly maxX: number
-    readonly minZ: number
-    readonly maxZ: number
+  /** 피복 대상 리프 마운드들(표면을 콜로니가 뒤덮음). */
+  readonly mounds: readonly BackgroundThemeReefMound[]
+  /** 마운드 밖 채널 가장자리 소수 콜로니. */
+  readonly scatter: {
+    readonly count: number
+    readonly area: {
+      readonly minX: number
+      readonly maxX: number
+      readonly minZ: number
+      readonly maxZ: number
+    }
+    /** 중앙 물고기 스테이지 반폭(|x| < 이 값은 비워 시야 확보). */
+    readonly stageHalfWidth: number
   }
 }
 

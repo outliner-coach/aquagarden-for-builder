@@ -297,28 +297,64 @@ export const KELP = {
  * 무드 틴트와 곱연산되므로(가지·뇌=광원 무드, 부채=uMoodColor) 심야 캡처로 탁함을 확인한다.
  */
 export const CORAL = {
-  /** 팔레트: 주황·분홍·보라. generateCoralClusters의 paletteIndex(0~2)로 클러스터별 선택. */
-  palette: [0xff8c5a, 0xff6f9c, 0x9d6bff] as readonly number[],
   /**
-   * 자기 색 emissive 배율(가지·뇌 MeshStandard). 산호는 뷰 깊이 7~9에서 물 틴트/깊이 페이드에
+   * 팔레트(레퍼런스 Palmyra): 분홍/마젠타 다수 + 크림·골드 + 라벤더 소수. paletteWeights(CORAL.reef)로
+   * 분홍/마젠타에 큰 가중을 줘 뭉게 마운드 주역이 분홍계가 되게 한다. 인덱스 순서:
+   * 0 핫핑크 · 1 마젠타-로즈 · 2 소프트핑크 · 3 크림골드(가지 산호의 황금-크림) · 4 라벤더.
+   * (generateCoralClusters의 라운드로빈 3색 보장 테스트는 앞 3색이 분홍계라 그대로 통과.)
+   */
+  palette: [0xff5f8f, 0xe0559a, 0xff88ac, 0xf3ceb0, 0xc9a8e0] as readonly number[],
+  /**
+   * 자기 색 emissive 배율(가지·뇌·마운드 MeshStandard). 산호는 뷰 깊이 7~9에서 물 틴트/깊이 페이드에
    * 채도가 죽는다 — 은은한 자발광으로 "생기"를 보존한다(과하면 야광 — 캡처 루프로 조정).
    */
   emissiveIntensity: 0.3,
+  /**
+   * 뭉게 마운드 산호(cauliflower nub) — step2 리프 피복의 주역. 반구 여러 개를 클램프(y≥0) 병합해
+   * 울퉁불퉁한 뭉게 실루엣을 만들고, 뇌 산호보다 굵고 깊은 nub 변위(displaceRockPositions 고빈도)로
+   * 오돌토돌한 폴립 표면을 낸다. 콜로니는 타입·팔레트별로 mergeGeometries 병합(드로우콜 절약).
+   */
+  mound: {
+    /** 메인 반구 반경(월드 유닛, cluster.scale과 곱). 0.5→0.54: 뭉게 주역 존재감·피복감 강화. */
+    radius: 0.54,
+    /** 경위도 세그먼트(고빈도 nub 변위를 받을 표면 밀도 — 로우폴리 유지 위해 과하지 않게). */
+    widthSegments: 18,
+    heightSegments: 11,
+    /** 뭉게 실루엣: 메인 반구 + 서브돔 수(작은 반구를 얹어 cauliflower 덩어리감). */
+    domeCount: 3,
+    /** 서브돔이 중심에서 흩어지는 최대 수평 거리(반경 대비). */
+    domeSpread: 0.5,
+    /** 서브돔 반경 배율 범위(메인 대비). */
+    domeScaleMin: 0.5,
+    domeScaleMax: 0.78,
+    /** 서브돔을 얹는 높이(반경 대비) — 위로 쌓여 울퉁불퉁한 상단 실루엣. */
+    domeLift: 0.3,
+    /** nub 변위 강도(반경 방향, 뇌 산호 0.06보다 굵고 깊게). 굵은 폴립 오돌토돌. */
+    nubStrength: 0.13,
+    roughness: 0.78,
+    /** 밑동을 지형 표면에 묻는 깊이(월드 유닛) — nub 요철로 가장자리가 떠 보이는 것 방지. */
+    sinkDepth: 0.06,
+  },
   /** 가지 산호(재귀 분기 튜브) — coralHelpers.generateBranchCoral 입력 + 렌더 파라미터. */
   branch: {
+    /**
+     * step2 전용색(골드-탄 staghorn). 팔레트(분홍/마젠타/크림/라벤더)와 달리 가지는 레퍼런스처럼
+     * 골드-탄 사슴뿔 톤으로 통일한다 — 크림팔레트를 쓰면 물속에서 창백한 흰 나뭇가지로 뜬다(캡처 확인).
+     */
+    color: 0xcaa46a,
     /** 실린더 방사 세그먼트(명세: 5). 클러스터당 병합 지오메트리 = 드로우콜 1. */
     radialSegments: 5,
     depth: 3,
-    // step6 미학 조율: 마른 나뭇가지 인상(앙상함) 완화 — 분기 수·두께 유지력·퍼짐폭을 소폭 상향.
-    // 컬러 팝·중앙 트임(클러스터 배치)은 이미 양호해 그대로 두고 형태감만 손봤다(캡처 비교로 확정).
-    childCount: [2, 4] as [number, number],
-    /** 부모 방향에서 벌어지는 최대 극각(라디안). */
-    spreadAngle: 0.72,
+    // step2 미학 조율: 초광각 바에서 앙상한 흰 나뭇가지로 튀던 것을 완화 — 분기를 더 촘촘히([3,4]),
+    // 옆으로 더 벌리고(spreadAngle↑ = 사슴뿔), 두께 유지(radiusDecay↑), 크기 축소(scale↓)로 낮은 덤불화.
+    childCount: [3, 4] as [number, number],
+    /** 부모 방향에서 벌어지는 최대 극각(라디안). 0.72→0.85로 옆 퍼짐↑(세로 나무 인상 완화). */
+    spreadAngle: 0.85,
     lengthDecay: 0.72,
-    // 0.68→0.74: 레벨별 두께 감쇠를 완화해 팁까지 toothpick처럼 얇아지지 않게(뼈대 인상 완화).
-    radiusDecay: 0.74,
-    /** 단위공간(트렁크 길이 1) → 월드 배율. cluster.scale과 곱해 최종 크기 결정. */
-    scale: 0.9,
+    // 0.74→0.78: 레벨별 두께 감쇠를 더 완화해 팁까지 toothpick처럼 얇아지지 않게(뼈대 인상 완화).
+    radiusDecay: 0.78,
+    /** 단위공간(트렁크 길이 1) → 월드 배율. cluster.scale과 곱해 최종 크기 결정. 0.9→0.62(세로 나무 인상 완화). */
+    scale: 0.62,
     roughness: 0.82,
     /** 밑동을 모래에 묻는 깊이(월드 유닛) — 뿌리가 떠 보이는 것 방지. */
     sinkDepth: 0.05,
@@ -395,6 +431,30 @@ export const CORAL = {
     // 0.1→0.18: 밑동 솔리드 영역을 넓혀 "한 점에서 가시가 방사"하는 성게 인상을 완화.
     /** 갈래가 갈라지기 시작하는 밑동 반경(텍스처 높이 대비 비율) — 밑동은 이어 붙는다. */
     baseSolidRatio: 0.18,
+  },
+  /**
+   * 리프 피복 배분 비율(generateReefColonies). 배치(seed/mounds/scatter)는 THEME.coral-reef.coral,
+   * 여기는 "무엇을 얼마나" — 타입/크기/색 비율. 소표본에서도 정확 배분(allocateCounts)이라 캡처마다
+   * 같은 균형(뭉게 주역·크기 다양·분홍 다수)이 나온다.
+   */
+  reef: {
+    /**
+     * 타입 배분 [mound, branch, brain, fan]. step2 조율: 부채(fan)는 평면 카드라 카메라와 평행하면
+     * 얇은 빨간 세로선 아티팩트로 뜨고, 레퍼런스(Palmyra)에도 부채산호가 거의 없어 0으로 뺐다.
+     * 뭉게 마운드가 60%대 주역, 가지·뇌가 조연(레퍼런스 인상).
+     */
+    typeWeights: [5.5, 1.5, 1.5, 0] as readonly [number, number, number, number],
+    /** 크기 배분 [large, medium, small] — 대20/중40/소40(겹치듯 인접한 크기 다양성). */
+    sizeWeights: [2, 4, 4] as readonly [number, number, number],
+    /** 크기 버킷별 cluster.scale 범위(비겹침 — 대형 몇 개 + 중소형 다수). step2: 존재감·피복감 위해 확대. */
+    sizeScales: {
+      large: [1.35, 1.75] as readonly [number, number],
+      medium: [0.95, 1.25] as readonly [number, number],
+      small: [0.62, 0.9] as readonly [number, number],
+    },
+    /** 팔레트 인덱스별 가중치(CORAL.palette 순서). 분홍/마젠타(0~2) 다수 + 크림-피치(3) + 라벤더(4) 소수.
+     *  step2 조율: 크림이 흰색으로 뜨는 것을 억제하려 크림(3)을 낮추고 핫핑크/마젠타(0·1)를 올렸다. */
+    paletteWeights: [3.4, 2.8, 2.4, 1.6, 0.8] as readonly number[],
   },
 } as const
 
@@ -607,16 +667,25 @@ export const THEME = {
         crestColorStrength: 0.65,
       },
       /**
-       * 산호 클러스터 배치(step4). 형태·색은 config.CORAL, 여기는 seed/count/area만.
-       * area는 암반(HARDSCAPE.area)과 겹치는 뒤쪽 대역 — generateCoralClusters의 z 뒤쪽 가중과
-       * 합쳐져 중앙 전면(물고기 유영 z −2.5~0.5)을 비우고 암반 주변에 산호가 모이게 한다.
-       * minZ −4.0: 카메라(z=5) 기준 뷰 깊이를 9 이내로 유지 — 더 뒤는 물 깊이 페이드로 채도·알파가
-       * 급감해 산호의 컬러 팝이 죽는다(캡처 루프에서 확인).
+       * 산호 리프 피복 배치(step2 coral-density). 형태·색·비율은 config.CORAL(+CORAL.reef), 여기는
+       * 배치(seed/mounds/scatter)만. mounds는 terrain.mounds(x−6/+7, z−3.4/−3.6)와 좌표를 맞추되
+       * 산호 반경은 지형 마운드보다 살짝 작게(표면만 덮음) + colonyCount로 피복 밀도를 준다. 렌더가
+       * sandHeightAt으로 y를 마운드 표면에 스냅한다. scatter는 마운드 밖 채널 가장자리 소수(중앙
+       * 물고기 스테이지 |x|<2.2 회피). 총 콜로니 = 26+20+12 = 58(피복감·크기 다양성 목표 — 초광각
+       * 바에서 30+ 콜로니가 읽히려면 넉넉히). scatter area를 좌우 끝(±13.5/15.5)까지 넓혀 빈 모래대를 줄인다.
+       * minZ −4.0: 카메라(z=5) 기준 뷰 깊이를 9 이내로 유지 — 더 뒤는 물 깊이 페이드로 채도가 급감.
        */
       coral: {
         seed: 344,
-        count: 5,
-        area: { minX: -10.5, maxX: 12.5, minZ: -4.0, maxZ: -2.35 },
+        mounds: [
+          { x: -6, z: -3.4, radius: 4.4, colonyCount: 26 }, // 좌중 큰 마운드(terrain r4.5)
+          { x: 7, z: -3.6, radius: 3.7, colonyCount: 20 }, // 우중 작은 마운드(terrain r3.6)
+        ],
+        scatter: {
+          count: 12,
+          area: { minX: -13.5, maxX: 15.5, minZ: -4.0, maxZ: -2.4 },
+          stageHalfWidth: 2.2,
+        },
       },
     },
   ],

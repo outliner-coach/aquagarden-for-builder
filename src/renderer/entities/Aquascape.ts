@@ -2,7 +2,9 @@ import * as THREE from 'three'
 import type { SceneEntity } from '../core/SceneRoot'
 import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
 import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
-import { AQUASCAPE, PLANT, HARDSCAPE, SCENE } from '../../shared/config'
+import { generateKelpInstances, kelpTaperHalfWidth } from './kelpHelpers'
+import type { KelpParams } from './kelpHelpers'
+import { AQUASCAPE, PLANT, KELP, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
 import { getTheme, DEFAULT_THEME_ID, type BackgroundTheme } from './themeRegistry'
@@ -83,6 +85,98 @@ const GRASS_CARD_FRAG = /* glsl */ `
     if (alpha < uAlphaTest) discard;
     // 수초는 비조명 셰이더라 광원 무드가 자동 반영되지 않는다 — 무드(틴트×배율)를 직접 곱한다.
     vec3 col = mix(vBaseColor, vTipColor, vUv.y) * uMoodColor;
+    gl_FragColor = vec4(col, uSceneOpacity);
+  }
+`
+
+/* ── Kelp ribbon vertex shader: 누적 벤딩(뿌리 고정·팁 최대), instanced ──
+ * 그래스 스웨이의 확장: 저주파·대진폭 주 흔들림(pow(h01,1.5) 가중으로 위로 갈수록
+ * 크게 휘는 아치) + 위상이 h01을 따라 진행하는 2차 미세 웨이브(굽이치는 S자 곡률). */
+const KELP_VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSwaySpeed;
+  uniform float uSwayAmplitude;
+  uniform float uSwaySpeed2;
+  uniform float uSwayAmplitude2;
+  uniform float uWorldFreq;
+  uniform float uWaveAlongBlade;
+  uniform float uZSwayRatio;
+
+  attribute vec3 instanceOffset;   // x, y(=sandY), z
+  attribute float instanceYaw;
+  attribute float instanceScale;
+  attribute float instanceHeight;
+  attribute float instancePhase;
+  attribute vec3 instanceBaseColor;
+  attribute vec3 instanceTipColor;
+
+  varying vec2 vUv;
+  varying vec3 vBaseColor;
+  varying vec3 vTipColor;
+
+  void main() {
+    vUv = uv;
+    vBaseColor = instanceBaseColor;
+    vTipColor = instanceTipColor;
+
+    // Scale ribbon by instance height/scale
+    vec3 pos = position;
+    pos.y *= instanceHeight;
+    pos.x *= instanceScale;
+    pos.z *= instanceScale;
+
+    // Rotate around Y by instanceYaw
+    float c = cos(instanceYaw);
+    float s = sin(instanceYaw);
+    vec3 rotated = vec3(
+      pos.x * c - pos.z * s,
+      pos.y,
+      pos.x * s + pos.z * c
+    );
+
+    // 누적 벤딩: 뿌리(h01=0) 고정, 팁 최대 — pow 1.5 가중으로 아치형 곡률
+    float h01 = uv.y;
+    float bend = pow(h01, 1.5);
+    float worldX = instanceOffset.x + rotated.x;
+
+    // 주 흔들림 — 저주파·대진폭. worldX 위상으로 숲을 가로지르는 파도감
+    float mainPhase = uTime * uSwaySpeed + worldX * uWorldFreq + instancePhase;
+    float swayX = sin(mainPhase) * bend * uSwayAmplitude;
+    float swayZ = cos(mainPhase * 0.83) * bend * uSwayAmplitude * uZSwayRatio;
+
+    // 2차 미세 웨이브 — 위상이 블레이드를 따라 진행(h01)해 리본이 굽이친다
+    float wavePhase = uTime * uSwaySpeed2 + h01 * uWaveAlongBlade + instancePhase * 1.7;
+    swayX += sin(wavePhase) * bend * uSwayAmplitude2;
+    swayZ += cos(wavePhase * 0.9) * bend * uSwayAmplitude2 * uZSwayRatio;
+
+    vec3 worldPos = rotated + instanceOffset;
+    worldPos.x += swayX;
+    worldPos.z += swayZ;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos, 1.0);
+  }
+`
+
+/* CRITICAL: vertex에서 쓴 varying(vUv/vBaseColor/vTipColor)을 여기에도 전부 선언 —
+ * 누락 시 조용한 컴파일 실패로 투명 패스 전체가 붕괴한 과거 사고가 있다(CLAUDE.md). */
+const KELP_FRAG = /* glsl */ `
+  uniform sampler2D uLeafAlpha;
+  uniform float uAlphaTest;
+  uniform float uSceneOpacity;
+  uniform vec3 uMoodColor;
+  uniform float uEdgeShade;
+
+  varying vec2 vUv;
+  varying vec3 vBaseColor;
+  varying vec3 vTipColor;
+
+  void main() {
+    float alpha = texture2D(uLeafAlpha, vUv).a;
+    if (alpha < uAlphaTest) discard;
+    // 그래스와 동일 규약: 비조명 셰이더 → 무드(틴트×배율)를 직접 곱한다.
+    vec3 col = mix(vBaseColor, vTipColor, vUv.y) * uMoodColor;
+    // 리본 폭 방향 음영(중앙 밝게·가장자리 어둡게) — 알파-discard만 사용, 블렌딩 불변
+    col *= (1.0 - uEdgeShade) + (2.0 * uEdgeShade) * sin(vUv.x * 3.141592653589793);
     gl_FragColor = vec4(col, uSceneOpacity);
   }
 `
@@ -183,6 +277,90 @@ function createLeafAlphaTexture(width = 64, height = 128): THREE.CanvasTexture {
   tex.wrapS = THREE.ClampToEdgeWrapping
   tex.wrapT = THREE.ClampToEdgeWrapping
   return tex
+}
+
+/* ── Kelp blade alpha texture (CanvasTexture, no external file) ──
+ * createLeafAlphaTexture의 "키 큰 형제": 길쭉하고 가장자리가 물결치는 잎 실루엣.
+ * 중심선은 살짝 미앤더하고(뿌리 고정), 좌우 가장자리는 위상이 어긋난 사인 물결로 비대칭. */
+function createKelpBladeAlphaTexture(): THREE.CanvasTexture {
+  const cfg = KELP.blade
+  const W = cfg.texWidth
+  const H = cfg.texHeight
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  const TWO_PI = Math.PI * 2
+  const N = cfg.silhouetteSamples
+
+  // t: 0=뿌리(캔버스 하단), 1=팁(상단). CanvasTexture flipY로 uv.y=0이 하단 행을 샘플한다.
+  const yAt = (t: number): number => H * (1 - t)
+  const centerX = (t: number): number =>
+    W * (0.5 + cfg.meanderAmp * Math.sin(t * cfg.meanderCount * TWO_PI) * Math.pow(t, cfg.meanderRootLock))
+  const halfAt = (t: number, phase: number): number => {
+    const base = W * (cfg.rootHalf + (cfg.tipHalf - cfg.rootHalf) * t)
+    const wave = 1 + cfg.edgeWaveAmp * Math.sin(t * cfg.edgeWaveCount * TWO_PI + phase)
+    const tipRound = Math.min(1, (1 - t) / cfg.tipRoundSpan)
+    return base * wave * tipRound
+  }
+
+  ctx.beginPath()
+  ctx.moveTo(centerX(0) - halfAt(0, 0), yAt(0))
+  for (let i = 1; i <= N; i++) {
+    const t = i / N
+    ctx.lineTo(centerX(t) - halfAt(t, 0), yAt(t))
+  }
+  for (let i = N; i >= 0; i--) {
+    const t = i / N
+    ctx.lineTo(centerX(t) + halfAt(t, cfg.edgePhaseOffset), yAt(t))
+  }
+  ctx.closePath()
+
+  // 알파는 discard 임계(0.5) 기준 — 본체는 1.0, 팁만 살짝 낮춰 원거리 밉맵에서 부드럽게 침식
+  const grad = ctx.createLinearGradient(0, H, 0, 0)
+  grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)')
+  grad.addColorStop(0.85, 'rgba(255, 255, 255, 0.95)')
+  grad.addColorStop(1, 'rgba(255, 255, 255, 0.8)')
+  ctx.fillStyle = grad
+  ctx.fill()
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.magFilter = THREE.LinearFilter
+  tex.minFilter = THREE.LinearMipMapLinearFilter
+  tex.wrapS = THREE.ClampToEdgeWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  return tex
+}
+
+/* ── Kelp ribbon geometry: 세로 멀티 세그먼트 연속 스트립(링당 2버텍스) ──
+ * uv.y = h01(0=뿌리, 1=팁), 폭은 kelpTaperHalfWidth로 단조 감소.
+ * 높이 1 기준(셰이더에서 instanceHeight 배율). 한 장 + DoubleSide. */
+function createKelpRibbonGeometry(segments: number, baseHalfWidth: number, tipRatio: number): THREE.BufferGeometry {
+  const positions: number[] = []
+  const uvs: number[] = []
+  const indices: number[] = []
+
+  for (let i = 0; i <= segments; i++) {
+    const h01 = i / segments
+    const half = kelpTaperHalfWidth(h01, baseHalfWidth, tipRatio)
+    positions.push(-half, h01, 0)
+    uvs.push(0, h01)
+    positions.push(half, h01, 0)
+    uvs.push(1, h01)
+    if (i < segments) {
+      const b = i * 2
+      indices.push(b, b + 1, b + 3, b, b + 3, b + 2)
+    }
+  }
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geo.setIndex(indices)
+  geo.computeVertexNormals()
+  return geo
 }
 
 /* ── Crossed grass card geometry (2-3 quads intersecting) ── */
@@ -309,10 +487,11 @@ export class Aquascape implements SceneEntity {
     this._clearBuild()
   }
 
-  /** 현 테마로 모래/수초/하드스케이프를 빌드한다. */
+  /** 현 테마로 모래/수초/다시마/하드스케이프를 빌드한다. */
   private _buildAll(): void {
     this._buildSand()
     this._buildGrassCards()
+    this._buildKelp()
     this._buildHardscape()
   }
 
@@ -468,6 +647,101 @@ export class Aquascape implements SceneEntity {
       this._grassMaterials.push(mat)
       this._disposables.push({ geometry: iGeo, material: mat })
     }
+  }
+
+  /* ── Kelp ribbons with InstancedMesh + vertex shader bending ──
+   * 그래스 카드와 동일한 인스턴스드 속성 구성. 머티리얼을 _grassMaterials에 push해
+   * uTime/무드/투명도 갱신 루프에 자동 편승한다(별도 배선 금지). */
+  private _buildKelp(): void {
+    const kelpCfg = this._theme.kelp
+    if (!kelpCfg) return
+
+    const bladeTex = createKelpBladeAlphaTexture()
+    this._disposables.push({ texture: bladeTex })
+
+    const params: KelpParams = {
+      minHeight: kelpCfg.minHeight,
+      maxHeight: kelpCfg.maxHeight,
+      minScale: kelpCfg.minScale,
+      maxScale: kelpCfg.maxScale,
+      baseColor: [...kelpCfg.baseColor] as [number, number, number],
+      tipColor: [...kelpCfg.tipColor] as [number, number, number],
+      colorVariation: kelpCfg.colorVariation,
+      centerGap: kelpCfg.centerGap,
+      centerProbability: kelpCfg.centerProbability,
+      backBias: kelpCfg.backBias,
+    }
+    const instances = generateKelpInstances(kelpCfg.seed, kelpCfg.count, kelpCfg.area, params)
+    const count = instances.length
+
+    const iGeo = createKelpRibbonGeometry(KELP.segments, KELP.baseHalfWidth, KELP.tipRatio)
+
+    const offsets = new Float32Array(count * 3)
+    const yaws = new Float32Array(count)
+    const scales = new Float32Array(count)
+    const heights = new Float32Array(count)
+    const phases = new Float32Array(count)
+    const baseColors = new Float32Array(count * 3)
+    const tipColors = new Float32Array(count * 3)
+
+    for (let i = 0; i < count; i++) {
+      const inst = instances[i]
+      offsets[i * 3] = inst.x
+      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+      offsets[i * 3 + 2] = inst.z
+      yaws[i] = inst.yaw
+      scales[i] = inst.scale
+      heights[i] = inst.height
+      phases[i] = inst.phase
+      baseColors[i * 3] = inst.baseColor[0]
+      baseColors[i * 3 + 1] = inst.baseColor[1]
+      baseColors[i * 3 + 2] = inst.baseColor[2]
+      tipColors[i * 3] = inst.tipColor[0]
+      tipColors[i * 3 + 1] = inst.tipColor[1]
+      tipColors[i * 3 + 2] = inst.tipColor[2]
+    }
+
+    iGeo.setAttribute('instanceOffset', new THREE.InstancedBufferAttribute(offsets, 3))
+    iGeo.setAttribute('instanceYaw', new THREE.InstancedBufferAttribute(yaws, 1))
+    iGeo.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scales, 1))
+    iGeo.setAttribute('instanceHeight', new THREE.InstancedBufferAttribute(heights, 1))
+    iGeo.setAttribute('instancePhase', new THREE.InstancedBufferAttribute(phases, 1))
+    iGeo.setAttribute('instanceBaseColor', new THREE.InstancedBufferAttribute(baseColors, 3))
+    iGeo.setAttribute('instanceTipColor', new THREE.InstancedBufferAttribute(tipColors, 3))
+
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: KELP_VERT,
+      fragmentShader: KELP_FRAG,
+      uniforms: {
+        uTime: { value: 0 },
+        uSwaySpeed: { value: KELP.swaySpeed },
+        uSwayAmplitude: { value: KELP.swayAmplitude },
+        uSwaySpeed2: { value: KELP.swaySpeed2 },
+        uSwayAmplitude2: { value: KELP.swayAmplitude2 },
+        uWorldFreq: { value: KELP.worldFreq },
+        uWaveAlongBlade: { value: KELP.waveAlongBlade },
+        uZSwayRatio: { value: KELP.zSwayRatio },
+        uEdgeShade: { value: KELP.edgeShade },
+        uLeafAlpha: { value: bladeTex },
+        uAlphaTest: { value: KELP.alphaTest },
+        uSceneOpacity: { value: 1.0 },
+        uMoodColor: { value: new THREE.Color(1, 1, 1) },
+      },
+      transparent: true,
+      side: THREE.DoubleSide,
+    })
+
+    const identity = new THREE.Matrix4()
+    const mesh = new THREE.InstancedMesh(iGeo, mat, count)
+    for (let i = 0; i < count; i++) {
+      mesh.setMatrixAt(i, identity)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.frustumCulled = false
+
+    this.object3d.add(mesh)
+    this._grassMaterials.push(mat)
+    this._disposables.push({ geometry: iGeo, material: mat })
   }
 
   /* ── Rocks, pebbles & driftwood (generateHardscape 기반) ── */

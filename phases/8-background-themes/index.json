@@ -25,9 +25,12 @@
     {
       "step": 2,
       "name": "kelp",
-      "status": "pending",
+      "status": "completed",
       "eval": true,
-      "model": "opus"
+      "model": "opus",
+      "started_at": "2026-07-17T23:09:00+0900",
+      "summary": "kelpHelpers.ts 신설(TDD 18개): generateKelpInstances(시드 결정적 mulberry32 재사용·가장자리 가중 x/뒤쪽 가중 z/centerGap 중앙 폴오프, 인스턴스당 rng 소비 횟수 고정)와 kelpTaperHalfWidth(뿌리→팁 단조 감소). Aquascape에 KELP_VERT(누적 벤딩: pow(h01,1.5) 주 흔들림 + h01 위상 진행 2차 웨이브, 뿌리 고정)·KELP_FRAG(alpha-discard+base→tip 그라디언트+uMoodColor+uSceneOpacity+uEdgeShade, varying 전부 선언)·createKelpBladeAlphaTexture(물결 가장자리 blade 실루엣)·createKelpRibbonGeometry(세그먼트 10 연속 스트립, uv.y=h01)·_buildKelp(인스턴스드, 머티리얼을 _grassMaterials에 push해 uTime/무드/투명 자동 편승 — 투명 55%·심야 무드 캡처로 수치 검증). config에 KELP 상수(blade 텍스처 파라미터 포함), THEME kelp-forest에 kelp 구성(count 26, height 2.5~3.3, 짙은 갈록→올리브, area ±16.5, centerGap 5.5, centerProbability 0.05, seed 708=좌14:우12 균형·중앙 비껴감 — 3회 eval 루프로 확정). themeRegistry에 BackgroundThemeKelp 옵셔널 필드. 고밝기+밝은 배경(AQUA_SMOKE_BG) 격리 캡처에서 사각형/수평선 아티팩트 없음 확인. 테스트 530(기존 512+18) 전부 통과, 미니멀 무회귀. 다음 step: 다시마 숲 하드스케이프는 아직 정12면체 — step3(rocks-upgrade)이 노이즈 변위로 격상, 캡처는 eval-theme-kelp*.png 패턴 재사용.",
+      "completed_at": "2026-07-17T23:24:47+0900"
     },
     {
       "step": 3,

@@ -67,9 +67,31 @@ export interface BackgroundThemeHardscape {
   }
 }
 
+/** 다시마 숲 테마의 kelp 배치·색 구성(kelpHelpers.generateKelpInstances 입력과 대응). */
+export interface BackgroundThemeKelp {
+  readonly count: number
+  readonly minHeight: number
+  readonly maxHeight: number
+  readonly minScale: number
+  readonly maxScale: number
+  readonly baseColor: readonly [number, number, number]
+  readonly tipColor: readonly [number, number, number]
+  readonly colorVariation: number
+  readonly area: {
+    readonly minX: number
+    readonly maxX: number
+    readonly minZ: number
+    readonly maxZ: number
+  }
+  readonly seed: number
+  readonly centerGap: number
+  readonly centerProbability: number
+  readonly backBias: number
+}
+
 /**
- * 배경 테마 하나의 구성. 인터페이스이므로 확장 가능 — 다시마(kelp)·산호(coral) 시각
- * 요소 config는 이후 step(2, 4)에서 선택적 필드로 추가된다.
+ * 배경 테마 하나의 구성. 인터페이스이므로 확장 가능 — 산호(coral) 시각 요소 config는
+ * 이후 step(4)에서 선택적 필드로 추가된다. kelp는 다시마 숲 테마만 갖는 선택 필드.
  */
 export interface BackgroundTheme {
   readonly id: string
@@ -77,6 +99,7 @@ export interface BackgroundTheme {
   readonly sandColor: number
   readonly plants: readonly BackgroundThemePlant[]
   readonly hardscape: BackgroundThemeHardscape
+  readonly kelp?: BackgroundThemeKelp
 }
 
 /* ── Registry ── */

@@ -210,6 +210,57 @@ export const PLANT = {
   ],
 } as const
 
+/**
+ * 다시마(kelp) — 그래스 카드의 "키 큰 형제". 리본 지오메트리 + 버텍스 셰이더 벤딩.
+ * 배치 파라미터(count/height/색/area/폴오프)는 테마별로 THEME.themes[].kelp에 두고,
+ * 여기는 종 공통의 형태·움직임·텍스처 파라미터만 둔다.
+ */
+export const KELP = {
+  /** alpha-discard 임계값(그래스와 동일 규약 — additive/반투명 평면 금지) */
+  alphaTest: 0.5,
+  /** 리본 세로 세그먼트 수(스펙 6~10). 링당 2버텍스 연속 스트립 */
+  segments: 10,
+  /** 뿌리 반폭(월드 유닛, instanceScale 곱 전) */
+  baseHalfWidth: 0.22,
+  /** 팁 반폭 비율(뿌리 대비) — kelpTaperHalfWidth로 단조 감소 */
+  tipRatio: 0.35,
+  /** 주 흔들림 — 저주파·대진폭(그래스 스웨이보다 느리고 크다). 뿌리 고정·팁 최대 */
+  swaySpeed: 0.55,
+  swayAmplitude: 0.34,
+  /** 주 흔들림 위상의 월드 X 계수 — 숲을 가로지르는 파도감 */
+  worldFreq: 0.55,
+  /** 2차 미세 웨이브 — 위상이 h01을 따라 진행해 리본이 굽이치는 S자 곡률을 만든다 */
+  swaySpeed2: 1.3,
+  swayAmplitude2: 0.09,
+  /** 2차 웨이브의 블레이드 방향 위상 진행량(라디안) */
+  waveAlongBlade: 6.8,
+  /** X 대비 Z 흔들림 비율(주·2차 공통) */
+  zSwayRatio: 0.45,
+  /** 프래그먼트 가장자리 음영(0=없음). 중앙 1+e, 가장자리 1-e 배율로 원통감 힌트 */
+  edgeShade: 0.14,
+  /** blade 알파 텍스처(캔버스) — 길쭉하고 가장자리가 물결치는 잎 실루엣 */
+  blade: {
+    texWidth: 64,
+    texHeight: 512,
+    /** 실루엣 샘플 수(위/아래 왕복 경로의 세로 분해능) */
+    silhouetteSamples: 64,
+    /** 뿌리/팁 반폭(캔버스 폭 대비 비율) — 지오메트리 테이퍼와 곱으로 적용됨 */
+    rootHalf: 0.42,
+    tipHalf: 0.3,
+    /** 가장자리 물결 반복 수·진폭(반폭 대비 비율) */
+    edgeWaveCount: 5.0,
+    edgeWaveAmp: 0.18,
+    /** 좌우 가장자리 물결 위상차(라디안) — 비대칭 유기감 */
+    edgePhaseOffset: 2.1,
+    /** 중심선 좌우 미앤더 진폭(폭 대비 비율)·반복 수. 뿌리는 고정(t^meanderRootLock 가중) */
+    meanderAmp: 0.06,
+    meanderCount: 1.6,
+    meanderRootLock: 0.7,
+    /** 팁 라운딩 구간(t 비율) — 마지막 구간에서 반폭을 0으로 수렴 */
+    tipRoundSpan: 0.06,
+  },
+} as const
+
 export const HARDSCAPE = {
   seed: 404,
   rockCount: 12,
@@ -274,10 +325,31 @@ export const THEME = {
     {
       id: 'kelp-forest',
       displayName: '다시마 숲',
-      // 미니멀보다 약간 어둡게 — 초록-갈색 분위기 예고(다시마 시각 요소 자체는 step 2 범위).
+      // 미니멀보다 약간 어둡게 — 초록-갈색 분위기 예고.
       sandColor: 0x7d6e58,
-      // 카펫은 유지(다시마는 이후 step에서 추가되는 별도 요소).
+      // 카펫은 유지(다시마는 카펫 위에 서는 별도 요소).
       plants: PLANT.species,
+      /**
+       * 다시마 배치·색. 좌우 가장자리·뒤쪽 z 집중, 중앙(|x|<centerGap)은 폴오프로 트여
+       * 물고기(FISH.bounds x±10) 시야를 확보한다. sandY(-1.8)+높이 2.2~3.0 → 팁 y≈0.4~1.2.
+       * 수치는 비전 eval 루프에서 조정하는 출발점.
+       */
+      kelp: {
+        count: 26,
+        minHeight: 2.5,
+        maxHeight: 3.3,
+        minScale: 0.95,
+        maxScale: 1.3,
+        baseColor: [0.13, 0.23, 0.09] as [number, number, number], // 짙은 갈록
+        tipColor: [0.38, 0.45, 0.17] as [number, number, number], // 올리브
+        colorVariation: 0.06,
+        area: { minX: -16.5, maxX: 16.5, minZ: -5.4, maxZ: -2.6 },
+        // seed 708: 좌/우 클러스터 균형(14:12) + 중앙 침범이 정중앙을 비껴감(오프라인 배치 분석)
+        seed: 708,
+        centerGap: 5.5,
+        centerProbability: 0.05,
+        backBias: 1.6,
+      },
       hardscape: {
         seed: 505,
         // 큰 바위 강조 초기값: 개수는 줄이고 스케일을 키워 존재감을 높인다

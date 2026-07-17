@@ -97,9 +97,21 @@ export interface BackgroundThemeKelp {
   readonly backBias: number
 }
 
+/** 산호초 테마의 coral 클러스터 배치 구성(coralHelpers.generateCoralClusters 입력과 대응). */
+export interface BackgroundThemeCoral {
+  readonly seed: number
+  readonly count: number
+  readonly area: {
+    readonly minX: number
+    readonly maxX: number
+    readonly minZ: number
+    readonly maxZ: number
+  }
+}
+
 /**
- * 배경 테마 하나의 구성. 인터페이스이므로 확장 가능 — 산호(coral) 시각 요소 config는
- * 이후 step(4)에서 선택적 필드로 추가된다. kelp는 다시마 숲 테마만 갖는 선택 필드.
+ * 배경 테마 하나의 구성. 인터페이스이므로 확장 가능. kelp는 다시마 숲, coral은 산호초 테마만
+ * 갖는 선택 필드(형태·색 파라미터는 config.KELP/CORAL, 여기 필드는 배치 seed/count/area).
  */
 export interface BackgroundTheme {
   readonly id: string
@@ -108,6 +120,7 @@ export interface BackgroundTheme {
   readonly plants: readonly BackgroundThemePlant[]
   readonly hardscape: BackgroundThemeHardscape
   readonly kelp?: BackgroundThemeKelp
+  readonly coral?: BackgroundThemeCoral
 }
 
 /* ── Registry ── */

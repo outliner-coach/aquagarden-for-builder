@@ -45,9 +45,12 @@
     {
       "step": 4,
       "name": "coral",
-      "status": "pending",
+      "status": "completed",
       "eval": true,
-      "model": "opus"
+      "model": "opus",
+      "started_at": "2026-07-17T23:52:00+0900",
+      "summary": "coralHelpers.ts 신설(TDD 26개): generateBranchCoral(재귀 분기 트리 — 같은 시드 동일 출력·자식 start===부모 end 연결성·radius/길이 레벨당 단조 감소·분기 수 childCount^depth 공식 부합)과 generateCoralClusters(스트라타 x 배치로 좌우 고른 분포 보장 — 균일 랜덤은 시드 따라 한쪽 몰림, 캡처로 확인·수정. 처음 3개는 팔레트 회전 순열로 주황/분홍/보라 3색 모두 등장 보장. z 뒤쪽 가중, 타입 branch/brain/fan 라운드로빈). Aquascape._buildCoral: 가지=BranchSpec→CylinderGeometry(radialSegments 5) mergeGeometries 병합(메인+사이드 트리 포함 클러스터당 드로우콜 1), 뇌=SphereGeometry 반구 2개(메인+사이드) displaceRockPositions(strength 0.06) 변위 후 병합·smooth 셰이딩+미로(groove) 무늬 CanvasTexture(map+emissiveMap — 민무늬 돔은 뇌 산호로 안 읽힘), 부채=부채꼴+방사 갈래 컷 알파 텍스처를 그래스 카드 셰이더로 렌더(전체 fan 하나의 InstancedMesh, _grassMaterials 편승해 무드/투명 자동, 스웨이 미세 0.022). 가지·뇌는 MeshStandard+caustic+_opaqueMaterials — 단 applyWaterDepthToMaterial은 의도적으로 미적용(청록 깊이 틴트가 주황/분홍을 갈색으로 죽임, 캡처 확인) + emissive(자기 색×0.3)로 어두운 무드에서도 생기 유지. config CORAL 상수(팔레트 0xff8c5a/0xff6f9c/0x9d6bff, branch/brain/fan 파라미터)·THEME coral-reef에 coral{seed 344, count 5, area z −4.0~−2.35(뷰 깊이 9 이내 — 더 뒤는 물 페이드로 채도 급감)} 추가, themeRegistry에 BackgroundThemeCoral 옵셔널 필드. 미학 4회 반복(크기 확대→스트라타 배치→팔레트 순환+뇌 무늬→waterDepth 제거+emissive 조정): 낮 캡처에서 산호 3종 형태·주황/분홍/보라 팝 확인, 심야(23.5h) 캡처에서 색조 유지(죽은 회색 아님)·emissive 0.4→0.3 하향으로 심야 형광 위화감 제거, 고밝기+밝은 배경(AQUA_SMOKE_BG 225) 캡처에서 사각형/수평선 아티팩트 없음(부채 카드 포함). 테스트 566(기존 540+26)·lint·build·smoke 4종(plain/coral/night/bright) 전부 통과, eval_vision은 CLI 인증 만료로 skipped 통과(정상 — 미학은 캡처 직접 확인). 다음 step(5, theme-ui): 테마 3종 시각 요소 완성 — ControlPanel 세그먼트 버튼과 persistence.themeId 저장 연결만 남음(Aquascape.setTheme/getTheme/THEME_REGISTRY 준비 완료).",
+      "completed_at": "2026-07-18T00:25:00+0900"
     },
     {
       "step": 5,

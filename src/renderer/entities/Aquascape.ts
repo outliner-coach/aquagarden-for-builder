@@ -1,11 +1,13 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { SceneEntity } from '../core/SceneRoot'
-import { advanceTime, generatePlantInstances, generateHardscape } from './aquascapeHelpers'
+import { advanceTime, generatePlantInstances, generateHardscape, mulberry32 } from './aquascapeHelpers'
 import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
 import { generateKelpInstances, kelpTaperHalfWidth } from './kelpHelpers'
 import type { KelpParams } from './kelpHelpers'
 import { displaceRockPositions } from './rockHelpers'
-import { AQUASCAPE, PLANT, KELP, HARDSCAPE, SCENE } from '../../shared/config'
+import { generateBranchCoral, generateCoralClusters } from './coralHelpers'
+import { AQUASCAPE, PLANT, KELP, CORAL, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
 import { getTheme, DEFAULT_THEME_ID, type BackgroundTheme } from './themeRegistry'
@@ -248,6 +250,195 @@ function createDisplacedRockGeometry(seed: number, strength: number): THREE.Buff
   geo.setAttribute('position', new THREE.Float32BufferAttribute(displaced, 3))
   geo.computeVertexNormals()
   return geo
+}
+
+/* ── 가지 산호 지오메트리: BranchSpec 세그먼트들을 실린더로 만들어 하나로 병합 ──
+ * 클러스터 전체(메인 + 사이드 트리)를 mergeGeometries로 합쳐 드로우콜 1. 각 실린더는
+ * 밑동 원점·+Y 정렬로 만든 뒤 세그먼트 방향(dir)으로 회전(applyQuaternion이 position·normal
+ * 모두 변환)해 start로 옮긴다.
+ * worldScale = CORAL.branch.scale × cluster.scale(단위공간 트렁크 길이 1 → 월드 크기). */
+function createBranchCoralGeometry(seed: number, worldScale: number): THREE.BufferGeometry {
+  const up = new THREE.Vector3(0, 1, 0)
+  const start = new THREE.Vector3()
+  const end = new THREE.Vector3()
+  const dir = new THREE.Vector3()
+  const quat = new THREE.Quaternion()
+  const parts: THREE.BufferGeometry[] = []
+
+  const addTree = (treeSeed: number, treeScale: number, worldOffX: number, worldOffZ: number): void => {
+    const specs = generateBranchCoral(treeSeed, {
+      depth: CORAL.branch.depth,
+      childCount: [...CORAL.branch.childCount] as [number, number],
+      spreadAngle: CORAL.branch.spreadAngle,
+      lengthDecay: CORAL.branch.lengthDecay,
+      radiusDecay: CORAL.branch.radiusDecay,
+    })
+    const s2w = worldScale * treeScale // 트리 단위공간 → 월드
+    for (const s of specs) {
+      start.set(s.start[0], s.start[1], s.start[2]).multiplyScalar(s2w)
+      end.set(s.end[0], s.end[1], s.end[2]).multiplyScalar(s2w)
+      start.x += worldOffX
+      start.z += worldOffZ
+      end.x += worldOffX
+      end.z += worldOffZ
+      dir.subVectors(end, start)
+      const len = dir.length()
+      if (len < 1e-6) continue
+      const rBottom = s.radius * s2w
+      const rTop = rBottom * CORAL.branch.radiusDecay // 자식 밑동과 이어지는 테이퍼
+      const cyl = new THREE.CylinderGeometry(rTop, rBottom, len, CORAL.branch.radialSegments)
+      cyl.translate(0, len / 2, 0) // 밑동을 원점으로
+      quat.setFromUnitVectors(up, dir.normalize())
+      cyl.applyQuaternion(quat)
+      cyl.translate(start.x, start.y, start.z)
+      parts.push(cyl)
+    }
+  }
+
+  // 메인 트리 + 사이드 트리(작게, 옆에) — "클러스터로 모인" 군집 실루엣.
+  addTree(seed, 1, 0, 0)
+  addTree(
+    seed + 1,
+    CORAL.branch.sideScale,
+    worldScale * CORAL.branch.sideOffsetX,
+    worldScale * CORAL.branch.sideOffsetZ,
+  )
+
+  const merged = mergeGeometries(parts, false)
+  for (const p of parts) p.dispose()
+  // 실린더 자체 노멀은 applyQuaternion으로 이미 올바르므로 재계산 불필요(병합만).
+  return merged ?? new THREE.BufferGeometry()
+}
+
+/* ── 뇌 산호 지오메트리: 반구(dome) + step3 위치기반 해시 변위(작은 strength·고빈도) ──
+ * SphereGeometry의 thetaLength=π/2 → 상단 반구(밑면 개방, 모래에 앉음). indexed(공유 버텍스)라
+ * displaceRockPositions가 찢어짐 없이 적용되고 computeVertexNormals로 smooth(둥근) 요철이 된다.
+ * 메인 돔 + 사이드 돔을 병합해 군집 실루엣(드로우콜 1). */
+function createBrainCoralGeometry(seed: number): THREE.BufferGeometry {
+  const makeDome = (domeSeed: number, radius: number, offX: number, offZ: number): THREE.BufferGeometry => {
+    const geo = new THREE.SphereGeometry(
+      radius,
+      CORAL.brain.widthSegments,
+      CORAL.brain.heightSegments,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI / 2,
+    )
+    const displaced = displaceRockPositions(
+      geo.attributes.position.array,
+      domeSeed,
+      CORAL.brain.displaceStrength,
+    )
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(displaced, 3))
+    geo.computeVertexNormals() // smooth 셰이딩(둥근 요철) — flat 아님
+    geo.translate(offX, 0, offZ)
+    return geo
+  }
+
+  const r = CORAL.brain.radius
+  const off = r * CORAL.brain.sideOffsetFactor
+  const main = makeDome(seed, r, 0, 0)
+  const side = makeDome(seed + 1, r * CORAL.brain.sideScale, off, off * 0.35)
+  const merged = mergeGeometries([main, side], false)
+  main.dispose()
+  side.dispose()
+  return merged ?? new THREE.BufferGeometry()
+}
+
+/* ── 뇌 산호 미로(groove) 무늬 텍스처(CanvasTexture, 외부 파일 없음) ──
+ * 밝은 능선 + 어두운 골이 굽이치는 그레이스케일 — material.color(팔레트)와 곱연산되어 색 유지.
+ * 민무늬 돔은 "뇌 산호"로 읽히지 않아 무늬로 정체성을 만든다. u 방향 주기는 정수(RepeatWrapping
+ * seamless), v는 ClampToEdge. 내부 계수는 무늬 형태 상수(caustics 텍스처 계수와 동일한 성격). */
+function createBrainCoralTexture(): THREE.CanvasTexture {
+  const cfg = CORAL.brain.groove
+  const S = cfg.texSize
+  const canvas = document.createElement('canvas')
+  canvas.width = S
+  canvas.height = S
+  const ctx = canvas.getContext('2d')!
+  const imgData = ctx.createImageData(S, S)
+  const data = imgData.data
+  const TWO_PI = Math.PI * 2
+
+  for (let y = 0; y < S; y++) {
+    const v = y / S
+    for (let x = 0; x < S; x++) {
+      const u = x / S
+      // 줄무늬 위상을 두 겹의 사인으로 워프 → 굽이치는 골(미로 느낌). u 주기는 정수만 사용.
+      const warpA = Math.sin(u * 3 * TWO_PI + v * 5.0) * 1.2
+      const warpB = Math.sin(v * cfg.scale * 0.7 * TWO_PI) * cfg.warp
+      const band = Math.sin(u * cfg.scale * TWO_PI + warpA + warpB)
+      const ridge = Math.min(1, Math.abs(band) * 1.6) // 0=골, 1=능선
+      const value = 1 - cfg.depth * (1 - ridge)
+      const byte = Math.round(value * 255)
+      const i = (y * S + x) * 4
+      data[i] = byte
+      data[i + 1] = byte
+      data[i + 2] = byte
+      data[i + 3] = 255
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  tex.repeat.set(cfg.repeatX, cfg.repeatY)
+  return tex
+}
+
+/* ── 부채 산호 알파 텍스처(CanvasTexture, 외부 파일 없음) ──
+ * 밑동(하단 중앙)에서 위로 펼쳐지는 부채꼴 + 방사 갈래(잎맥) 사이 투명 컷으로 성긴 그물 실루엣.
+ * 알파-discard만 사용(그래스/켈프와 동일 규약 — additive/반투명 평면 금지). */
+function createCoralFanAlphaTexture(): THREE.CanvasTexture {
+  const cfg = CORAL.fan
+  const W = cfg.texWidth
+  const H = cfg.texHeight
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  const baseX = W / 2
+  const baseY = H // 밑동: 캔버스 하단 중앙(uv.y=0 = 카드 밑동)
+  const R = H * 0.96 // 부채 반경
+  const half = cfg.fanHalfAngle
+  const UP = -Math.PI / 2 // 캔버스 각도계에서 위쪽
+  const baseSolidR = H * cfg.baseSolidRatio
+  const veins = cfg.veinCount
+  const slot = (2 * half) / veins
+  const fingerAng = slot * (1 - cfg.veinGapRatio)
+
+  ctx.fillStyle = 'rgba(255,255,255,1)'
+
+  // 1) 밑동 솔리드 웨지(갈래들을 이어 붙임)
+  ctx.beginPath()
+  ctx.moveTo(baseX, baseY)
+  ctx.arc(baseX, baseY, baseSolidR, UP - half, UP + half)
+  ctx.closePath()
+  ctx.fill()
+
+  // 2) 각 갈래(finger): 밑동 근처에서 부채 반경까지 채운 환형 섹터
+  const innerR = baseSolidR * 0.5
+  for (let i = 0; i < veins; i++) {
+    const center = UP - half + slot * (i + 0.5)
+    const a0 = center - fingerAng / 2
+    const a1 = center + fingerAng / 2
+    ctx.beginPath()
+    ctx.arc(baseX, baseY, innerR, a0, a1, false)
+    ctx.arc(baseX, baseY, R, a1, a0, true)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.magFilter = THREE.LinearFilter
+  tex.minFilter = THREE.LinearMipMapLinearFilter
+  tex.wrapS = THREE.ClampToEdgeWrapping
+  tex.wrapT = THREE.ClampToEdgeWrapping
+  return tex
 }
 
 /* ── Leaf alpha texture (CanvasTexture, no external file) ── */
@@ -501,12 +692,13 @@ export class Aquascape implements SceneEntity {
     this._clearBuild()
   }
 
-  /** 현 테마로 모래/수초/다시마/하드스케이프를 빌드한다. */
+  /** 현 테마로 모래/수초/다시마/하드스케이프/산호를 빌드한다. */
   private _buildAll(): void {
     this._buildSand()
     this._buildGrassCards()
     this._buildKelp()
     this._buildHardscape()
+    this._buildCoral()
   }
 
   /**
@@ -850,6 +1042,179 @@ export class Aquascape implements SceneEntity {
       this._opaqueMaterials.push(mat)
       this._disposables.push({ material: mat })
     }
+  }
+
+  /* ── Coral clusters (산호초 테마 전용) ──
+   * 가지 산호 = BranchSpec 실린더 병합(클러스터당 드로우콜 1) — MeshStandard(_opaqueMaterials).
+   * 뇌 산호   = 노이즈 변위 반구(smooth) — MeshStandard(_opaqueMaterials).
+   * 부채 산호 = alpha-discard 카드(그래스 셰이더 재사용, 스웨이 미세) — 전체 fan을 하나의
+   *             InstancedMesh로 모아 드로우콜 1, 머티리얼은 _grassMaterials 편승(무드/투명 자동).
+   * additive/반투명 대형 평면 금지(CLAUDE.md 투명 오버레이 함정) — 불투명 메시와 discard 카드만. */
+  private _buildCoral(): void {
+    const coralCfg = this._theme.coral
+    if (!coralCfg) return
+
+    const clusters = generateCoralClusters(coralCfg.seed, coralCfg.count, coralCfg.area)
+
+    // 뇌 산호 무늬 텍스처 — brain 클러스터끼리 공유(lazy 1회 생성)
+    let grooveTex: THREE.CanvasTexture | null = null
+
+    interface FanCard {
+      x: number
+      z: number
+      yaw: number
+      scale: number
+      height: number
+      phase: number
+      base: THREE.Color
+      tip: THREE.Color
+    }
+    const fanCards: FanCard[] = []
+
+    for (const cluster of clusters) {
+      const colorHex = CORAL.palette[cluster.paletteIndex % CORAL.palette.length]
+
+      if (cluster.type === 'branch') {
+        const geo = createBranchCoralGeometry(cluster.seed, CORAL.branch.scale * cluster.scale)
+        const mat = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: CORAL.branch.roughness,
+          metalness: 0,
+          // 은은한 자기 색 자발광 — 어두운 무드에서도 채도가 완전히 죽지 않게(생기 보존).
+          emissive: colorHex,
+          emissiveIntensity: CORAL.emissiveIntensity,
+        })
+        applyCausticToStandardMaterial(mat, 'coral-branch-caustic')
+        // 주의: applyWaterDepthToMaterial은 적용하지 않는다 — 청록 깊이 틴트가 주황/분홍을
+        // 갈색으로 죽인다(캡처 루프 확인). 산호는 근경(z≥−4)이라 가장자리 알파 용해도 불필요.
+        // 투명 슬라이더는 _opaqueMaterials 등록으로 동작한다.
+        const mesh = new THREE.Mesh(geo, mat)
+        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.branch.sinkDepth, cluster.z)
+        mesh.rotation.y = cluster.yaw
+        this.object3d.add(mesh)
+        this._opaqueMaterials.push(mat)
+        this._disposables.push({ geometry: geo, material: mat })
+      } else if (cluster.type === 'brain') {
+        if (!grooveTex) {
+          grooveTex = createBrainCoralTexture()
+          this._disposables.push({ texture: grooveTex })
+        }
+        const geo = createBrainCoralGeometry(cluster.seed)
+        const mat = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: CORAL.brain.roughness,
+          metalness: 0,
+          emissive: colorHex,
+          emissiveIntensity: CORAL.emissiveIntensity,
+          map: grooveTex, // 미로 무늬(그레이스케일 × 팔레트 색)
+          emissiveMap: grooveTex, // emissive 가산이 무늬를 씻지 않도록 같은 무늬로 변조
+        })
+        applyCausticToStandardMaterial(mat, 'coral-brain-caustic')
+        // waterDepth 미적용 — 가지 산호와 동일 사유(청록 틴트의 갈색화 방지).
+        const mesh = new THREE.Mesh(geo, mat)
+        mesh.position.set(cluster.x, AQUASCAPE.sandY - CORAL.brain.sinkDepth, cluster.z)
+        mesh.rotation.y = cluster.yaw
+        mesh.scale.setScalar(cluster.scale)
+        this.object3d.add(mesh)
+        this._opaqueMaterials.push(mat)
+        this._disposables.push({ geometry: geo, material: mat })
+      } else {
+        // fan: 클러스터 중심 주변에 perCluster장 흩뿌림(클러스터 seed 기반 결정적 변주)
+        const rng = mulberry32(cluster.seed)
+        const col = new THREE.Color(colorHex)
+        const base = col.clone().multiplyScalar(CORAL.fan.baseShade)
+        const tip = col.clone().multiplyScalar(CORAL.fan.tipShade)
+        for (let c = 0; c < CORAL.fan.perCluster; c++) {
+          const ang = rng() * Math.PI * 2
+          const dist = rng() * CORAL.fan.spreadRadius
+          const yaw = cluster.yaw + (rng() - 0.5) * CORAL.fan.yawJitter
+          const cardScale =
+            CORAL.fan.cardScaleMin + rng() * (CORAL.fan.cardScaleMax - CORAL.fan.cardScaleMin)
+          const phase = rng() * Math.PI * 2 * 0.9999
+          fanCards.push({
+            x: cluster.x + Math.cos(ang) * dist,
+            z: cluster.z + Math.sin(ang) * dist,
+            yaw,
+            scale: cluster.scale * cardScale,
+            height: CORAL.fan.height * cluster.scale * cardScale,
+            phase,
+            base,
+            tip,
+          })
+        }
+      }
+    }
+
+    if (fanCards.length === 0) return
+
+    // 부채 카드 InstancedMesh — 그래스 카드 지오메트리(한 장)·셰이더 재사용, 스웨이만 미세하게.
+    const fanTex = createCoralFanAlphaTexture()
+    this._disposables.push({ texture: fanTex })
+
+    const count = fanCards.length
+    const iGeo = createGrassCardGeometry(1, CORAL.fan.cardHalfWidth)
+    const offsets = new Float32Array(count * 3)
+    const yaws = new Float32Array(count)
+    const scales = new Float32Array(count)
+    const heights = new Float32Array(count)
+    const phases = new Float32Array(count)
+    const baseColors = new Float32Array(count * 3)
+    const tipColors = new Float32Array(count * 3)
+
+    for (let i = 0; i < count; i++) {
+      const card = fanCards[i]
+      offsets[i * 3] = card.x
+      offsets[i * 3 + 1] = AQUASCAPE.sandY + 0.005
+      offsets[i * 3 + 2] = card.z
+      yaws[i] = card.yaw
+      scales[i] = card.scale
+      heights[i] = card.height
+      phases[i] = card.phase
+      baseColors[i * 3] = card.base.r
+      baseColors[i * 3 + 1] = card.base.g
+      baseColors[i * 3 + 2] = card.base.b
+      tipColors[i * 3] = card.tip.r
+      tipColors[i * 3 + 1] = card.tip.g
+      tipColors[i * 3 + 2] = card.tip.b
+    }
+
+    iGeo.setAttribute('instanceOffset', new THREE.InstancedBufferAttribute(offsets, 3))
+    iGeo.setAttribute('instanceYaw', new THREE.InstancedBufferAttribute(yaws, 1))
+    iGeo.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scales, 1))
+    iGeo.setAttribute('instanceHeight', new THREE.InstancedBufferAttribute(heights, 1))
+    iGeo.setAttribute('instancePhase', new THREE.InstancedBufferAttribute(phases, 1))
+    iGeo.setAttribute('instanceBaseColor', new THREE.InstancedBufferAttribute(baseColors, 3))
+    iGeo.setAttribute('instanceTipColor', new THREE.InstancedBufferAttribute(tipColors, 3))
+
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: GRASS_CARD_VERT,
+      fragmentShader: GRASS_CARD_FRAG,
+      uniforms: {
+        uTime: { value: 0 },
+        uSwaySpeed: { value: CORAL.fan.swaySpeed },
+        uSwayAmplitude: { value: CORAL.fan.swayAmplitude },
+        uSwaySpeed2: { value: CORAL.fan.swaySpeed2 },
+        uSwayAmplitude2: { value: CORAL.fan.swayAmplitude2 },
+        uLeafAlpha: { value: fanTex },
+        uAlphaTest: { value: CORAL.fan.alphaTest },
+        uSceneOpacity: { value: 1.0 },
+        uMoodColor: { value: new THREE.Color(1, 1, 1) },
+      },
+      transparent: true,
+      side: THREE.DoubleSide,
+    })
+
+    const identity = new THREE.Matrix4()
+    const mesh = new THREE.InstancedMesh(iGeo, mat, count)
+    for (let i = 0; i < count; i++) {
+      mesh.setMatrixAt(i, identity)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.frustumCulled = false
+
+    this.object3d.add(mesh)
+    this._grassMaterials.push(mat)
+    this._disposables.push({ geometry: iGeo, material: mat })
   }
 
 }

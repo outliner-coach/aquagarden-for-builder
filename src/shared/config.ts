@@ -261,6 +261,105 @@ export const KELP = {
   },
 } as const
 
+/**
+ * 산호(coral) — 산호초 테마 전용 절차 요소 3종. 여기는 종 공통의 형태·색·움직임 파라미터만 두고,
+ * 배치(seed/count/area)는 테마별로 THEME.coral-reef.coral에 둔다(KELP↔THEME.kelp와 동일한 분리).
+ * 무드 틴트와 곱연산되므로(가지·뇌=광원 무드, 부채=uMoodColor) 심야 캡처로 탁함을 확인한다.
+ */
+export const CORAL = {
+  /** 팔레트: 주황·분홍·보라. generateCoralClusters의 paletteIndex(0~2)로 클러스터별 선택. */
+  palette: [0xff8c5a, 0xff6f9c, 0x9d6bff] as readonly number[],
+  /**
+   * 자기 색 emissive 배율(가지·뇌 MeshStandard). 산호는 뷰 깊이 7~9에서 물 틴트/깊이 페이드에
+   * 채도가 죽는다 — 은은한 자발광으로 "생기"를 보존한다(과하면 야광 — 캡처 루프로 조정).
+   */
+  emissiveIntensity: 0.3,
+  /** 가지 산호(재귀 분기 튜브) — coralHelpers.generateBranchCoral 입력 + 렌더 파라미터. */
+  branch: {
+    /** 실린더 방사 세그먼트(명세: 5). 클러스터당 병합 지오메트리 = 드로우콜 1. */
+    radialSegments: 5,
+    depth: 3,
+    childCount: [2, 3] as [number, number],
+    /** 부모 방향에서 벌어지는 최대 극각(라디안). */
+    spreadAngle: 0.62,
+    lengthDecay: 0.72,
+    radiusDecay: 0.68,
+    /** 단위공간(트렁크 길이 1) → 월드 배율. cluster.scale과 곱해 최종 크기 결정. */
+    scale: 0.9,
+    roughness: 0.82,
+    /** 밑동을 모래에 묻는 깊이(월드 유닛) — 뿌리가 떠 보이는 것 방지. */
+    sinkDepth: 0.05,
+    /** 군집감: 메인 트리 옆의 사이드 트리(같은 병합 지오메트리 = 드로우콜 1 유지). */
+    sideScale: 0.62,
+    /** 사이드 트리 밑동 오프셋(단위공간 — worldScale 곱 전). */
+    sideOffsetX: 0.52,
+    sideOffsetZ: 0.2,
+  },
+  /** 뇌 산호(노이즈 변위 반구) — smooth 셰이딩으로 둥글게. */
+  brain: {
+    /** 반구 반경(월드 유닛, cluster.scale과 곱). */
+    radius: 0.55,
+    widthSegments: 20,
+    heightSegments: 12,
+    /** step3 변위 헬퍼(rockHelpers) 재사용 — 작은 strength·(세그먼트 밀도로) 고빈도 요철. */
+    displaceStrength: 0.06,
+    roughness: 0.85,
+    /** 반구 밑면을 모래에 묻는 깊이(월드 유닛) — 변위 요철로 가장자리가 떠 보이는 것 방지. */
+    sinkDepth: 0.04,
+    /** 군집감: 메인 돔 옆의 사이드 돔(병합 = 드로우콜 1). 반경 배율·중심 거리(메인 반경 배). */
+    sideScale: 0.58,
+    sideOffsetFactor: 1.25,
+    /** 미로(groove) 무늬 캔버스 텍스처 — 민무늬 돔은 "뇌 산호"로 안 읽힌다(캡처 루프 확인). */
+    groove: {
+      texSize: 128,
+      /** 줄무늬 주파수(텍스처 전체의 능선 수 스케일). */
+      scale: 11,
+      /** 줄무늬를 굽이치게 하는 워프 강도. */
+      warp: 2.4,
+      /** 골의 어둡기(0~1) — 능선 밝기 대비 골이 이만큼 어둡다. material.color와 곱연산. */
+      depth: 0.5,
+      /** 무늬 uv 반복(가로, 세로). */
+      repeatX: 2,
+      repeatY: 1,
+    },
+  },
+  /** 부채 산호(alpha-discard 카드 + 잎맥 컷 텍스처) — 그래스 카드 셰이더 재사용, 스웨이 미세. */
+  fan: {
+    /** 클러스터당 부채꼴 카드 수. */
+    perCluster: 4,
+    /** 부채 카드 높이·반폭(월드 유닛, cluster.scale과 곱). */
+    height: 0.95,
+    cardHalfWidth: 0.6,
+    /** 카드가 클러스터 중심에서 흩어지는 반경. */
+    spreadRadius: 0.42,
+    /** 카드별 yaw 지터(라디안) — 클러스터 yaw 주변에서 부채 방향 변주. */
+    yawJitter: 1.2,
+    /** 카드별 크기 변주 범위(클러스터 scale에 추가 곱). */
+    cardScaleMin: 0.8,
+    cardScaleMax: 1.2,
+    /** 팔레트 색 대비 밑동/팁 명도 배율(base→tip 그라디언트 — 그래스 셰이더 규약). */
+    baseShade: 0.8,
+    tipShade: 1.25,
+    /** 스웨이(그래스 셰이더 재사용) — 산호는 수초보다 뻣뻣하므로 아주 작게. */
+    swaySpeed: 0.9,
+    swayAmplitude: 0.022,
+    swaySpeed2: 0.5,
+    swayAmplitude2: 0.01,
+    alphaTest: 0.5,
+    /** 부채 알파 텍스처(캔버스) 해상도. */
+    texWidth: 256,
+    texHeight: 256,
+    /** 부채꼴 반각(라디안) — 좌우로 펼쳐지는 각(전체 각 = 2×). */
+    fanHalfAngle: 1.35,
+    /** 방사 갈래(잎맥) 개수. */
+    veinCount: 11,
+    /** 갈래 사이 투명 컷 비율(0~1, 클수록 성긴 그물). */
+    veinGapRatio: 0.5,
+    /** 갈래가 갈라지기 시작하는 밑동 반경(텍스처 높이 대비 비율) — 밑동은 이어 붙는다. */
+    baseSolidRatio: 0.1,
+  },
+} as const
+
 export const HARDSCAPE = {
   seed: 404,
   rockCount: 12,
@@ -398,7 +497,7 @@ export const THEME = {
         rock: {
           minScale: 0.2,
           maxScale: 0.5,
-          maxHeightAboveSand: 0.45, // 낮은 암반(다음 step에서 산호와 어우러질 준비)
+          maxHeightAboveSand: 0.45, // 낮은 암반(산호가 어우러지는 밝은 석회색 슬랩)
           colors: [0xcfc4ab, 0xd8cdb4, 0xc2b79c, 0xe0d6c0] as readonly number[],
           // 노이즈 변위 로우폴리(step3) + flattenY로 세로를 눌러 "낮고 넓은 암반" 실루엣을 만든다.
           rockStyle: 'displaced',
@@ -408,6 +507,18 @@ export const THEME = {
         },
         pebble: HARDSCAPE.pebble,
         driftwood: HARDSCAPE.driftwood,
+      },
+      /**
+       * 산호 클러스터 배치(step4). 형태·색은 config.CORAL, 여기는 seed/count/area만.
+       * area는 암반(HARDSCAPE.area)과 겹치는 뒤쪽 대역 — generateCoralClusters의 z 뒤쪽 가중과
+       * 합쳐져 중앙 전면(물고기 유영 z −2.5~0.5)을 비우고 암반 주변에 산호가 모이게 한다.
+       * minZ −4.0: 카메라(z=5) 기준 뷰 깊이를 9 이내로 유지 — 더 뒤는 물 깊이 페이드로 채도·알파가
+       * 급감해 산호의 컬러 팝이 죽는다(캡처 루프에서 확인).
+       */
+      coral: {
+        seed: 344,
+        count: 5,
+        area: { minX: -10.5, maxX: 12.5, minZ: -4.0, maxZ: -2.35 },
       },
     },
   ],

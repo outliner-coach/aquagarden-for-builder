@@ -138,3 +138,49 @@ describe('evaluateSmoke', () => {
     expect(r.pass).toBe(false)
   })
 })
+
+describe('evaluateSmoke - 테마 리드백 (AQUA_SMOKE_THEME)', () => {
+  it('requestedTheme 미지정(기존 스모크) → theme 필드가 없어도 영향 없음', () => {
+    const r = evaluateSmoke({ consoleMsgs: [], health: okHealth, pixel: okPixel, fatal: null })
+    expect(r.pass).toBe(true)
+  })
+
+  it('요청 없음 + health.theme 존재 → 여전히 pass(체크 자체가 스킵됨)', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, theme: 'minimal' }, pixel: okPixel, fatal: null,
+    })
+    expect(r.pass).toBe(true)
+  })
+
+  it('요청 == health.theme(일치) → pass', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, theme: 'kelp-forest' }, pixel: okPixel, fatal: null,
+      requestedTheme: 'kelp-forest',
+    })
+    expect(r.pass).toBe(true)
+  })
+
+  it('요청 != health.theme(불일치) → fail', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, theme: 'minimal' }, pixel: okPixel, fatal: null,
+      requestedTheme: 'coral-reef',
+    })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('테마') && f.includes('불일치'))).toBe(true)
+  })
+
+  it('유령 id 요청(훅이 무시해 health.theme이 그대로) → fail', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, theme: 'minimal' }, pixel: okPixel, fatal: null,
+      requestedTheme: 'atlantis',
+    })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('atlantis'))).toBe(true)
+  })
+
+  it('요청은 있으나 health가 null → 헬스 부재 실패에 더해 테마 불일치도 실패 사유에 포함', () => {
+    const r = evaluateSmoke({ consoleMsgs: [], health: null, pixel: okPixel, fatal: null, requestedTheme: 'minimal' })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('테마'))).toBe(true)
+  })
+})

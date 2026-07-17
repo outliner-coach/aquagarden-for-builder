@@ -22,6 +22,8 @@
 
 실행: `npm run smoke` (= `electron-vite build && AQUA_SMOKE=1 electron .`). 산출물: `eval-report.json`, `eval-screenshot.png`(환경변수 `AQUA_SMOKE_REPORT`/`AQUA_SMOKE_SHOT`로 경로 지정).
 
+**테마 리드백(`AQUA_SMOKE_THEME=<id>`)**: renderer의 `window.__AQUA_APPLY_THEME__(id)` 훅(main.ts)을 호출해 UI 없이 배경 테마를 전환한다. 물고기 위치가 매 실행 달라 캡처 diff로는 전환을 검증할 수 없으므로, 적용된 id를 `__AQUA_HEALTH__.theme`으로 리드백해 요청값과 대조한다 — 불일치(유령 id 포함) 시 스모크 실패.
+
 ### 3. 비전 미적 판정 (LLM) — `scripts/eval_vision.py`
 스크린샷을 `reference_image.png`·설계 의도와 비교해 `claude` 멀티모달로 채점. **두 모드**:
 - `mode="step"`: per-step. "깨짐 없음 + 이 step의 목표가 보이는가"만(미구현 후속 기능 감점 X).
@@ -31,6 +33,8 @@
 
 > **임계값을 62로 낮춘 이유**: 투명 오버레이는 '물 부피' 색을 못 가져 불투명 어항(reference) 대비 분위기 점수가 구조적으로 낮다. 단, 핵심항목은 엄격 유지.
 > **`fishPose`는 참고(non-critical)**: 방향/수평유영은 결정적 유닛테스트(`fishHelpers.headingYaw`)가 더 엄격히 보장한다. 노이즈 큰 비전 fishPose를 게이트로 두면 좋은 결과를 거짓 차단한다.
+
+**CLI 플래그**: 위치 인자 호출(`eval_vision.py <shot> [reference]`, execute.py가 기대하는 기존 형식)은 그대로 동작한다. `--intent "<text>"`로 `DEFAULT_INTENT`를 대체(테마별 설계 의도 등)하고, `--min-score N`으로 이번 실행의 종합 임계값을 override(`AQUA_EVAL_MIN_SCORE`보다 우선)한다.
 
 ## execute.py 연동
 - `index.json`의 step에 `"eval": true`를 붙이면, 그 step 완료 시 execute.py가 **빌드+스모크(+per-step 비전)** 를 독립 실행. 실패하면 step을 `pending`으로 되돌리고 eval 리포트를 다음 시도 피드백으로 **최대 3회 재시도**.

@@ -15,9 +15,12 @@
     {
       "step": 1,
       "name": "theme-eval-hooks",
-      "status": "pending",
+      "status": "completed",
       "eval": true,
-      "model": "sonnet"
+      "model": "sonnet",
+      "started_at": "2026-07-17T22:46:00+0900",
+      "summary": "health.ts에 theme:string 필드 + setAppliedTheme() 추가. main.ts는 초기 적용 시 리드백을 기록하고, window.__AQUA_APPLY_THEME__(id) 전역 훅(__AQUA_MOOD_HOUR__와 같은 스모크 전용 강제 훅 패턴)을 노출 — 유효한 id면 aquascape.setTheme()+health 갱신, 유령 id는 console.warn 후 무시(스모크가 에러로 오판 않음). smoke.ts는 AQUA_SMOKE_THEME env를 이 훅으로 전달(mood 훅과 동일 위치·순서, 800ms settle)하고 리포트에 themeRequested를 남긴다. smokeEval.evaluateSmoke(requestedTheme)가 health.theme과 대조해 불일치(유령 id 포함)면 fail — 단위테스트 6종 추가(TDD, 총 512개 통과). eval_vision.py의 main()을 argparse로 재작성해 --intent/--min-score 플래그를 추가했고, 위치 인자만 쓰는 기존 호출(execute.py가 의존하는 judge_visual 직접 호출 포함)은 완전 하위호환(수동 검증 완료). docs/EVAL.md에 두 항목 문서화. 다음 step(kelp/rocks/coral/theme-ui/polish)은 `AQUA_SMOKE_THEME=<id> AQUA_SMOKE_SHOT=... AQUA_SMOKE_REPORT=... npm run smoke` 후 `eval_vision.py <shot> --min-score 62 --intent '...'` 패턴으로 테마별 게이트를 구성하면 된다.",
+      "completed_at": "2026-07-17T22:58:30+0900"
     },
     {
       "step": 2,

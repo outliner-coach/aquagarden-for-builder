@@ -706,6 +706,12 @@ export class Aquascape implements SceneEntity {
    * object3d(Group) 인스턴스 자체는 유지 — children만 비운다.
    */
   private _clearBuild(): void {
+    // InstancedMesh는 geometry.dispose()로 정리되지 않는 instanceMatrix GPU 버퍼를 갖는다
+    // — mesh.dispose()의 'dispose' 이벤트만이 해제 경로라, 테마 전환 반복 시 누수를 막으려면 필수.
+    this.object3d.traverse((o) => {
+      const im = o as THREE.InstancedMesh
+      if (im.isInstancedMesh) im.dispose()
+    })
     for (const d of this._disposables) {
       d.geometry?.dispose()
       d.material?.dispose()

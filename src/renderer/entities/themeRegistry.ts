@@ -51,6 +51,14 @@ export interface BackgroundThemeHardscape {
     readonly maxScale: number
     readonly maxHeightAboveSand: number
     readonly colors: readonly number[]
+    /** 큰 바위 지오메트리 스타일. 미지정 시 'classic'(기존 정12면체 — 미니멀 무변화). */
+    readonly rockStyle?: 'classic' | 'displaced'
+    /** rockStyle='displaced'일 때의 변위 시드(결정적, displaceRockPositions). */
+    readonly displaceSeed?: number
+    /** rockStyle='displaced'일 때의 최대 변위량(오브젝트 로컬 반경 스칼라). */
+    readonly displaceStrength?: number
+    /** 큰 바위 메시의 추가 Y 스케일 배율(미지정 시 1=변화 없음). 낮고 넓은 암반(산호초 등)에 사용. */
+    readonly flattenY?: number
   }
   readonly pebble: {
     readonly minScale: number

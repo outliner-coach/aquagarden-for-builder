@@ -352,9 +352,8 @@ export const THEME = {
       },
       hardscape: {
         seed: 505,
-        // 큰 바위 강조 초기값: 개수는 줄이고 스케일을 키워 존재감을 높인다
-        // (노이즈 변위 지오메트리로의 업그레이드는 step 3 범위 — 여기선 배치/색만).
-        rockCount: 8,
+        // 큰 바위 3~5개(spec §3.2) — step3(rocks-upgrade)에서 노이즈 변위 지오메트리로 격상.
+        rockCount: 5,
         pebbleCount: 10,
         driftwoodCount: HARDSCAPE.driftwoodCount,
         clusterCount: HARDSCAPE.clusterCount,
@@ -365,6 +364,10 @@ export const THEME = {
           maxScale: 0.75,
           maxHeightAboveSand: 0.95,
           colors: [0x4a463f, 0x3d3a34, 0x565248, 0x2f2c27] as readonly number[],
+          // 노이즈 변위 로우폴리(step3) — 어두운 회갈 큰 바위의 자연스러운 울퉁불퉁 실루엣.
+          rockStyle: 'displaced',
+          displaceSeed: 811,
+          displaceStrength: 0.24,
         },
         pebble: HARDSCAPE.pebble,
         driftwood: HARDSCAPE.driftwood,
@@ -397,6 +400,11 @@ export const THEME = {
           maxScale: 0.5,
           maxHeightAboveSand: 0.45, // 낮은 암반(다음 step에서 산호와 어우러질 준비)
           colors: [0xcfc4ab, 0xd8cdb4, 0xc2b79c, 0xe0d6c0] as readonly number[],
+          // 노이즈 변위 로우폴리(step3) + flattenY로 세로를 눌러 "낮고 넓은 암반" 실루엣을 만든다.
+          rockStyle: 'displaced',
+          displaceSeed: 613,
+          displaceStrength: 0.14,
+          flattenY: 0.42,
         },
         pebble: HARDSCAPE.pebble,
         driftwood: HARDSCAPE.driftwood,

@@ -4,6 +4,7 @@ import { advanceTime, generatePlantInstances, generateHardscape } from './aquasc
 import type { PlantSpeciesParams, HardscapeConfig } from './aquascapeHelpers'
 import { generateKelpInstances, kelpTaperHalfWidth } from './kelpHelpers'
 import type { KelpParams } from './kelpHelpers'
+import { displaceRockPositions } from './rockHelpers'
 import { AQUASCAPE, PLANT, KELP, HARDSCAPE, SCENE } from '../../shared/config'
 import { applyCausticToStandardMaterial, updateCausticTime } from './caustics'
 import { applyWaterDepthToMaterial } from './waterDepth'
@@ -234,6 +235,19 @@ function createDriftwoodGeometry(segments = 18): THREE.BufferGeometry {
   ))
   const tube = new THREE.TubeGeometry(path as unknown as THREE.Curve<THREE.Vector3>, segments, 1.0, 6, false)
   return tube
+}
+
+/* ── Noise-displaced low-poly rock geometry (rockStyle: 'displaced') ──
+ * classic(정12면체)의 대안. IcosahedronGeometry(1,1)은 이미 non-indexed(면마다 독립 버텍스로
+ * 저장)라, displaceRockPositions의 위치기반 해시 변위가 같은 자리의 중복 버텍스에 같은 변위를
+ * 줘 면이 찢어지지 않는다(rockHelpers.ts CRITICAL 가드). computeVertexNormals()는 non-indexed
+ * 지오메트리에서 진짜 flat(면당) 노멀을 계산한다. */
+function createDisplacedRockGeometry(seed: number, strength: number): THREE.BufferGeometry {
+  const geo = new THREE.IcosahedronGeometry(1, 1)
+  const displaced = displaceRockPositions(geo.attributes.position.array, seed, strength)
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(displaced, 3))
+  geo.computeVertexNormals()
+  return geo
 }
 
 /* ── Leaf alpha texture (CanvasTexture, no external file) ── */
@@ -778,7 +792,13 @@ export class Aquascape implements SceneEntity {
     )
 
     const rockColors = theme.rock.colors
-    const rockGeoBase = new THREE.DodecahedronGeometry(1, 0)
+    // classic(미지정 포함)=기존 정12면체(미니멀 무변화). displaced=노이즈 변위 로우폴리(step3).
+    const rockStyle = theme.rock.rockStyle ?? 'classic'
+    const rockGeoBase = rockStyle === 'displaced'
+      ? createDisplacedRockGeometry(theme.rock.displaceSeed ?? 0, theme.rock.displaceStrength ?? 0)
+      : new THREE.DodecahedronGeometry(1, 0)
+    // 큰 바위에만 적용되는 추가 Y 스케일 배율(낮고 넓은 암반 등). 미지정 시 1=변화 없음.
+    const flattenY = theme.rock.flattenY ?? 1
     const pebbleGeoBase = new THREE.SphereGeometry(1, 5, 4)
     this._disposables.push({ geometry: rockGeoBase }, { geometry: pebbleGeoBase })
 
@@ -791,13 +811,17 @@ export class Aquascape implements SceneEntity {
         color: colorHex,
         roughness: 0.85,
         metalness: 0,
+        // flatShading은 노이즈 변위 큰 바위에만 — 자갈(pebble)은 기존과 동일(부드러운 구, scope 밖).
+        flatShading: isLargeRock && rockStyle === 'displaced',
       })
       applyCausticToStandardMaterial(mat, 'rock-caustic')
       applyWaterDepthToMaterial(mat)
       const geo = isLargeRock ? rockGeoBase : pebbleGeoBase
       const mesh = new THREE.Mesh(geo, mat)
       mesh.position.set(p.x, p.y, p.z)
-      mesh.scale.set(p.scaleX, p.scaleY, p.scaleZ)
+      // flattenY는 큰 바위에만 적용 — 자갈 스케일은 기존과 동일.
+      const scaleY = isLargeRock ? p.scaleY * flattenY : p.scaleY
+      mesh.scale.set(p.scaleX, scaleY, p.scaleZ)
       mesh.rotation.set(p.rotX, p.rotY, p.rotZ)
       this.object3d.add(mesh)
       this._opaqueMaterials.push(mat)

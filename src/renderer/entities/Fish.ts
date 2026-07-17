@@ -4,7 +4,7 @@ import { FISH, SHRIMP } from '../../shared/config'
 import type { FishPrototype } from './fishAssets'
 import type { SpeciesId } from './speciesRegistry'
 import { pickSpecies } from './fishAssets'
-import { headingYaw } from './fishHelpers'
+import { headingYaw, clampZSpeed } from './fishHelpers'
 import { floorBiasForce, scuttleSpeedFactor } from './crawlerHelpers'
 
 /* ── Types ── */
@@ -189,6 +189,11 @@ export class Fish {
       this._velocity.multiplyScalar(maxSpeed / speed)
     } else if (speed > 0 && speed < minSpeed) {
       this._velocity.multiplyScalar(minSpeed / speed)
+    }
+
+    // 정면(z) 유영 억제 — 측면 유영 위주로. 새우(crawler)는 바닥 거동 불변 가드로 제외.
+    if (!isCrawler) {
+      this._velocity.z = clampZSpeed(this._velocity.z, FISH.maxZSpeed)
     }
 
     // 이동

@@ -171,8 +171,9 @@ export const SPECIES_REGISTRY: readonly FishSpecies[] = [
     file: shrimpUrl,
     kind: 'individual',
     category: 'ambient',
-    // 작은 청소부 새우 — 어종보다 훨씬 작게, 느긋하게. (기존 1.5의 1/4 = 0.375)
-    baseScale: 0.375,
+    // 작은 청소부 새우 — 어종보다 작지만 오버레이에서 식별 가능한 크기.
+    // (0.375는 라이브 QA에서 픽셀 수준으로 안 보였음 → 0.6으로 상향, 여전히 최소 어종의 절반대)
+    baseScale: 0.6,
     swimSpeed: 0.5,
     // 바닥 기는 청소부 거동: 다른 어종의 자유 유영과 차별화.
     behavior: 'crawler',

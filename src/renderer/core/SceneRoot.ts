@@ -30,7 +30,12 @@ export class SceneRoot {
     )
     this.camera.position.z = 5
 
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    // powerPreference: 상시 표시 힐링 위젯이므로 고성능 GPU 대신 저전력을 요청한다(듀얼 GPU 맥 등).
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'low-power',
+    })
     this.renderer.setClearColor(0x000000, 0)
     this.renderer.setPixelRatio(window.devicePixelRatio)
     this.renderer.setSize(width, height)

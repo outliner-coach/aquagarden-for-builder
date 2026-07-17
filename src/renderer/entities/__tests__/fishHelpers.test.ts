@@ -5,6 +5,7 @@ import {
   swimAmplitudeFor,
   headingYaw,
   forwardDirAfterYaw,
+  clampZSpeed,
 } from '../fishHelpers'
 
 describe('headingYaw / forwardDirAfterYaw — 머리가 진행 방향을 앞서가는가 (꼬리-앞 회귀 방지)', () => {
@@ -143,5 +144,25 @@ describe('swimAmplitudeFor', () => {
 
   it('baseSpeed가 0이면 baseAmp를 그대로 반환', () => {
     expect(swimAmplitudeFor(5, 0, 0.4)).toBeCloseTo(0.4, 5)
+  })
+})
+
+// 정면(카메라 방향, z축) 유영 억제 — 얇은 바 수조에서 물고기가 화면을 향해 헤엄치면
+// 로우폴리 정면 실루엣("상자")이 자주 노출된다. z 속도를 상한해 측면 유영 위주로 만든다.
+describe('clampZSpeed', () => {
+  it('상한 이내면 그대로', () => {
+    expect(clampZSpeed(0.2, 0.35)).toBe(0.2)
+    expect(clampZSpeed(-0.3, 0.35)).toBe(-0.3)
+    expect(clampZSpeed(0, 0.35)).toBe(0)
+  })
+
+  it('상한 초과는 부호를 유지하며 클램프', () => {
+    expect(clampZSpeed(1.2, 0.35)).toBeCloseTo(0.35)
+    expect(clampZSpeed(-2.0, 0.35)).toBeCloseTo(-0.35)
+  })
+
+  it('경계값은 그대로', () => {
+    expect(clampZSpeed(0.35, 0.35)).toBe(0.35)
+    expect(clampZSpeed(-0.35, 0.35)).toBe(-0.35)
   })
 })

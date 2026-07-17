@@ -17,8 +17,9 @@ import { computeInteractive } from './ui/interaction'
 import { zoomFromWheel } from './core/zoomHelpers'
 import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD } from '../shared/config'
-import { moodForHour, IDENTITY_MOOD } from './lighting/moodHelpers'
+import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER } from '../shared/config'
+import { moodForHour, IDENTITY_MOOD, type Mood } from './lighting/moodHelpers'
+import { setCausticMood } from './entities/caustics'
 import type { AppSettings } from '../shared/types'
 import { markReady, setFishActive, tickFrame } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
@@ -83,12 +84,22 @@ sceneRoot.add(foodParticles)
 // FishSchool에 FoodParticles 참조 연결 (먹이 소비 연동)
 fishSchool.setFoodParticles(foodParticles)
 
+// FPS 캡(RENDER.maxFps) — 표시 중 CPU/GPU 절감. dt 보정이라 유영 속도는 그대로다.
+// 무드는 Lighting이 전환 보간의 단일 원천 — 비조명 요소(수초·커스틱)는 매 프레임 참조 비교로 따라간다.
+let lastAppliedMood: Mood | null = null
 const loop = new RenderLoop((dt) => {
   sceneRoot.update(dt)
+  const m = lighting.currentMood
+  if (m !== lastAppliedMood) {
+    lastAppliedMood = m
+    const s = m.brightnessScale
+    aquascape.setMood(m.tint[0] * s, m.tint[1] * s, m.tint[2] * s)
+    setCausticMood(m.tint[0] * s, m.tint[1] * s, m.tint[2] * s)
+  }
   sceneRoot.render()
   setFishActive(fishSchool.activeCount)
   tickFrame()
-})
+}, RENDER.maxFps)
 
 loop.start()
 
@@ -153,12 +164,15 @@ function persistSoon(): void {
 // 캔버스 참조 (hidden 시 display 제어)
 const canvas = container.querySelector('canvas')
 
-// 캔버스 하단 페이드 — 바 아래 가장자리의 불투명 모래 하드 컷(=가로선)을 마스크로 용해.
-// 패널 펼침 시 캔버스 하단이 투명 영역 위에 선으로 드러나던 문제 제거.
+// 캔버스 가장자리 페이드 — 하단(불투명 모래 하드 컷=가로선) + 좌우(창 경계에서 모래·수초가
+// 세로로 뚝 끊김)를 마스크로 용해. 두 그라디언트는 mask-composite:intersect로 곱해진다.
 if (canvas) {
-  const fade = `linear-gradient(to bottom, #000 calc(100% - ${WINDOW.canvasBottomFadePx}px), transparent 100%)`
-  canvas.style.setProperty('-webkit-mask-image', fade)
-  canvas.style.setProperty('mask-image', fade)
+  const bottomFade = `linear-gradient(to bottom, #000 calc(100% - ${WINDOW.canvasBottomFadePx}px), transparent 100%)`
+  const edgeFade = `linear-gradient(to right, transparent 0, #000 ${WINDOW.canvasEdgeFadePx}px, #000 calc(100% - ${WINDOW.canvasEdgeFadePx}px), transparent 100%)`
+  canvas.style.setProperty('-webkit-mask-image', `${bottomFade}, ${edgeFade}`)
+  canvas.style.setProperty('-webkit-mask-composite', 'source-in')
+  canvas.style.setProperty('mask-image', `${bottomFade}, ${edgeFade}`)
+  canvas.style.setProperty('mask-composite', 'intersect')
 }
 
 // 수중 분위기 베일(상단 푸른 반투명 그라디언트)은 제거했다. 투명 오버레이 위에서 저알파
@@ -172,10 +186,14 @@ let hoveringHandles = false
 /**
  * 현재 상태로 창의 click-through(마우스 무시) 여부를 계산해 main에 반영한다.
  * 숨김 또는 투과가 켜져 있고 컨트롤/핸들 위가 아닐 때만 통과시킨다 → 버튼/패널/핸들은 항상 조작 가능.
+ * 패널이 펼쳐진 동안은 투과를 일시 해제한다(hover 감지 IPC가 클릭보다 늦어 패널 첫 클릭이
+ * 뒤 화면으로 새던 문제 방지 — passthrough.ts 참고).
  */
 function applyMouseIgnore(): void {
   const passthrough = settings.hidden || settings.clickThrough
-  window.aqua.setMouseIgnore(computeMouseIgnore(passthrough, hoveringControls || hoveringHandles))
+  window.aqua.setMouseIgnore(
+    computeMouseIgnore(passthrough, hoveringControls || hoveringHandles, panelExpanded),
+  )
 }
 
 // 패널 펼침 방향. 펼칠 때 하단 공간이 부족하면 'up'(위로) — 창을 강제 이동하지 않는다.
@@ -284,6 +302,8 @@ const controlPanel = new ControlPanel(
       persistSoon()
     },
     onMoveWindow(dx: number, dy: number) {
+      // 펼친 채 창을 옮기면 위 열림 패널이 메뉴바에 잘리는 등 기하가 꼬인다 — 드래그 시작 시 접는다.
+      if (panelExpanded) controlPanel.collapse()
       window.aqua.moveWindowBy(dx, dy)
       updateRestingFromWindow()
       persistSoon()
@@ -315,6 +335,8 @@ const controlPanel = new ControlPanel(
       }
       // 펼침/접힘에서만 'up'이면 하단 앵커(바를 제자리에 유지).
       syncWindowSize(shouldAnchorBottom('toggle', panelExpanded, currentPanelDir))
+      // 패널 펼침 동안 투과 일시 해제 / 접으면 원래 규칙 복귀.
+      applyMouseIgnore()
     },
     onEnabledFeaturesChange(ids: string[]) {
       settings.enabledFeatures = ids

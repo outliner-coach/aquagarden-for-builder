@@ -44,9 +44,18 @@ npm run smoke    # 빌드 + headless 런타임 eval (셰이더/렌더 깨짐·�
 - 블렌더 절차적 새우(아마노 새우) GLB(스켈레톤 7본+"Swim" 클립) 제작 → 앱 통합 → 미학 8/10 → **크기 1/4 축소(baseScale 0.375)** → **바닥 기는 청소부 거동(crawler)** 까지 완료. test **446**·lint·build·smoke pass. 리포트: `docs/SHRIMP_REPORT.md`.
 - 새우 거동은 `SHRIMP` config 상수 + 순수 헬퍼 `crawlerHelpers.ts`(`floorBiasForce`/`scuttleSpeedFactor`) + `FishSpecies.behavior:'crawler'` 종별 분기로 구현(다른 어종 유영 경로 불변, TDD 가드). 미병합·라이브 가시성 확인은 `docs/HANDOFF.md` 최상단 참고.
 
+### 사용자 평가 피드백 반영 (2026-07-17 — v0.8.0, 브랜치 `fix-7-eval-feedback`)
+라이브 QA 기반 사용자 관점 평가에서 나온 개선 13건 반영. test **486**·lint·build·smoke pass. 요약:
+- **P0 UX**: 투과 중 패널 첫 클릭이 뒤로 새는 문제(패널 펼침 동안 투과 일시 해제 — `computeMouseIgnore` 3번째 인자), 힌트 등장/소멸로 패널이 밀려 오클릭(고정 높이 단일 힌트 슬롯), 창 상단 이탈로 패널 헤더가 메뉴바에 잘림(`clampTopToWorkAreas` + 버튼 드래그 시 패널 자동 접기), 전역 복구 단축키 `SHORTCUTS.recovery`(⌥⌘A).
+- **무드 강화**: 키프레임 강화(심야 0.42, 테스트 가드) + 1.5초 전환(`Lighting.update` 지수 수렴) + **비조명 요소 연동**(수초 `uMoodColor`·커스틱 `uCausticMood` — 조명만으론 체감이 안 됐던 근본 원인).
+- **시각**: 캔버스 좌우 페이드(mask-composite:intersect), z유영 상한 `FISH.maxZSpeed`(정면 실루엣 억제, crawler 제외), 새우 baseScale 0.6, 말풍선 화자 꼬리.
+- **절전**: `RENDER.maxFps=30` 프레임 캡(`shouldTick`) + WebGL `powerPreference:'low-power'`.
+- **기타**: lure 20초 무활동 자동 해제, 도움말 항목 보강(확대·시간대·대사·단축키)·우측 정렬.
+
 ## 런타임 eval (CRITICAL — 자기보고 불신)
 **`build/test/lint` 통과만으로 "동작/표시됨"을 단정하지 마라.** 그것들은 순수 로직만 검증하며, 실제 렌더가 깨져도 통과한다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 시각 변경 후엔 반드시 `npm run smoke`로 실제 렌더를 검증한다. 상세: **`docs/EVAL.md`**.
 - 스모크: `src/main/smoke.ts`+`smokeEval.ts` (`AQUA_SMOKE=1`). 콘솔 에러·헬스(`src/renderer/health.ts`)·`capturePage` 픽셀 분석.
+- **스모크는 localStorage를 비우고 시작한다(결정적 평가).** 사용자 영속 상태를 물려받으면 개체수·투명도·무드가 세션마다 달라 캡처 비교가 무의미해진다(실제로 무드 캡처가 "무변화"로 오판된 사고). 상태 구동은 훅으로: `AQUA_SMOKE_FISH`(개체수)·`AQUA_SMOKE_BRIGHTNESS`·`AQUA_SMOKE_TRANSPARENCY`·`AQUA_SMOKE_MOOD`(+`_HOUR`, off→on 재적용·`moodHook` 리드백)·`AQUA_SMOKE_FEATURES`·`AQUA_SMOKE_OPEN_PANEL`.
 - 비전: `scripts/eval_vision.py` (항목별 채점, phase끝). 하네스 `scripts/execute.py`가 `"eval":true` step·phase끝에서 자동 게이트·반복.
 
 ## 렌더링 컨벤션·함정 (재발 방지 — 실제로 겪은 버그들)

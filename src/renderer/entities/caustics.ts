@@ -121,6 +121,9 @@ const _offset2 = { value: new THREE.Vector2(0, 0) }
 const _intensity = { value: CAUSTIC.intensity }
 const _contrast = { value: CAUSTIC.contrast }
 const _scale = { value: CAUSTIC.scale }
+// 시간대 무드 색(틴트×배율 프리멀티). 커스틱은 광원과 무관한 가산 패턴이라 조명 무드가
+// 자동 반영되지 않는다 — "물을 통과한 빛"이므로 무드를 직접 곱해 심야 문라이트 등을 표현한다.
+const _moodColor = { value: new THREE.Color(1, 1, 1) }
 
 export interface CausticUniformSet {
   uCausticTex: { value: THREE.Texture }
@@ -129,6 +132,7 @@ export interface CausticUniformSet {
   uCausticIntensity: { value: number }
   uCausticContrast: { value: number }
   uCausticScale: { value: number }
+  uCausticMood: { value: THREE.Color }
 }
 
 /** 공유 uniform 객체를 반환한다. 모든 머티리얼이 같은 참조를 씀 → 시간 동기화 보장. */
@@ -140,7 +144,13 @@ export function getCausticUniforms(): CausticUniformSet {
     uCausticIntensity: _intensity,
     uCausticContrast: _contrast,
     uCausticScale: _scale,
+    uCausticMood: _moodColor,
   }
+}
+
+/** 시간대 무드를 커스틱에 반영한다(틴트×배율 프리멀티 RGB). 모든 커스틱 머티리얼 공유. */
+export function setCausticMood(r: number, g: number, b: number): void {
+  _moodColor.value.setRGB(r, g, b)
 }
 
 /**
@@ -177,9 +187,10 @@ uniform vec2 uCausticOffset2;
 uniform float uCausticIntensity;
 uniform float uCausticContrast;
 uniform float uCausticScale;
+uniform vec3 uCausticMood;
 varying vec2 vCausticWorldXZ;`
 
-/** 프래그먼트 셰이더: #include <emissivemap_fragment> 뒤에 삽입. emissive에 가산. */
+/** 프래그먼트 셰이더: #include <emissivemap_fragment> 뒤에 삽입. emissive에 가산(무드 틴트 반영). */
 export const CAUSTIC_FRAG_MAIN = /* glsl */ `
 {
   vec2 cUV = vCausticWorldXZ * uCausticScale;
@@ -187,7 +198,7 @@ export const CAUSTIC_FRAG_MAIN = /* glsl */ `
   float c2_caustic = texture2D(uCausticTex, cUV + uCausticOffset2).r;
   float rawCaustic = c1_caustic * c2_caustic;
   float causticVal = pow(rawCaustic, uCausticContrast) * uCausticIntensity;
-  totalEmissiveRadiance += vec3(causticVal);
+  totalEmissiveRadiance += vec3(causticVal) * uCausticMood;
 }`
 
 /**
@@ -204,6 +215,7 @@ export function attachCausticUniforms(
   shader.uniforms.uCausticIntensity = u.uCausticIntensity
   shader.uniforms.uCausticContrast = u.uCausticContrast
   shader.uniforms.uCausticScale = u.uCausticScale
+  shader.uniforms.uCausticMood = u.uCausticMood
 }
 
 /**

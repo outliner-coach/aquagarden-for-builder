@@ -63,15 +63,19 @@ export class ControlPanel {
   private readonly _zoomValue: HTMLSpanElement
   private _zoomRow!: HTMLElement
   private _lureRow!: HTMLDivElement
-  private _interactionNotice!: HTMLDivElement
   private readonly _hideToggle: HTMLInputElement
   private readonly _clickThroughToggle: HTMLInputElement
   private readonly _alwaysOnTopToggle: HTMLInputElement
   private readonly _moodToggle: HTMLInputElement
   private readonly _feedBtn: HTMLButtonElement
   private readonly _scareBtn: HTMLButtonElement
-  private _lureHint!: HTMLDivElement
-  private _statusHint!: HTMLDivElement
+  /**
+   * 단일 고정 높이 힌트 슬롯. lure 모드/투과/숨김 안내가 여기 하나로 모인다.
+   * 힌트가 나타나고 사라질 때 패널 높이가 변해 토글들이 위아래로 밀리며 오클릭을
+   * 유발하던 문제(위로 펼침에선 전체가 위로 밀림 — 라이브 QA 재현)를 높이 고정으로 제거.
+   */
+  private _hintSlot!: HTMLDivElement
+  private _lureMode: LureMode = null
   private _quitBtn!: HTMLButtonElement
   private _quitArmed = false
   private _quitTimer: ReturnType<typeof setTimeout> | null = null
@@ -196,16 +200,12 @@ export class ControlPanel {
     this._moodToggle = this._createToggle(rightCol, '시간대 반응', state.moodReactive,
       (checked) => callbacks.onMoodReactiveChange(checked))
 
-    // ── 하단(전폭): 상태 힌트 → 먹이/놀래키기 → 안내 → 종료 ──
-    this._statusHint = document.createElement('div')
-    this._statusHint.style.cssText =
-      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin:4px 0 12px;display:none;`
-    this._panel.appendChild(this._statusHint)
-    this._hideToggle.addEventListener('change', () => this._updateStatusHint())
-    this._clickThroughToggle.addEventListener('change', () => this._updateStatusHint())
+    // ── 하단(전폭): 먹이/놀래키기 → 고정 힌트 슬롯 → 종료 ──
+    this._hideToggle.addEventListener('change', () => this._updateHintSlot())
+    this._clickThroughToggle.addEventListener('change', () => this._updateHintSlot())
 
     const lureRow = document.createElement('div')
-    lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;'
+    lureRow.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;'
     this._feedBtn = document.createElement('button')
     this._feedBtn.className = 'cp__lure-btn'
     this._feedBtn.textContent = '먹이주기'
@@ -218,16 +218,12 @@ export class ControlPanel {
     this._panel.appendChild(lureRow)
     this._lureRow = lureRow
 
-    this._lureHint = document.createElement('div')
-    this._lureHint.style.cssText = `font-size:11px;color:${COLORS.point};margin-bottom:12px;display:none;`
-    this._panel.appendChild(this._lureHint)
-
-    this._interactionNotice = document.createElement('div')
-    this._interactionNotice.style.cssText =
-      `font-size:11px;line-height:1.4;color:${COLORS.textSecondary};margin-bottom:12px;display:none;`
-    this._interactionNotice.textContent =
-      '마우스 투과·수조 숨김 중에는 먹이주기·놀래키기·확대를 사용할 수 없어요.'
-    this._panel.appendChild(this._interactionNotice)
+    // 고정 높이(2줄) 힌트 슬롯 — 내용이 없어도 공간을 유지해 레이아웃 시프트를 막는다.
+    this._hintSlot = document.createElement('div')
+    this._hintSlot.style.cssText =
+      `font-size:11px;line-height:1.45;height:32px;overflow:hidden;` +
+      `color:${COLORS.textSecondary};margin-bottom:10px;`
+    this._panel.appendChild(this._hintSlot)
 
     this._quitBtn = document.createElement('button')
     this._quitBtn.className = 'cp__quit-btn'
@@ -265,7 +261,18 @@ export class ControlPanel {
     })
 
     // 초기 상태 힌트(복원된 hidden/clickThrough 반영)
-    this._updateStatusHint()
+    this._updateHintSlot()
+  }
+
+  /** 패널 펼침 여부 (main이 투과 일시 해제 판단에 사용). */
+  get expanded(): boolean {
+    return this._expanded
+  }
+
+  /** 패널이 펼쳐져 있으면 접는다 — 버튼 드래그(창 이동) 시작 시 호출해 펼친 채 이동으로
+   *  생기는 기하 문제(위 열림 패널이 메뉴바에 잘림 등)를 원천 차단한다. */
+  collapse(): void {
+    if (this._expanded) this._togglePanel()
   }
 
   /** 패널 콘텐츠의 실제 레이아웃 높이(px). 창 높이 동적 산정에 쓴다(닫힘/펼침 무관, scrollHeight). */
@@ -299,15 +306,10 @@ export class ControlPanel {
 
   /** 외부에서 lure 모드 상태를 UI에 반영 */
   setLureMode(mode: LureMode): void {
+    this._lureMode = mode
     this._feedBtn.classList.toggle('cp__lure-btn--active', mode === 'feed')
     this._scareBtn.classList.toggle('cp__lure-btn--active', mode === 'scare')
-    if (mode === null) {
-      this._lureHint.style.display = 'none'
-    } else {
-      this._lureHint.textContent =
-        mode === 'feed' ? '먹이주기 모드: 화면을 클릭하세요' : '놀래키기 모드: 화면을 클릭하세요'
-      this._lureHint.style.display = 'block'
-    }
+    this._updateHintSlot()
   }
 
   /** 외부에서 상태를 갱신하면 UI를 동기화 */
@@ -324,7 +326,7 @@ export class ControlPanel {
     this._moodToggle.checked = state.moodReactive
     this._zoomSlider.value = String(zoomToSliderPercent(state.zoom))
     this._zoomValue.textContent = `${zoomToSliderPercent(state.zoom)}%`
-    this._updateStatusHint()
+    this._updateHintSlot()
   }
 
   /** 외부(휠)에서 줌이 바뀌면 슬라이더/값 표시를 동기화 */
@@ -334,14 +336,14 @@ export class ControlPanel {
     this._zoomValue.textContent = `${pct}%`
   }
 
-  /** 인터랙션 가용성 반영: 비활성 시 확대·먹이·놀래키기를 흐리게/클릭불가 + 안내문 표시. */
+  /** 인터랙션 가용성 반영: 비활성 시 확대·먹이·놀래키기를 흐리게/클릭불가 + 힌트 안내. */
   setInteractive(enabled: boolean): void {
     this._zoomRow.classList.toggle('cp__control--disabled', !enabled)
     this._lureRow.classList.toggle('cp__control--disabled', !enabled)
     this._zoomSlider.disabled = !enabled
     this._feedBtn.disabled = !enabled
     this._scareBtn.disabled = !enabled
-    this._interactionNotice.style.display = enabled ? 'none' : 'block'
+    this._updateHintSlot()
   }
 
   /** 외부(main)에서 가용 특별 개체 종과 활성 목록을 전달해 칩 UI를 채운다. */
@@ -391,13 +393,28 @@ export class ControlPanel {
     parent.appendChild(el)
   }
 
-  /** 마우스 투과/수조 숨김이 켜졌을 때, 무슨 일이 일어나는지 안내 문구를 표시한다. */
-  private _updateStatusHint(): void {
-    const msgs: string[] = []
-    if (this._hideToggle.checked) msgs.push('수조 숨김 — 우상단 버튼만 표시 중')
-    if (this._clickThroughToggle.checked) msgs.push('마우스 투과 — 수조 클릭이 뒤 화면으로 통과')
-    this._statusHint.textContent = msgs.join('  ·  ')
-    this._statusHint.style.display = msgs.length > 0 ? 'block' : 'none'
+  /**
+   * 고정 힌트 슬롯 갱신. 우선순위: lure armed > 투과/숨김 상태 안내 > (빈칸 유지).
+   * 슬롯 높이는 고정이므로 어떤 상태 전환에도 다른 컨트롤이 밀리지 않는다.
+   */
+  private _updateHintSlot(): void {
+    const hidden = this._hideToggle.checked
+    const through = this._clickThroughToggle.checked
+    let text = ''
+    let color: string = COLORS.textSecondary
+    if (this._lureMode !== null) {
+      text =
+        this._lureMode === 'feed' ? '먹이주기 모드: 화면을 클릭하세요' : '놀래키기 모드: 화면을 클릭하세요'
+      color = COLORS.point
+    } else if (hidden && through) {
+      text = '수조 숨김·마우스 투과 중 — 먹이주기·놀래키기·확대 사용 불가'
+    } else if (hidden) {
+      text = '수조 숨김 중 — 렌더 정지(절전), 먹이주기·놀래키기·확대 불가'
+    } else if (through) {
+      text = '마우스 투과 중 — 수조 클릭이 뒤로 통과(패널 열린 동안 일시 해제)'
+    }
+    this._hintSlot.textContent = text
+    this._hintSlot.style.color = color
   }
 
   /** 종료 버튼: 한 번 누르면 무장(확인 문구), 3초 내 다시 누르면 실제 종료. 오클릭 방지. */
@@ -442,17 +459,22 @@ export class ControlPanel {
     titleRow.append(title, closeBtn)
     card.appendChild(titleRow)
 
+    const isMac = navigator.userAgent.includes('Mac')
     const items: [string, string][] = [
       ['⚙ 플로팅 버튼', '드래그하면 창 이동, 클릭하면 이 패널을 열고 닫습니다.'],
       ['개체수', '함께 헤엄치는 작은 물고기 수를 조절합니다.'],
       ['특별 개체', '고래·만타가오리 등 큰 개체를 켜고 끕니다. 켜면 한 마리씩 천천히 등장합니다.'],
+      ['물고기 대사', '물고기를 클릭하면 어종별로 한마디씩 말을 건넵니다.'],
       ['밝기', '수조 조명의 밝기를 조절합니다.'],
       ['투명도', '물고기를 제외한 수조(바닥·수초·돌)의 투명도. 0이면 물고기만 남습니다.'],
+      ['확대', '수조 위에서 마우스 휠을 굴리거나 슬라이더로 1~2배 확대해 감상합니다.'],
+      ['시간대 반응', '시각에 따라 조명 무드가 은은히 변합니다 — 심야는 어둑한 청색, 저녁은 골든 앰버.'],
       ['수조 숨김', '렌더링을 멈춰 절전합니다. 플로팅 버튼만 남습니다.'],
-      ['마우스 투과', '수조 영역의 클릭이 뒤쪽 화면(바탕화면)으로 통과됩니다.'],
+      ['마우스 투과', '수조 영역의 클릭이 뒤쪽 화면(바탕화면)으로 통과됩니다. 이 패널이 열려 있는 동안은 일시 해제됩니다.'],
       ['Always on Top', '항상 다른 창 위에 표시합니다.'],
-      ['먹이주기 / 놀래키기', '버튼을 켠 뒤 화면을 클릭하면 물고기가 반응합니다.'],
+      ['먹이주기 / 놀래키기', '버튼을 켠 뒤 화면을 클릭하면 물고기가 반응합니다. 20초간 사용이 없으면 자동 해제됩니다.'],
       ['크기 조절', '수조의 오른쪽·아래·우하단 모서리를 드래그해 크기를 바꿉니다.'],
+      ['창 복구 단축키', `${isMac ? '⌥⌘A' : 'Ctrl+Alt+A'} — 창이 안 보이거나 버튼을 잃었을 때 화면 상단으로 되돌립니다.`],
       ['종료', '한 번 누르면 확인, 다시 누르면 앱이 종료됩니다.'],
     ]
     const list = document.createElement('div')

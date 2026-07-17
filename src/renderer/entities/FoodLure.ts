@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { FISH } from '../../shared/config'
+import { FISH, LURE } from '../../shared/config'
 import type { FishSchool } from './FishSchool'
 import type { FoodParticles } from './FoodParticles'
 
@@ -20,6 +20,8 @@ export class FoodLure {
   private readonly _isInteractive: () => boolean
   private readonly _raycaster = new THREE.Raycaster()
   private readonly _pointer = new THREE.Vector2()
+  /** armed 무활동 자동 해제 타이머 — 켜 둔 채 잊으면 대사가 계속 억제되는 문제 방지. */
+  private _idleTimer: ReturnType<typeof setTimeout> | null = null
 
   /** 모드 변경 콜백 (UI 동기용) */
   onModeChange: ((mode: LureMode) => void) | null = null
@@ -51,11 +53,27 @@ export class FoodLure {
     } else {
       this._mode = mode
     }
+    this._resetIdleTimer()
     this.onModeChange?.(this._mode)
   }
 
   dispose(): void {
     this._canvas.removeEventListener('pointerdown', this._onPointerDown)
+    if (this._idleTimer !== null) clearTimeout(this._idleTimer)
+  }
+
+  /** armed 상태에서 일정 시간 클릭이 없으면 자동 해제. 클릭(사용)마다 타이머 리셋. */
+  private _resetIdleTimer(): void {
+    if (this._idleTimer !== null) {
+      clearTimeout(this._idleTimer)
+      this._idleTimer = null
+    }
+    if (this._mode === null) return
+    this._idleTimer = setTimeout(() => {
+      this._idleTimer = null
+      this._mode = null
+      this.onModeChange?.(null)
+    }, LURE.armedIdleTimeoutMs)
   }
 
   private _onPointerDown = (e: PointerEvent): void => {
@@ -64,6 +82,8 @@ export class FoodLure {
 
     const worldPoint = this._screenToWorld(e.clientX, e.clientY)
     if (!worldPoint) return
+
+    this._resetIdleTimer() // 사용 중에는 armed 유지
 
     if (this._mode === 'feed') {
       this._foodParticles.spawn(worldPoint)

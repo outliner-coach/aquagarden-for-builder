@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { applyDelta, clampPositionToDisplay, clampPositionToDisplays } from '../overlay'
+import {
+  applyDelta,
+  clampPositionToDisplay,
+  clampPositionToDisplays,
+  clampTopToWorkAreas,
+} from '../overlay'
 
 interface Bounds {
   x: number
@@ -134,5 +139,44 @@ describe('clampPositionToDisplays — 다중 모니터 자유 이동(걸쳐 있�
     const r = clampPositionToDisplays(b, displays, minVisible)
     expect(r.width).toBe(400)
     expect(r.height).toBe(220)
+  })
+})
+
+// 창 상단이 작업영역 위(메뉴바 아래·화면 밖)로 올라가지 못하게 하는 클램프.
+// minVisibleOnMove(80px) 기준의 자유 이동 클램프만으로는 창 top이 -140px까지 올라갈 수 있어,
+// 위로 열린 패널 헤더(?버튼)와 플로팅 버튼이 메뉴바에 가려 조작 불가가 되던 문제(라이브 QA 재현) 방지.
+describe('clampTopToWorkAreas', () => {
+  const main = { x: 0, y: 25, width: 1512, height: 920 } // y=25: 메뉴바 아래 work area
+  const upper = { x: 200, y: -1055, width: 1920, height: 1080 } // 위로 배치된 보조 모니터
+
+  it('창 top이 work area 위로 올라가면 work area top으로 끌어내린다', () => {
+    const b = { x: 0, y: -140, width: 1512, height: 220 }
+    expect(clampTopToWorkAreas(b, [main], 80).y).toBe(25)
+  })
+
+  it('창 top이 work area 안이면 그대로 둔다', () => {
+    const b = { x: 0, y: 300, width: 1512, height: 220 }
+    expect(clampTopToWorkAreas(b, [main], 80)).toEqual(b)
+  })
+
+  it('위쪽 보조 모니터가 수평으로 겹치면 그 모니터 top까지 올라갈 수 있다', () => {
+    const b = { x: 400, y: -500, width: 1000, height: 220 }
+    expect(clampTopToWorkAreas(b, [main, upper], 80).y).toBe(-500)
+  })
+
+  it('위쪽 모니터와 수평 겹침이 부족하면(다른 x 대역) 주 모니터 top으로 클램프', () => {
+    const sideUpper = { x: 5000, y: -1055, width: 1920, height: 1080 }
+    const b = { x: 0, y: -140, width: 1512, height: 220 }
+    expect(clampTopToWorkAreas(b, [main, sideUpper], 80).y).toBe(25)
+  })
+
+  it('어느 디스플레이와도 수평 겹침이 없으면 그대로 둔다(완전 이탈은 clampPositionToDisplays 소관)', () => {
+    const b = { x: -5000, y: -140, width: 400, height: 220 }
+    expect(clampTopToWorkAreas(b, [main], 80)).toEqual(b)
+  })
+
+  it('디스플레이 목록이 비면 그대로 둔다', () => {
+    const b = { x: 0, y: -999, width: 1512, height: 220 }
+    expect(clampTopToWorkAreas(b, [], 80)).toEqual(b)
   })
 })

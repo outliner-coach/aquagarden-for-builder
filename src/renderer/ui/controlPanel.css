@@ -225,7 +225,10 @@
   inset: 0;
   z-index: 10001;
   align-items: center;
-  justify-content: center;
+  /* 패널·플로팅 버튼이 우측에 있으므로 카드도 우측 정렬 — 컨트롤과 시각적으로 연결 */
+  justify-content: flex-end;
+  padding-right: 16px;
+  box-sizing: border-box;
   background: rgba(6, 18, 20, 0.35);
 }
 .cp__help-card {

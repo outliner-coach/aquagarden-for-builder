@@ -24,6 +24,8 @@
 
 **테마 리드백(`AQUA_SMOKE_THEME=<id>`)**: renderer의 `window.__AQUA_APPLY_THEME__(id)` 훅(main.ts)을 호출해 UI 없이 배경 테마를 전환한다. 물고기 위치가 매 실행 달라 캡처 diff로는 전환을 검증할 수 없으므로, 적용된 id를 `__AQUA_HEALTH__.theme`으로 리드백해 요청값과 대조한다 — 불일치(유령 id 포함) 시 스모크 실패.
 
+**검사용 궤도 카메라(`AQUA_SMOKE_CAM="yaw,pitch[,dist]"` — 도/월드유닛)**: renderer의 `window.__AQUA_SET_CAMERA__(yaw, pitch, dist?)` 훅을 호출해 `CAMERA.orbit.target` 중심 궤도에서 캡처한다(순수 계산 `cameraHelpers.orbitCameraPose`, yaw0·pitch0·기본거리=기존 정면 카메라와 동일). 씬은 정면 고정 카메라 전제로 authoring돼 있어 프로덕트 기능이 아니라 "다른 각도에서의 파탄(모래 슬랩 경계·근접 왜곡·빈 배경)" 점검용 QA 훅이다. 2026-07-18 스윕 결과: ±15~20°·내려보기 30°까진 성립, 그 이상은 무대 세트 한계 노출(`eval-camera-angles.png`).
+
 ### 3. 비전 미적 판정 (LLM) — `scripts/eval_vision.py`
 스크린샷을 `reference_image.png`·설계 의도와 비교해 `claude` 멀티모달로 채점. **두 모드**:
 - `mode="step"`: per-step. "깨짐 없음 + 이 step의 목표가 보이는가"만(미구현 후속 기능 감점 X).

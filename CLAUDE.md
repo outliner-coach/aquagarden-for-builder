@@ -67,10 +67,24 @@ npm run smoke    # 빌드 + headless 런타임 eval (셰이더/렌더 깨짐·�
 - **미학 조율(step6)**: 가지 산호가 마른 나뭇가지처럼 앙상해 보이던 것을 `CORAL.branch`(childCount/radiusDecay/spreadAngle) 소폭 상향으로, 부채 산호가 성게처럼 읽히던 것을 `CORAL.fan`(veinCount/veinGapRatio/fanHalfAngle/yawJitter) 소폭 조정으로 완화(캡처 비교로 확정, 컬러 팝·클러스터 중앙 트임은 원래도 양호해 그대로 둠). 패널 '다시마 숲' 라벨 2줄 줌바꿈은 한글이 공백 없이도 음절 경계에서 줄바꿈되는 특성 때문에 표시명 변경만으론 해결이 안 돼, `.cp__theme-btn`에 `white-space:nowrap`+폰트/패딩 소폭 축소로 해결.
 - 라이브 QA 미검증 항목은 `docs/HANDOFF.md` "현재 상태" 참고.
 
+### 물고기 지형 회피 + 지형 융기 반영 (2026-07-18)
+phase 9의 "지형 높이를 물고기 바닥(minY −1.2) 아래로 캡핑" 접근을 역전 — **물고기가 지형을 인지하고 피해 다닌다**. 미결이던 "마운드 융기감 약함(비전 hardscape 45)" 해소.
+- **회피 2층**: ①소프트 — 로컬 바닥(지형 표면+`TERRAIN_AVOID.clearance`) 기준 상승 조향(`terrainClimbForce`, 전방 예측 `lookAheadPoint`로 경사 선제 상승) + 경사 수평 우회(`terrainDeflectXZ`, 내리막 방향 — 마운드를 옆으로 돌아가기). ②하드 — 이동 후 `localFloorY`로 y 클램프(관통 원천 차단). 순수 헬퍼는 `terrainHelpers.ts`(TDD), 배선은 `Fish.update`(swim/crawler 분기 — 새우는 clearance 0으로 표면을 타고 기어오름, 미니멀=terrain null이면 기존 평면 거동 그대로).
+- **주입 경로**: main.ts `applyThemeById`(테마 적용 단일 경로) → `FishSchool.setTerrain` → 전 개체(+풀 성장분).
+- **지형 상향**: coral-reef 마운드 0.51/0.44→**1.5/1.2**(radius 5.6/4.6, 정점 y≈−0.37 — 카메라 y0에서 모래 지평선 −6.4°를 ~4.4° 돌파해야 융기로 읽힘, 실측 근거는 config 주석), maxHeight 1.6, crestColorStrength 0.8. kelp-forest 기복 0.26→**0.38**, maxHeight 0.85. authoring 가드는 "캡 0.6"에서 "수면 여유"(sandY+maxHeight+clearance ≤ maxY−minHeadroom)로 교체(terrainHelpers.test).
+- **런타임 관통 감시**: `FishSchool.terrainClipCount`(표면 아래 감지 누적) → `health.terrainClips` → **스모크가 0을 게이트**(정적 캡처는 모션 관통을 못 봄 — headingYaw 가드와 같은 원칙).
+- 게이트: test **641**(+20: 회피 헬퍼·Fish 3000틱×3시드 무관통 불변식(유효고도 1.6 스트레스 지형)·smokeEval 게이트)·lint·build·테마 3종 smoke(관통 0, 최대 341프레임×40마리) 통과. 캡처: `eval-terrain-final-compare.png`(구 vs 신), `eval-terrain-zoom.png`(융기 확대). 비전 judge는 정지컷 융기 체감을 여전히 낮게 봄(52~62, 노이즈 대역) — 모션 확인은 라이브 QA로 수행(사용자 확인: "많이 나아졌다").
+
+### 카메라 궤도 — 드래그 회전 + 검사용 훅 (2026-07-18, v0.10.0)
+사용자 요청("다른 각도에서도 보고 싶다")로 추가. 프로덕트 카메라는 여전히 정면 고정 기본이되, 궤도 회전이 가능해졌다.
+- **프로덕트**: 수조 캔버스 드래그=카메라 궤도(민감도·클램프는 `CAMERA.orbit.drag` — yaw ±25°·pitch −5~30°, 2026-07-18 각도 스윕에서 무대 세트가 성립하는 범위), 더블클릭=정면 복귀(returnRate 지수 수렴), 각도는 줌과 같은 영속 패턴(`settings.cameraYaw/Pitch`, 로드 시 클램프 보정). 순수 계산 `cameraHelpers.ts`(orbitCameraPose/applyOrbitDrag/approachAngle — yaw0·pitch0·기본거리=기존 고정 카메라와 일치하는 하위호환 앵커 테스트).
+- **입력 중재(CRITICAL)**: FishDialogue·FoodLure는 원래 pointerdown 즉발이라 드래그 시작마다 오발동한다 — 둘 다 `handleTap(x,y)`로 이전하고 main.ts 탭/드래그 중재(클릭 임계 `DRAG.clickThresholdPx` 재사용, pointer capture로 창 밖 추적)가 탭에서만 호출한다. 캔버스에 pointerdown 즉발 리스너를 새로 달지 말 것(같은 충돌 재발).
+- **QA**: `__AQUA_SET_CAMERA__`/`AQUA_SMOKE_CAM`은 프로덕트 궤도 상태와 동기화(훅은 클램프 없음 — 무대 세트 밖 점검용). 각도 스윕 결과와 한계는 `docs/EVAL.md`·`eval-camera-angles.png`. 데브 편의: `AQUA_DEVTOOLS=1 npm run dev`가 분리형 데브툴즈를 로드 완료 후 연다(로드 전에 열면 빈 컨텍스트에 붙음).
+
 ## 런타임 eval (CRITICAL — 자기보고 불신)
 **`build/test/lint` 통과만으로 "동작/표시됨"을 단정하지 마라.** 그것들은 순수 로직만 검증하며, 실제 렌더가 깨져도 통과한다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 시각 변경 후엔 반드시 `npm run smoke`로 실제 렌더를 검증한다. 상세: **`docs/EVAL.md`**.
 - 스모크: `src/main/smoke.ts`+`smokeEval.ts` (`AQUA_SMOKE=1`). 콘솔 에러·헬스(`src/renderer/health.ts`)·`capturePage` 픽셀 분석.
-- **스모크는 localStorage를 비우고 시작한다(결정적 평가).** 사용자 영속 상태를 물려받으면 개체수·투명도·무드가 세션마다 달라 캡처 비교가 무의미해진다(실제로 무드 캡처가 "무변화"로 오판된 사고). 상태 구동은 훅으로: `AQUA_SMOKE_FISH`(개체수)·`AQUA_SMOKE_BRIGHTNESS`·`AQUA_SMOKE_TRANSPARENCY`·`AQUA_SMOKE_MOOD`(+`_HOUR`, off→on 재적용·`moodHook` 리드백)·`AQUA_SMOKE_FEATURES`·`AQUA_SMOKE_OPEN_PANEL`·`AQUA_SMOKE_THEME`(배경 테마 id 강제, `health.theme` 리드백).
+- **스모크는 localStorage를 비우고 시작한다(결정적 평가).** 사용자 영속 상태를 물려받으면 개체수·투명도·무드가 세션마다 달라 캡처 비교가 무의미해진다(실제로 무드 캡처가 "무변화"로 오판된 사고). 상태 구동은 훅으로: `AQUA_SMOKE_FISH`(개체수)·`AQUA_SMOKE_BRIGHTNESS`·`AQUA_SMOKE_TRANSPARENCY`·`AQUA_SMOKE_MOOD`(+`_HOUR`, off→on 재적용·`moodHook` 리드백)·`AQUA_SMOKE_FEATURES`·`AQUA_SMOKE_OPEN_PANEL`·`AQUA_SMOKE_THEME`(배경 테마 id 강제, `health.theme` 리드백)·`AQUA_SMOKE_CAM="yaw,pitch[,dist]"`(검사용 궤도 카메라 — 씬은 정면 고정 authoring이므로 QA 전용, 렌더러 데브툴즈에선 `window.__AQUA_SET_CAMERA__(yaw,pitch,dist?)`, 인자 없이 호출하면 정면 복귀).
 - 비전: `scripts/eval_vision.py` (항목별 채점, phase끝). `--intent "<text>"`/`--min-score N`로 테마별 설계 의도·임계값을 override(위치 인자 호출은 하위호환). 하네스 `scripts/execute.py`가 `"eval":true` step·phase끝에서 자동 게이트·반복.
 
 ## 렌더링 컨벤션·함정 (재발 방지 — 실제로 겪은 버그들)

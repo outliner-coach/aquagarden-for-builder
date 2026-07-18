@@ -17,6 +17,12 @@ export interface SmokeHealth {
   frames: number
   /** 적용된 배경 테마 id (health.ts 리드백). 옵셔널: 구버전 리포트/테스트 호환. */
   theme?: string
+  /**
+   * 물고기 지형 표면 관통 누적 감지 횟수(health.ts 리드백). 0이어야 정상 —
+   * 정적 캡처로는 모션 관통을 못 보므로 런타임 카운터로 게이트한다.
+   * 옵셔널: 구버전 리포트/테스트 호환.
+   */
+  terrainClips?: number
 }
 
 export interface PixelStats {
@@ -146,6 +152,8 @@ export function evaluateSmoke(input: SmokeInput): SmokeResult {
     if (!input.health.ready) failures.push('renderer ready 도달 못함')
     if (input.health.frames < minFrames) failures.push(`렌더 프레임 부족 (${input.health.frames} < ${minFrames})`)
     if (input.health.fishActive < minFish) failures.push(`활성 물고기 부족 (${input.health.fishActive} < ${minFish})`)
+    const clips = input.health.terrainClips ?? 0
+    if (clips > 0) failures.push(`물고기 지형 관통 감지 (${clips}회 — 지형 회피/클램프 불변식 위반)`)
     for (const e of input.health.errors) {
       if (textMatchesError(e)) failures.push(`renderer error: ${truncate(e)}`)
     }

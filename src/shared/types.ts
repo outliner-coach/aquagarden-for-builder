@@ -11,6 +11,12 @@ export interface AppSettings {
   moodReactive: boolean
   /** 배경 테마 id(themeRegistry 참조). 하위호환: 없거나 유령 id면 기본 테마('minimal'). */
   themeId?: string
+  /**
+   * 카메라 궤도 각도(도). 캔버스 드래그로 변경, 더블클릭 정면 복귀(0,0), 줌과 같은 영속 패턴.
+   * 하위호환: 구버전 저장값엔 없음 — 없으면 0(정면), 로드 시 CAMERA.orbit.drag 범위로 클램프.
+   */
+  cameraYaw?: number
+  cameraPitch?: number
 }
 
 export interface MoveWindowByPayload {

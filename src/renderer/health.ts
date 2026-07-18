@@ -16,6 +16,11 @@ export interface AquaHealth {
    * 반영됐는지 리드백 검증한다(물고기 위치가 매 실행 달라 캡처 diff로는 검증 불가).
    */
   theme: string
+  /**
+   * 물고기 지형 표면 관통 누적 감지 횟수(FishSchool 런타임 불변식 감시). 회피+클램프가
+   * 정상이라면 항상 0 — 스모크가 0을 게이트한다(캡처로는 모션 관통을 못 보는 것의 보완).
+   */
+  terrainClips: number
 }
 
 const health: AquaHealth = {
@@ -24,6 +29,7 @@ const health: AquaHealth = {
   errors: [],
   frames: 0,
   theme: '',
+  terrainClips: 0,
 }
 
 function pushError(msg: string): void {
@@ -70,4 +76,9 @@ export function tickFrame(): void {
 /** 적용된 배경 테마 id를 헬스에 반영한다(초기 적용 시·Aquascape.setTheme 전환 시 호출). */
 export function setAppliedTheme(id: string): void {
   health.theme = id
+}
+
+/** 물고기 지형 관통 누적 감지 횟수를 헬스에 반영한다(렌더 루프에서 FishSchool 값 미러링). */
+export function setTerrainClips(n: number): void {
+  health.terrainClips = n
 }

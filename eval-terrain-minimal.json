@@ -1,0 +1,22 @@
+{
+  "pass": true,
+  "failures": [],
+  "health": {
+    "ready": true,
+    "fishActive": 40,
+    "errors": [],
+    "frames": 245,
+    "theme": "minimal",
+    "terrainClips": 0
+  },
+  "pixel": {
+    "sampled": 3084,
+    "opaqueRatio": 0.22989623865110245,
+    "transparentRatio": 0.7701037613488976,
+    "uniqueBuckets": 32,
+    "lumVariance": 552.758260136543,
+    "blank": false
+  },
+  "screenshot": "eval-terrain-minimal.png",
+  "errorConsole": []
+}

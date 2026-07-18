@@ -52,6 +52,37 @@ export const SHRIMP = {
   scuttleMinFactor: 0.12,
 } as const
 
+/**
+ * 물고기 지형 회피. 테마 지형(마운드/기복)은 이제 FISH.bounds.minY 위로 융기할 수 있고,
+ * 물고기는 위치별 로컬 바닥(지형 표면 + clearance)을 기준으로 ①전방 예측 상승 조향 +
+ * 경사 수평 우회(소프트, terrainHelpers), ②통합 후 y 하드 클램프(관통 원천 차단)로 피해
+ * 다닌다(Fish.update). 새우(crawler)는 clearance 없이 표면을 타고 기어다닌다.
+ * authoring 가드: sandY + terrain.maxHeight + clearance ≤ bounds.maxY − minHeadroom
+ * (terrainHelpers.test config 무결성 — 물고기가 끼이는 협곡 방지).
+ */
+export const TERRAIN_AVOID = {
+  /** 지형 표면 위 최소 여유고(로컬 바닥 = 표면 + 이 값). 물고기 몸통 반높이 스케일. */
+  clearance: 0.22,
+  /** 로컬 바닥 위 이 여유 안으로 들어오면 상승 조향 시작(소프트 회피 대역). */
+  approachMargin: 0.55,
+  /** 전방 예측 시간(초) — 진행 방향의 경사를 미리 읽고 완만하게 선제 상승. */
+  lookAheadSec: 0.6,
+  /** 전방 예측 거리 상한(월드 유닛) — 놀래키기 가속 시 과예측 요동 방지. */
+  lookAheadMaxDist: 1.8,
+  /** 상승 조향 강도(Fish 경계회피 BOUNDARY_TURN_FORCE와 동급 스케일). */
+  climbForce: 2.5,
+  /** 상승력 상한 배율(바닥 아래로 파고든 예외 상황의 폭주 방지: 최대 climbForce×이 값). */
+  climbForceCap: 2.0,
+  /** 경사 수평 우회 강도 — 마운드를 타넘는 대신 옆으로 돌아가는 성분(wander 0.5와 동급). */
+  deflectStrength: 1.4,
+  /** 경사(기울기) 중심차분 샘플 간격(월드 유닛). */
+  gradientEps: 0.4,
+  /** 수면 쪽 최소 유영 여유: sandY+maxHeight+clearance ≤ maxY−이 값 (authoring 가드). */
+  minHeadroom: 0.8,
+  /** 런타임 관통 감시 허용 오차(health.terrainClips 판정, smoke가 0 검증). */
+  clipEpsilon: 0.02,
+} as const
+
 export const LIGHT = {
   minIntensity: 0.1,
   maxIntensity: 2.0,
@@ -111,6 +142,32 @@ export const CAMERA = {
   fov: 50,
   near: 0.1,
   far: 100,
+  /**
+   * 검사용 궤도 카메라(__AQUA_SET_CAMERA__/AQUA_SMOKE_CAM)의 기준. 프로덕트 카메라는
+   * 정면 고정이며, target(z−3)+defaultDist(8)는 yaw0·pitch0에서 기존 위치 (0,0,5)와
+   * 정확히 일치하도록 정한 값(cameraHelpers.test 하위호환 앵커).
+   */
+  orbit: {
+    target: { x: 0, y: 0, z: -3 },
+    defaultDist: 8,
+    /**
+     * 프로덕트 캔버스 드래그 궤도(카메라 회전). 각도는 무대 세트가 성립하는 범위로 클램프한다
+     * (2026-07-18 각도 스윕: yaw ±25°·pitch 30° 밖은 모래 슬랩 경계·근접 왜곡 노출 — EVAL.md).
+     * 드래그 중 각도는 즉응, 더블클릭 복귀는 returnRate 지수 수렴(무드 전환과 같은 패턴).
+     */
+    drag: {
+      /** 수평 감도(도/px). 부호는 OrbitControls 관례 — 오른쪽 드래그 = 씬이 오른쪽으로 도는 느낌. */
+      yawPerPx: 0.12,
+      /** 수직 감도(도/px). 아래로 끌면 위에서 내려보는 각. */
+      pitchPerPx: 0.15,
+      minYaw: -25,
+      maxYaw: 25,
+      minPitch: -5,
+      maxPitch: 30,
+      /** 더블클릭 정면 복귀의 지수 수렴 속도(1/s). */
+      returnRate: 6,
+    },
+  },
 } as const
 
 export const ZOOM = {
@@ -587,17 +644,19 @@ export const THEME = {
       /**
        * 지형(phase9 step0): 다시마 숲 = 어둡고 울퉁불퉁한 암반 바닥. feature 마운드 없이
        * 저주파 기복(rollAmplitude·rollScale)만 — "바위 무더기"는 위 hardscape 큰 바위가 담당.
-       * frontFlatZ 앞은 평탄(새우 크롤러 보호), |x|>edgeTaperStart는 0으로 페이드(가장자리 보존).
+       * frontFlatZ 앞은 평탄(전면 모래 평면 보존), |x|>edgeTaperStart는 0으로 페이드(가장자리 보존).
+       * 기복 진폭 상향(0.26→0.38, 물고기 지형 회피 도입으로 클리핑 상한 해제): 암반 바닥의
+       * 융기·꺼짐이 물고기 하단 유영 대역까지 올라와 바닥이 "지형"으로 읽힌다.
        */
       terrain: {
-        rollAmplitude: 0.26,
+        rollAmplitude: 0.38,
         rollScale: 0.46,
         mounds: [],
         edgeTaperStart: 13,
         edgeTaperEnd: 17,
         frontFlatZ: -1.5,
         frontTaperWidth: 2.0,
-        maxHeight: 0.6,
+        maxHeight: 0.85,
         // 기복 정점을 어두운 암반색으로 살짝 변조해 지형이 읽히게(모래색보다 짙은 회갈).
         crestColor: 0x4a463f,
         crestColorStrength: 0.55,
@@ -645,26 +704,37 @@ export const THEME = {
       /**
        * 지형(phase9 step0): 산호초 = 모래에서 솟아오른 리프 마운드 2개가 주인공(다음 step에서
        * 산호가 그 표면을 뒤덮는다). 중앙 x∈[−2,+2]는 비워 물고기 스테이지를 유지하고, 마운드는
-       * 좌중(−6)·우중(+7)에 둔다. z는 −3.4/−3.6(뷰 깊이 <9, 새우 크롤러 범위 z≥−2.5 앞). 완만
-       * 기복(rollAmplitude)을 더해 마운드 사이 모래가 채널처럼 읽히게 한다. maxHeight로 물고기
-       * 클리핑(sandY+h ≤ FISH.bounds.minY) 방지.
+       * 좌중(−6)·우중(+7)에 둔다. z는 −3.4/−3.6(뷰 깊이 <9). 완만 기복(rollAmplitude)을 더해
+       * 마운드 사이 모래가 채널처럼 읽히게 한다.
+       * 마운드 높이 상향(0.51/0.44→1.5/1.2, phase9 미결 "융기감 약함·비전 hardscape 45" 해소):
+       * 리프가 물고기 유영 대역(minY −1.2) 위로 실제 융기한다 — 물고기는 지형 회피(TERRAIN_AVOID,
+       * Fish.update)로 표면을 타넘거나 옆으로 돌아가고, 관통은 하드 클램프로 원천 차단된다.
+       * 높이 산정 근거: 카메라(y0,z5)에서 모래 평면 먼 가장자리(z−11)의 지평선각은 −6.4°.
+       * 마운드 정점이 이 지평선을 뚜렷이 돌파해야 "융기"로 읽힌다 — 정점 y=−0.3(h1.5)이면
+       * −2.05°로 지평선 위 ~4.4°(기본 바에서 ~34px). 1.15(−0.6, +2.3°≈18px)는 부족했다(실측).
+       * 수면 여유 가드(maxY−minHeadroom−clearance) 안이며 지형 회피 통합 테스트는 유효고도
+       * 1.6(Fish.terrain.test 스트레스 지형)까지 검증한다.
        */
       terrain: {
         rollAmplitude: 0.09,
         rollScale: 0.3,
+        // radius 4.5/3.6→5.6/4.6: 낮은 바에서는 높이 못지않게 "폭"이 융기 인지를 좌우한다 —
+        // 마운드 기슭이 좌우(x≈±11.6)까지 뻗어 빈 모래대를 줄이고 완만한 리프 뱅크로 읽히게.
+        // 중앙 스테이지(x[−2,2])는 기슭 끝자락만 스치므로 유지(테스트 가드).
         mounds: [
-          { x: -6, z: -3.4, radius: 4.5, height: 0.51 }, // 좌중 큰 마운드
-          { x: 7, z: -3.6, radius: 3.6, height: 0.44 }, // 우중 작은 마운드
+          { x: -6, z: -3.4, radius: 5.6, height: 1.5 }, // 좌중 큰 마운드
+          { x: 7, z: -3.6, radius: 4.6, height: 1.2 }, // 우중 작은 마운드
         ],
         edgeTaperStart: 13,
         edgeTaperEnd: 17,
         frontFlatZ: -1.5,
         frontTaperWidth: 2.0,
-        maxHeight: 0.6,
+        maxHeight: 1.6,
         // 마운드 정점을 밝은 모래보다 확연히 어둡고 차가운 암반색으로 변조 — "리프 rock platform"이
         // 밝은 모래 채널과 대비되어 읽히게. (기존 0xcfc4ab는 모래색과 거의 같아 무변화였음.)
+        // strength 0.65→0.8: 융기 상향과 함께 정면 비탈이 암반 밴드로 더 진하게 읽히도록.
         crestColor: 0x8f8478,
-        crestColorStrength: 0.65,
+        crestColorStrength: 0.8,
       },
       /**
        * 산호 리프 피복 배치(step2 coral-density). 형태·색·비율은 config.CORAL(+CORAL.reef), 여기는

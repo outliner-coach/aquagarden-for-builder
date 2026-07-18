@@ -185,6 +185,27 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(800)
   }
 
+  // 선택: 검사용 궤도 카메라 각도 강제(AQUA_SMOKE_CAM="yaw,pitch[,dist]" 도/월드유닛).
+  // 씬이 정면 고정 카메라 전제로 authoring돼 있어, 다른 각도에서의 파탄(평면 스트립·페이드
+  // 경계 등)을 캡처로 점검하는 QA 훅이다. main.ts의 __AQUA_SET_CAMERA__를 호출한다.
+  const requestedCam = process.env['AQUA_SMOKE_CAM'] ?? null
+  if (requestedCam !== null) {
+    const [yaw, pitch, dist] = requestedCam.split(',').map((s) => Number(s.trim()))
+    if (Number.isFinite(yaw) && Number.isFinite(pitch)) {
+      await win.webContents
+        .executeJavaScript(
+          `(() => {
+            const fn = window.__AQUA_SET_CAMERA__;
+            if (typeof fn !== 'function') return false;
+            fn(${yaw}, ${pitch}${Number.isFinite(dist) ? `, ${dist}` : ''});
+            return true;
+          })()`,
+        )
+        .catch(() => false)
+      await delay(300)
+    }
+  }
+
   // 선택: 컨트롤 패널을 펼친 상태로 캡처(패널 UI 시각 검증용).
   // smoke 모드는 IPC 핸들러를 등록하지 않아 창 성장 요청(setWindowSize)이 no-op이다.
   // → 패널을 DOM에서 직접 표시하고, 캡처가 잘리지 않게 창 높이를 키운다(smoke 전용 계측).

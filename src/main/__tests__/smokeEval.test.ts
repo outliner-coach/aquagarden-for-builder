@@ -109,6 +109,29 @@ describe('evaluateSmoke', () => {
     expect(r.failures.some((f) => f.includes('ready'))).toBe(true)
   })
 
+  it('물고기 지형 관통 감지(terrainClips > 0) → fail', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [],
+      health: { ...okHealth, terrainClips: 3 },
+      pixel: okPixel,
+      fatal: null,
+    })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('지형 관통'))).toBe(true)
+  })
+
+  it('terrainClips 미보고(구버전 헬스) 또는 0 → pass (하위호환)', () => {
+    const legacy = evaluateSmoke({ consoleMsgs: [], health: okHealth, pixel: okPixel, fatal: null })
+    expect(legacy.pass).toBe(true)
+    const zero = evaluateSmoke({
+      consoleMsgs: [],
+      health: { ...okHealth, terrainClips: 0 },
+      pixel: okPixel,
+      fatal: null,
+    })
+    expect(zero.pass).toBe(true)
+  })
+
   it('no fish → fail', () => {
     const r = evaluateSmoke({ consoleMsgs: [], health: { ...okHealth, fishActive: 0 }, pixel: okPixel, fatal: null })
     expect(r.pass).toBe(false)

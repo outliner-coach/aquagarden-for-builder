@@ -73,6 +73,16 @@ export function createOverlayWindow(opts?: { show?: boolean }): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // 개발 편의: 프레임리스 오버레이는 데브툴즈를 열 UI가 없다 — AQUA_DEVTOOLS=1이면 분리형으로
+  // 연다(검사용 훅 __AQUA_SET_CAMERA__ 등 콘솔 호출용, 프로덕션 빌드/스모크에는 영향 없음).
+  // 반드시 로드 완료 후에 연다: 로드 전에 열면 빈(about:blank) 컨텍스트에 붙어 콘솔이
+  // 페이지 전역(window 훅)을 못 보는 경우가 있다.
+  if (process.env['AQUA_DEVTOOLS'] === '1') {
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.openDevTools({ mode: 'detach' })
+    })
+  }
+
   return win
 }
 

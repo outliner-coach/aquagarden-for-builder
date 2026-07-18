@@ -1,5 +1,5 @@
 import type { AppSettings } from '../shared/types'
-import { ZOOM } from '../shared/config'
+import { ZOOM, CAMERA } from '../shared/config'
 import { resolveThemeId } from './entities/themeHelpers'
 import { THEME_REGISTRY, DEFAULT_THEME_ID } from './entities/themeRegistry'
 
@@ -62,6 +62,14 @@ export function loadPersisted(): PersistedState | null {
           : [],
         // moodReactive: 하위호환(구버전 저장값엔 없음). boolean 아니면 false.
         moodReactive: typeof s.moodReactive === 'boolean' ? s.moodReactive : false,
+        // cameraYaw/Pitch: 하위호환(구버전 저장값엔 없음). 숫자 아니면 0(정면),
+        // 드래그 클램프 범위로 보정(QA 훅으로 극단 각이 저장된 경우 무대 세트 범위로 복귀).
+        cameraYaw: isFiniteNumber(s.cameraYaw)
+          ? Math.max(CAMERA.orbit.drag.minYaw, Math.min(CAMERA.orbit.drag.maxYaw, s.cameraYaw))
+          : 0,
+        cameraPitch: isFiniteNumber(s.cameraPitch)
+          ? Math.max(CAMERA.orbit.drag.minPitch, Math.min(CAMERA.orbit.drag.maxPitch, s.cameraPitch))
+          : 0,
         // themeId: 하위호환(구버전 저장값엔 없음). 누락/비문자열/유령 id는 기본 테마로 보정.
         themeId: resolveThemeId(s.themeId, VALID_THEME_IDS, DEFAULT_THEME_ID),
       },

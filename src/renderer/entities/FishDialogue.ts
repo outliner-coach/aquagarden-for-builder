@@ -33,21 +33,23 @@ export class FishDialogue {
     this._canvas = canvas
     this._fishSchool = fishSchool
     this._isInteractive = isInteractive
-
-    this._canvas.addEventListener('pointerdown', this._onPointerDown)
   }
 
   dispose(): void {
-    this._canvas.removeEventListener('pointerdown', this._onPointerDown)
     this._removeBubble()
   }
 
-  private _onPointerDown = (e: PointerEvent): void => {
+  /**
+   * 캔버스 탭(누르고 임계 이내에서 뗌) 처리 — main.ts의 탭/드래그 중재가 호출한다.
+   * (기존에는 자체 pointerdown 즉발이었으나, 드래그=카메라 궤도와 공존하도록 탭으로 이전.
+   * 발동 조건·레이캐스트·대사 선택 로직은 동일.)
+   */
+  handleTap(clientX: number, clientY: number): void {
     if (!this._isInteractive()) return
 
     const rect = this._canvas.getBoundingClientRect()
-    this._pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    this._pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    this._pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1
+    this._pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1
 
     this._raycaster.setFromCamera(this._pointer, this._camera)
     const fish = this._fishSchool.raycast(this._raycaster)
@@ -59,7 +61,7 @@ export class FishDialogue {
     const line = this._pickLine(speciesId)
     if (!line) return
 
-    this._showBubble(line, e.clientX, e.clientY)
+    this._showBubble(line, clientX, clientY)
   }
 
   private _pickLine(speciesId: SpeciesId): string | null {

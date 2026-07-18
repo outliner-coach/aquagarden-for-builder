@@ -1,11 +1,18 @@
 import * as THREE from 'three'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { FISH, SHRIMP } from '../../shared/config'
+import { FISH, SHRIMP, AQUASCAPE, TERRAIN_AVOID } from '../../shared/config'
 import type { FishPrototype } from './fishAssets'
 import type { SpeciesId } from './speciesRegistry'
 import { pickSpecies } from './fishAssets'
 import { headingYaw, clampZSpeed } from './fishHelpers'
 import { floorBiasForce, scuttleSpeedFactor } from './crawlerHelpers'
+import {
+  localFloorY,
+  lookAheadPoint,
+  terrainClimbForce,
+  terrainDeflectXZ,
+} from './terrainHelpers'
+import type { SandTerrainConfig } from './terrainHelpers'
 
 /* ── Types ── */
 
@@ -43,6 +50,9 @@ export class Fish {
   private _wanderPhase = 0
   private readonly _steer = new THREE.Vector3()
   private _speedMultiplier = 1
+
+  /** 현재 테마의 지형(null=평평한 바닥, 미니멀 하위호환). FishSchool.setTerrain이 주입. */
+  private _terrain: SandTerrainConfig | null = null
 
   constructor(prototypes: Map<SpeciesId, FishPrototype>) {
     this._prototypes = prototypes
@@ -134,6 +144,11 @@ export class Fish {
     this._speedMultiplier = m
   }
 
+  /** 테마 지형 주입(테마 전환 시). null이면 평평한 바닥(bounds.minY) 거동. */
+  setTerrain(terrain: SandTerrainConfig | null): void {
+    this._terrain = terrain
+  }
+
   setVisible(visible: boolean): void {
     this.mesh.visible = visible
   }
@@ -162,11 +177,43 @@ export class Fish {
     let bx = 0
     let by = 0
     let bz = 0
+    let deflX = 0 // 지형 경사 수평 우회(경계힘과 별도 누적 — 경계 대입 의미 보존)
+    let deflZ = 0
     if (p.x < b.minX + m) bx = tf * (1 - (p.x - b.minX) / m)
     if (p.x > b.maxX - m) bx = -tf * (1 - (b.maxX - p.x) / m)
     // 새우는 바닥 띠에 머물러야 하므로 y-경계회피 대신 바닥 부착 스프링을 쓴다.
+    // 지형이 있으면 스프링 목표가 로컬 바닥(지형 표면)을 따라간다 — 마운드를 타고 기어오름.
     if (isCrawler) {
-      by = floorBiasForce(p.y, b.minY, SHRIMP.floorOffset, SHRIMP.floorPull)
+      by = floorBiasForce(p.y, this._floorYAt(p.x, p.z, 0), SHRIMP.floorOffset, SHRIMP.floorPull)
+    } else if (this._terrain) {
+      // 지형 인지 하단 경계: 평평한 minY 대신 로컬 바닥(표면+여유고) 기준.
+      // 전방 예측으로 경사를 만나기 전에 완만히 상승하고, 경사 수평 우회로 옆으로도 돌아간다.
+      const ta = TERRAIN_AVOID
+      const floorNow = this._floorYAt(p.x, p.z, ta.clearance)
+      const ahead = lookAheadPoint(
+        p.x,
+        p.z,
+        this._velocity.x,
+        this._velocity.z,
+        ta.lookAheadSec,
+        ta.lookAheadMaxDist,
+      )
+      const floorAhead = this._floorYAt(ahead.x, ahead.z, ta.clearance)
+      by = terrainClimbForce(p.y, floorNow, floorAhead, ta.approachMargin, ta.climbForce, ta.climbForceCap)
+      const defl = terrainDeflectXZ(
+        p.x,
+        p.z,
+        this._terrain,
+        p.y,
+        AQUASCAPE.sandY,
+        ta.clearance,
+        ta.approachMargin,
+        ta.gradientEps,
+        ta.deflectStrength,
+      )
+      deflX = defl.x
+      deflZ = defl.z
+      if (p.y > b.maxY - m) by -= tf * (1 - (b.maxY - p.y) / m)
     } else {
       if (p.y < b.minY + m) by = tf * (1 - (p.y - b.minY) / m)
       if (p.y > b.maxY - m) by = -tf * (1 - (b.maxY - p.y) / m)
@@ -174,9 +221,9 @@ export class Fish {
     if (p.z < b.minZ + m) bz = tf * (1 - (p.z - b.minZ) / m)
     if (p.z > b.maxZ - m) bz = -tf * (1 - (b.maxZ - p.z) / m)
 
-    this._velocity.x += (wx + bx + this._steer.x) * dt
+    this._velocity.x += (wx + bx + deflX + this._steer.x) * dt
     this._velocity.y += (wy + by + this._steer.y) * dt
-    this._velocity.z += (wz + bz + this._steer.z) * dt
+    this._velocity.z += (wz + bz + deflZ + this._steer.z) * dt
 
     // 속도 범위 유지 (새우는 종종거림 envelope로 멈칫→전진 반복)
     const scuttle = isCrawler
@@ -199,8 +246,11 @@ export class Fish {
     // 이동
     p.addScaledVector(this._velocity, dt)
     p.x = Math.max(b.minX, Math.min(b.maxX, p.x))
-    p.y = Math.max(b.minY, Math.min(b.maxY, p.y))
     p.z = Math.max(b.minZ, Math.min(b.maxZ, p.z))
+    // y 하드 클램프: 이동 후 위치의 로컬 바닥(지형 표면+여유고, 새우는 표면 그대로) 기준 —
+    // 소프트 조향이 못 막은 어떤 경우에도 지형 관통을 원천 차단한다. 지형 없으면 minY와 동일.
+    const floorHard = this._floorYAt(p.x, p.z, isCrawler ? 0 : TERRAIN_AVOID.clearance)
+    p.y = Math.max(floorHard, Math.min(b.maxY, p.y))
 
     // 진행 방향으로 회전 (머리 +X가 속도를 향함)
     if (speed > 0.01) {
@@ -213,6 +263,11 @@ export class Fish {
 
   dispose(): void {
     this._teardownClone()
+  }
+
+  /** 월드 (x, z)의 로컬 바닥 y. terrain 없으면 bounds.minY(평면 바닥 하위호환). */
+  private _floorYAt(x: number, z: number, clearance: number): number {
+    return localFloorY(x, z, this._terrain, AQUASCAPE.sandY, FISH.bounds.minY, clearance)
   }
 
   private _teardownClone(): void {

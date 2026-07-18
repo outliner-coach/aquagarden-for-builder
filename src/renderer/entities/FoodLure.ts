@@ -38,8 +38,6 @@ export class FoodLure {
     this._fishSchool = fishSchool
     this._foodParticles = foodParticles
     this._isInteractive = isInteractive
-
-    this._canvas.addEventListener('pointerdown', this._onPointerDown)
   }
 
   get mode(): LureMode {
@@ -58,7 +56,6 @@ export class FoodLure {
   }
 
   dispose(): void {
-    this._canvas.removeEventListener('pointerdown', this._onPointerDown)
     if (this._idleTimer !== null) clearTimeout(this._idleTimer)
   }
 
@@ -76,11 +73,16 @@ export class FoodLure {
     }, LURE.armedIdleTimeoutMs)
   }
 
-  private _onPointerDown = (e: PointerEvent): void => {
+  /**
+   * 캔버스 탭(누르고 임계 이내에서 뗌) 처리 — main.ts의 탭/드래그 중재가 호출한다.
+   * (기존에는 자체 pointerdown 즉발이었으나, 드래그=카메라 궤도와 공존하도록 탭으로 이전.
+   * armed 게이트·좌표 변환·먹이/놀래키기 분기는 동일.)
+   */
+  handleTap(clientX: number, clientY: number): void {
     if (!this._isInteractive()) return
     if (!this._mode) return
 
-    const worldPoint = this._screenToWorld(e.clientX, e.clientY)
+    const worldPoint = this._screenToWorld(clientX, clientY)
     if (!worldPoint) return
 
     this._resetIdleTimer() // 사용 중에는 armed 유지

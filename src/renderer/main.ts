@@ -15,14 +15,16 @@ import { setupResizeHandles } from './ui/resizeHandles'
 import { computeMouseIgnore } from './ui/passthrough'
 import { computeInteractive } from './ui/interaction'
 import { zoomFromWheel } from './core/zoomHelpers'
+import { orbitCameraPose, applyOrbitDrag, approachAngle } from './core/cameraHelpers'
+import { exceedsThreshold } from './ui/drag'
 import { choosePanelDirection, expandedWindowHeight, canvasTopOffset, shouldAnchorBottom, requiredPanelExtra, type PanelDirection } from './ui/panelLayout'
 import { sceneOpacityFactor } from './core/sceneOpacity'
-import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER } from '../shared/config'
+import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER, DRAG } from '../shared/config'
 import { moodForHour, IDENTITY_MOOD, type Mood } from './lighting/moodHelpers'
 import { setCausticMood } from './entities/caustics'
 import { getTheme, DEFAULT_THEME_ID } from './entities/themeRegistry'
 import type { AppSettings } from '../shared/types'
-import { markReady, setFishActive, tickFrame, setAppliedTheme } from './health'
+import { markReady, setFishActive, tickFrame, setAppliedTheme, setTerrainClips } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
 
 const container = document.getElementById('app')!
@@ -60,9 +62,7 @@ setAppliedTheme(initialThemeId)
   id: string,
 ) => {
   try {
-    const target = getTheme(id)
-    aquascape.setTheme(target)
-    setAppliedTheme(id)
+    applyThemeById(id)
   } catch {
     console.warn(`[theme] 알 수 없는 테마 id 무시: ${id}`)
   }
@@ -70,6 +70,36 @@ setAppliedTheme(initialThemeId)
 
 const fishSchool = new FishSchool()
 sceneRoot.add(fishSchool)
+
+/**
+ * 테마 적용 단일 경로: 배경 재구축 + 물고기 지형 회피 갱신 + 헬스 리드백.
+ * 모르는 id면 getTheme이 throw(호출부가 처리). 지형 없는 테마(미니멀)는 null 주입 —
+ * 물고기가 평평한 bounds.minY 바닥 거동으로 복귀한다.
+ */
+function applyThemeById(id: string): void {
+  const target = getTheme(id)
+  aquascape.setTheme(target)
+  fishSchool.setTerrain(target.terrain ?? null)
+  setAppliedTheme(id)
+}
+
+// 초기 테마의 지형을 물고기에 주입(Aquascape 배경은 위 생성자에서 이미 적용됨).
+fishSchool.setTerrain(getTheme(initialThemeId).terrain ?? null)
+
+// 검사용 궤도 카메라 훅(AQUA_SMOKE_CAM·데브툴즈용) — __AQUA_APPLY_THEME__와 같은 스모크 훅
+// 패턴. 씬은 정면 고정 카메라 전제로 authoring돼 있으므로 프로덕트 기능이 아니라 "다른
+// 각도에서 파탄 여부"를 점검하는 QA 도구다. 인자 없이 부르면 정면 기본 뷰로 복귀한다.
+;(window as unknown as { __AQUA_SET_CAMERA__?: (yaw?: number, pitch?: number, dist?: number) => string }).__AQUA_SET_CAMERA__ = (yawDeg = 0, pitchDeg = 0, dist?: number) => {
+  // 프로덕트 궤도 상태와 동기화(표시각=목표각) — 렌더 루프 수렴이 훅 값을 되돌리지 않게 한다.
+  // 클램프하지 않는다(QA는 무대 세트 밖 극단각도 봐야 함). 영속 로드 시 드래그 범위로 보정됨.
+  settings.cameraYaw = yawDeg
+  settings.cameraPitch = pitchDeg
+  camYaw = yawDeg
+  camPitch = pitchDeg
+  applyCameraPose(dist)
+  // 콘솔 피드백(데브툴즈에서 undefined 대신 적용 상태가 보이게)
+  return `카메라 적용: yaw ${yawDeg}° · pitch ${pitchDeg}°${dist !== undefined ? ` · dist ${dist}` : ''} (복귀: __AQUA_SET_CAMERA__())`
+}
 
 // 비동기 GLB 프로토타입 로딩 — 렌더 루프는 즉시 시작, 물고기는 로드 후 등장
 fishSchool
@@ -116,8 +146,17 @@ const loop = new RenderLoop((dt) => {
     aquascape.setMood(m.tint[0] * s, m.tint[1] * s, m.tint[2] * s)
     setCausticMood(m.tint[0] * s, m.tint[1] * s, m.tint[2] * s)
   }
+  // 카메라 궤도: 목표각(더블클릭 복귀 등)으로 지수 수렴. 드래그 중엔 목표=표시라 no-op.
+  const targetYaw = settings.cameraYaw ?? 0
+  const targetPitch = settings.cameraPitch ?? 0
+  if (camYaw !== targetYaw || camPitch !== targetPitch) {
+    camYaw = approachAngle(camYaw, targetYaw, dt, CAMERA.orbit.drag.returnRate)
+    camPitch = approachAngle(camPitch, targetPitch, dt, CAMERA.orbit.drag.returnRate)
+    applyCameraPose()
+  }
   sceneRoot.render()
   setFishActive(fishSchool.activeCount)
+  setTerrainClips(fishSchool.terrainClipCount)
   tickFrame()
 }, RENDER.maxFps)
 
@@ -134,9 +173,24 @@ const settings: AppSettings = persisted?.settings ?? {
   enabledFeatures: [],
   moodReactive: false,
   themeId: DEFAULT_THEME_ID,
+  cameraYaw: 0,
+  cameraPitch: 0,
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
 sceneRoot.setZoom(settings.zoom)
+
+// ── 카메라 궤도 상태 ──
+// settings.cameraYaw/Pitch = 목표각(영속·클램프는 applyOrbitDrag/로드 보정이 보장),
+// camYaw/camPitch = 표시각. 드래그는 즉응(둘 다 갱신), 더블클릭 복귀는 목표만 0으로 두고
+// 렌더 루프가 returnRate로 지수 수렴시킨다(무드 전환과 같은 패턴).
+let camYaw = settings.cameraYaw ?? 0
+let camPitch = settings.cameraPitch ?? 0
+function applyCameraPose(dist?: number): void {
+  const pose = orbitCameraPose(camYaw, camPitch, dist)
+  sceneRoot.camera.position.set(pose.position.x, pose.position.y, pose.position.z)
+  sceneRoot.camera.lookAt(pose.target.x, pose.target.y, pose.target.z)
+}
+if (camYaw !== 0 || camPitch !== 0) applyCameraPose() // 재시작 복원 각 적용
 
 // ── 시간대(무드) 반응 조명 ──
 // ON이면 시스템 시각을 밝기 배율+광원 틴트로 매핑해 조명에 얹는다(사용자 밝기 슬라이더가 마스터).
@@ -371,8 +425,7 @@ const controlPanel = new ControlPanel(
     },
     onThemeChange(id: string) {
       settings.themeId = id
-      aquascape.setTheme(getTheme(id))
-      setAppliedTheme(id)
+      applyThemeById(id)
       persistSoon()
     },
     onLureModeChange(mode) {
@@ -419,16 +472,82 @@ canvas?.addEventListener(
   { passive: false },
 )
 
-// ── 물고기 클릭 대사 ──
-// lure(먹이/놀래키기)가 armed일 때는 대사를 띄우지 않는다 — 한 번의 클릭에 두 핸들러가
+// ── 물고기 탭 대사 ──
+// lure(먹이/놀래키기)가 armed일 때는 대사를 띄우지 않는다 — 한 번의 탭에 두 핸들러가
 // 동시에 발동하던 겹침(#3) 방지. lure 해제(mode===null) 상태에서만 대사 활성.
-new FishDialogue(
+// 발동은 아래 탭/드래그 중재가 handleTap으로 호출한다(자체 pointerdown 리스너 없음).
+const fishDialogue = new FishDialogue(
   document.body,
   sceneRoot.camera,
   canvas!,
   fishSchool,
   () => computeInteractive(settings.clickThrough, settings.hidden) && foodLure.mode === null,
 )
+
+// ── 카메라 궤도 드래그 + 탭 중재 ──
+// 캔버스 드래그(클릭 임계 초과)=카메라 회전, 임계 이내에서 뗌=탭(먹이/놀래키기·대사).
+// FishDialogue/FoodLure가 pointerdown 즉발이면 드래그 시작마다 오발동하므로 탭으로 이전했다.
+// 더블클릭=정면 복귀(렌더 루프 지수 수렴). 투과/숨김 중엔 줌 휠과 같은 게이트로 비활성.
+let orbitPointerId: number | null = null
+let orbitStart = { x: 0, y: 0 }
+let orbitLast = { x: 0, y: 0 }
+let orbitDragging = false
+
+canvas?.addEventListener('pointerdown', (e: PointerEvent) => {
+  if (e.button !== 0) return
+  if (!computeInteractive(settings.clickThrough, settings.hidden)) return
+  orbitPointerId = e.pointerId
+  orbitStart = { x: e.clientX, y: e.clientY }
+  orbitLast = orbitStart
+  orbitDragging = false
+  canvas.setPointerCapture(e.pointerId) // 창 밖으로 나가도 드래그 추적
+})
+
+canvas?.addEventListener('pointermove', (e: PointerEvent) => {
+  if (orbitPointerId !== e.pointerId) return
+  const cur = { x: e.clientX, y: e.clientY }
+  if (!orbitDragging) {
+    // 클릭 지터(1~2px)를 드래그로 오인하지 않는다 — 버튼 드래그(#4)와 같은 임계.
+    if (!exceedsThreshold(orbitStart, cur, DRAG.clickThresholdPx)) return
+    orbitDragging = true
+  }
+  const next = applyOrbitDrag(
+    settings.cameraYaw ?? 0,
+    settings.cameraPitch ?? 0,
+    cur.x - orbitLast.x,
+    cur.y - orbitLast.y,
+  )
+  orbitLast = cur
+  settings.cameraYaw = next.yaw
+  settings.cameraPitch = next.pitch
+  camYaw = next.yaw // 드래그는 즉응(수렴 생략)
+  camPitch = next.pitch
+  applyCameraPose()
+})
+
+const endOrbitPointer = (e: PointerEvent): void => {
+  if (orbitPointerId !== e.pointerId) return
+  const wasDrag = orbitDragging
+  orbitPointerId = null
+  orbitDragging = false
+  if (wasDrag) {
+    persistSoon() // 유지된 각도 저장(줌과 같은 영속 패턴)
+    return
+  }
+  if (e.type === 'pointercancel') return
+  // 탭 → 기존 즉발 소비자 순서 유지: lure(armed면 소비) → 대사(armed면 predicate가 스킵)
+  foodLure.handleTap(e.clientX, e.clientY)
+  fishDialogue.handleTap(e.clientX, e.clientY)
+}
+canvas?.addEventListener('pointerup', endOrbitPointer)
+canvas?.addEventListener('pointercancel', endOrbitPointer)
+
+canvas?.addEventListener('dblclick', () => {
+  if (!computeInteractive(settings.clickThrough, settings.hidden)) return
+  settings.cameraYaw = 0
+  settings.cameraPitch = 0
+  persistSoon() // 표시각은 렌더 루프가 returnRate로 부드럽게 정면 수렴
+})
 
 // ── 모서리 드래그 리사이즈 핸들 ──
 // 창 크기 슬라이더 대신 캔버스 가장자리(우/하/우하단)를 드래그해 크기 조정.

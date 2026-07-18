@@ -1,0 +1,23 @@
+{
+  "pass": true,
+  "failures": [],
+  "health": {
+    "ready": true,
+    "fishActive": 40,
+    "errors": [],
+    "frames": 341,
+    "theme": "coral-reef",
+    "terrainClips": 0
+  },
+  "pixel": {
+    "sampled": 3084,
+    "opaqueRatio": 0.29766536964980544,
+    "transparentRatio": 0.7023346303501945,
+    "uniqueBuckets": 73,
+    "lumVariance": 1636.0602282886393,
+    "blank": false
+  },
+  "screenshot": "eval-terrain-coral-v4.png",
+  "errorConsole": [],
+  "themeRequested": "coral-reef"
+}

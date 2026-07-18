@@ -6,8 +6,10 @@ import type { FishKind } from './Fish'
 import { nextActiveCount } from './fishHelpers'
 import { computeBoidsSteer } from './boids'
 import type { BoidAgent } from './boids'
-import { FISH, BOIDS, LURE, FOOD, FEATURE } from '../../shared/config'
+import { FISH, BOIDS, LURE, FOOD, FEATURE, AQUASCAPE, TERRAIN_AVOID } from '../../shared/config'
 import { clampFishCount } from '../../shared/clamp'
+import { sandHeightAt } from './terrainHelpers'
+import type { SandTerrainConfig } from './terrainHelpers'
 import { loadFishPrototypes } from './fishAssets'
 import type { SpeciesId, FishPrototype } from './fishAssets'
 import { SPECIES_REGISTRY } from './speciesRegistry'
@@ -46,6 +48,10 @@ export class FishSchool implements SceneEntity {
   private _foodParticles: FoodParticles | null = null
   private _scarePoint: THREE.Vector3 | null = null
   private _scareTimer = 0
+
+  /* 지형(테마) 상태 */
+  private _terrain: SandTerrainConfig | null = null
+  private _terrainClips = 0
 
   constructor() {
     this.object3d = new THREE.Group()
@@ -96,6 +102,23 @@ export class FishSchool implements SceneEntity {
   /** FoodParticles 참조를 설정한다 (먹이 소비 연동용). */
   setFoodParticles(fp: FoodParticles): void {
     this._foodParticles = fp
+  }
+
+  /**
+   * 테마 지형을 주입한다(테마 전환·초기 적용 시 main.ts가 호출).
+   * 활성/풀 대기 모든 개체에 반영 — 이후 생성분은 _createFish가 물려받는다.
+   */
+  setTerrain(terrain: SandTerrainConfig | null): void {
+    this._terrain = terrain
+    for (const fish of this._allFish) fish.setTerrain(terrain)
+  }
+
+  /**
+   * 지형 표면 관통 누적 감지 횟수(런타임 불변식 감시 — health.terrainClips로 노출,
+   * 스모크가 0을 검증한다). 회피/클램프가 정상이라면 항상 0이어야 한다.
+   */
+  get terrainClipCount(): number {
+    return this._terrainClips
   }
 
   /** 먹이주기: 활성 먹이 입자가 있는 동안 물고기가 슬금슬금 모인다. */
@@ -158,6 +181,16 @@ export class FishSchool implements SceneEntity {
     this._applyLureSteer(dt)
 
     this._pool.forEachActive((fish) => fish.update(dt))
+
+    // 지형 관통 감시(자기보고 불신): 클램프가 정상이라면 0 유지. 스모크가 0을 게이트한다.
+    if (this._terrain) {
+      const t = this._terrain
+      this._pool.forEachActive((fish) => {
+        const p = fish.position
+        const surface = AQUASCAPE.sandY + sandHeightAt(p.x, p.z, t)
+        if (p.y < surface - TERRAIN_AVOID.clipEpsilon) this._terrainClips++
+      })
+    }
   }
 
   /** 레이캐스트로 활성 물고기 중 가장 가까운 교차를 찾아 반환한다. 없으면 null. */
@@ -321,6 +354,7 @@ export class FishSchool implements SceneEntity {
 
   private _createFish(): Fish {
     const fish = new Fish(this._prototypes!)
+    fish.setTerrain(this._terrain) // 풀 성장 시점에도 현재 테마 지형을 물려준다
     this.object3d.add(fish.mesh)
     this._allFish.push(fish)
     return fish

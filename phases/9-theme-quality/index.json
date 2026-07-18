@@ -1,0 +1,33 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "9-theme-quality",
+  "steps": [
+    {
+      "step": 0,
+      "name": "terrain",
+      "status": "completed",
+      "eval": true,
+      "model": "opus",
+      "summary": "테마별 지형 차별화. terrainHelpers.sandHeightAt(순수·결정적, 경계제약 4종 TDD 가드: edge taper·front-flat z>-1.5·maxHeight≤0.6 물고기클리핑방지·no-Math.random) 신설. _buildSand가 terrain 있을 때 PlaneGeometry 120x32 버텍스 Y 변위+computeVertexNormals+정점 crestColor 변조(미니멀은 80x20·무변위 유지=하위호환). worldZ=localZ+AQUASCAPE.sandZ 변환으로 마운드·산호·하드스케이프가 한 좌표계. 수초/다시마/하드스케이프/산호를 _terrainLift로 지형 표면에 안착. kelp-forest=암반 기복(roll amp0.26)+큰바위 5→9(크기분산 0.28~0.9). coral-reef=리프 마운드 2개(x-6/+7,z-3.4/-3.6,중앙 x[-2,2] 스테이지 비움)+완만 기복+암반 슬랩 마운드대역 배치, crestColor를 모래와 대비되는 암반색으로. test 572→597(+25), lint/build/smoke·테마별 캡처 3종 종료코드 0. 밝은배경 캡처로 가장자리 수평선 아티팩트 없음 확인."
+    },
+    {
+      "step": 1,
+      "name": "kelp-density",
+      "status": "completed",
+      "eval": true,
+      "model": "opus",
+      "summary": "다시마 군락화·원근·톤·잎. kelpHelpers.generateKelpClusters(순수·결정적, TDD 11테스트 신설: 총가닥 clusterCount×[min,max]·고정k정확·응집 2×clusterRadius·결정성·중앙폴오프·백바이어스) — 낱장 26개→포기 18개×4~6가닥=총 ~86가닥. 공통 배치헬퍼 edgeWeightedX/backBiasedZ 추출(generateKelpInstances는 rng순서 보존 리팩터, 무회귀). KELP 셰이더 원근 레이어: instanceOffset.z→vDepth varying(vert/frag 양쪽 선언), 프래그에서 depthFadeColor(밝은청록×무드)로 색 lerp(알파 불변=무정렬 투명겹침 아티팩트 회피, 금지사항 준수). createKelpBladeAlphaTexture에 정류사인 leaflet 로브(좌우 π 지그재그) 추가=맨 리본→잎 달린 줄기. 톤 황금-올리브(base[0.22,0.2,0.07]/tip[0.55,0.48,0.16]). config: clusterCount18·bladesPerCluster[4,6]·clusterRadius0.3·height3.0~5.0(세로충전)·area±20·centerGap6.5·seed707(좌우43:43·중앙통로 가닥0, 오프라인 배치분석)·backBias1.3·depthFadeStrength0.68. test 597→608(+11), lint/build/smoke(미니멀 무회귀)·kelp캡처 2종 종료코드0, frames 101/131(baseline~100 무저하). 고밝기+밝은배경 캡처 아티팩트 없음. 비전eval overallScore 65~78(plants 72~76 안정) pass — fish 임계는 스냅샷/LLM 노이즈(55~82, 어종코드 불변·유닛테스트 가드)."
+    },
+    {
+      "step": 2,
+      "name": "coral-density",
+      "status": "completed",
+      "eval": true,
+      "model": "opus",
+      "started_at": "2026-07-18T08:05:20+0900",
+      "completed_at": "2026-07-18T08:05:20+0900",
+      "summary": "coralHelpers.generateReefColonies 신설(TDD 13개: 마운드 표면 피복 배치·sandHeightAt 스냅·크기 분포 대20/중40/소40·결정성). 뭉게(nub) 마운드 산호 타입 추가(변위 반구 다중 병합), 콜로니 30+개를 타입×팔레트별 mergeGeometries 병합으로 렌더(드로우콜 억제, frames 102~181 무저하). 부채(fan) 산호는 빨간 세로선 아티팩트 원인으로 제거하고 골드-탄 가지 thicket이 대체. 팔레트: 분홍/마젠타 주역 + 크림/골드, 라벤더 소수. 심야 무드에서 색조 유지. test 621(608+13)·lint·build·smoke 4종 pass, 비전 채점(실채점 복구) 62점 통과 — 단 hardscape 45점: 마운드 융기감이 약해 '평평한 바닥 위 군집'으로 읽힌다는 지적(물고기 클리핑 방지 높이 상한 0.6의 제약, 라이브 QA 확인 항목)."
+    }
+  ],
+  "completed_at": "2026-07-18T08:05:20+0900"
+}

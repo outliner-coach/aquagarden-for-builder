@@ -9,6 +9,8 @@ export interface AppSettings {
   enabledFeatures: string[]
   /** 시간대 반응(무드) 조명 on/off. 하위호환: 없으면 false. */
   moodReactive: boolean
+  /** 배경 테마 id(themeRegistry 참조). 하위호환: 없거나 유령 id면 기본 테마('minimal'). */
+  themeId?: string
 }
 
 export interface MoveWindowByPayload {

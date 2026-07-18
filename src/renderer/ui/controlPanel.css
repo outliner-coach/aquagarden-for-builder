@@ -56,6 +56,7 @@
 .cp__btn:focus-visible,
 .cp__feature-chip:focus-visible,
 .cp__lure-btn:focus-visible,
+.cp__theme-btn:focus-visible,
 .cp__quit-btn:focus-visible,
 .cp__help-btn:focus-visible,
 .cp__help-close:focus-visible,
@@ -172,6 +173,41 @@
   font-weight: 700;
 }
 .cp__lure-btn--active:hover {
+  background: var(--cp-point);
+}
+
+.cp__theme-segment {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cp__theme-btn {
+  flex: 1;
+  padding: 6px 2px;
+  border: 1px solid var(--cp-border);
+  border-radius: 6px;
+  background: var(--cp-button-bg);
+  color: var(--cp-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  /* step6: '다시마 숲'이 버튼 폭에서 2줄로 줌바꿈되던 문제 — 한글은 공백 없이도 음절 경계에서
+     줄바꿈이 허용돼(word-break 기본값) 폭만 좁혀서는 막을 수 없다. nowrap으로 강제 한 줄 + 폭
+     확보를 위해 폰트·좌우 패딩을 소폭 축소(레이아웃 구조는 불변 — flex 1등분 그대로). */
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.cp__theme-btn:hover {
+  background: var(--cp-button-bg-hover);
+}
+.cp__theme-btn--active {
+  border-color: var(--cp-point);
+  background: var(--cp-point);
+  color: #06201d;
+  font-weight: 700;
+}
+.cp__theme-btn--active:hover {
   background: var(--cp-point);
 }
 

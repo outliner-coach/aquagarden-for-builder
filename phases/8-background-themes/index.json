@@ -1,0 +1,78 @@
+{
+  "project": "Aquagarden Overlay",
+  "phase": "8-background-themes",
+  "steps": [
+    {
+      "step": 0,
+      "name": "theme-foundation",
+      "status": "completed",
+      "eval": true,
+      "model": "sonnet",
+      "started_at": "2026-07-17T22:18:55+0900",
+      "summary": "config.ts에 THEME 상수(minimal/kelp-forest/coral-reef, sandColor+plants+hardscape) 추가, themeRegistry.ts(BackgroundTheme 인터페이스·getTheme·DEFAULT_THEME_ID)와 themeHelpers.ts(resolveThemeId, TDD)를 신설. Aquascape는 생성자에 BackgroundTheme를 받고 setTheme(theme)으로 dispose→rebuild하며, object3d Group 인스턴스는 유지하고 직전 opacity/mood를 필드에 보관해 재빌드 후 재적용(_lastOpacityFactor/_lastMood). AppSettings.themeId?(옵셔널) 추가, persistence.loadPersisted가 resolveThemeId로 하위호환 보정, main.ts는 복원된 themeId로 Aquascape를 생성(UI 없음, step5 범위). 미니멀 테마 값은 기존 PLANT.species/HARDSCAPE를 그대로 참조(복붙 없음)해 시각 무변화 확인(smoke pass, 스크린샷 비교). kelp-forest/coral-reef도 임시로 강제해 smoke pass 확인 후 되돌림(다시마/산호 시각 요소는 아직 없음 — step2/4 범위). 다음 step(theme-eval-hooks)이 참조할 것: getTheme(id)/THEME_REGISTRY/DEFAULT_THEME_ID로 테마 전체 순회 가능, Aquascape.setTheme(theme)로 런타임 전환 가능(AQUA_SMOKE_THEME 훅 연결 지점).",
+      "completed_at": "2026-07-17T22:45:30+0900"
+    },
+    {
+      "step": 1,
+      "name": "theme-eval-hooks",
+      "status": "completed",
+      "eval": true,
+      "model": "sonnet",
+      "started_at": "2026-07-17T22:46:00+0900",
+      "summary": "health.ts에 theme:string 필드 + setAppliedTheme() 추가. main.ts는 초기 적용 시 리드백을 기록하고, window.__AQUA_APPLY_THEME__(id) 전역 훅(__AQUA_MOOD_HOUR__와 같은 스모크 전용 강제 훅 패턴)을 노출 — 유효한 id면 aquascape.setTheme()+health 갱신, 유령 id는 console.warn 후 무시(스모크가 에러로 오판 않음). smoke.ts는 AQUA_SMOKE_THEME env를 이 훅으로 전달(mood 훅과 동일 위치·순서, 800ms settle)하고 리포트에 themeRequested를 남긴다. smokeEval.evaluateSmoke(requestedTheme)가 health.theme과 대조해 불일치(유령 id 포함)면 fail — 단위테스트 6종 추가(TDD, 총 512개 통과). eval_vision.py의 main()을 argparse로 재작성해 --intent/--min-score 플래그를 추가했고, 위치 인자만 쓰는 기존 호출(execute.py가 의존하는 judge_visual 직접 호출 포함)은 완전 하위호환(수동 검증 완료). docs/EVAL.md에 두 항목 문서화. 다음 step(kelp/rocks/coral/theme-ui/polish)은 `AQUA_SMOKE_THEME=<id> AQUA_SMOKE_SHOT=... AQUA_SMOKE_REPORT=... npm run smoke` 후 `eval_vision.py <shot> --min-score 62 --intent '...'` 패턴으로 테마별 게이트를 구성하면 된다.",
+      "completed_at": "2026-07-17T22:58:30+0900"
+    },
+    {
+      "step": 2,
+      "name": "kelp",
+      "status": "completed",
+      "eval": true,
+      "model": "opus",
+      "started_at": "2026-07-17T23:09:00+0900",
+      "summary": "kelpHelpers.ts 신설(TDD 18개): generateKelpInstances(시드 결정적 mulberry32 재사용·가장자리 가중 x/뒤쪽 가중 z/centerGap 중앙 폴오프, 인스턴스당 rng 소비 횟수 고정)와 kelpTaperHalfWidth(뿌리→팁 단조 감소). Aquascape에 KELP_VERT(누적 벤딩: pow(h01,1.5) 주 흔들림 + h01 위상 진행 2차 웨이브, 뿌리 고정)·KELP_FRAG(alpha-discard+base→tip 그라디언트+uMoodColor+uSceneOpacity+uEdgeShade, varying 전부 선언)·createKelpBladeAlphaTexture(물결 가장자리 blade 실루엣)·createKelpRibbonGeometry(세그먼트 10 연속 스트립, uv.y=h01)·_buildKelp(인스턴스드, 머티리얼을 _grassMaterials에 push해 uTime/무드/투명 자동 편승 — 투명 55%·심야 무드 캡처로 수치 검증). config에 KELP 상수(blade 텍스처 파라미터 포함), THEME kelp-forest에 kelp 구성(count 26, height 2.5~3.3, 짙은 갈록→올리브, area ±16.5, centerGap 5.5, centerProbability 0.05, seed 708=좌14:우12 균형·중앙 비껴감 — 3회 eval 루프로 확정). themeRegistry에 BackgroundThemeKelp 옵셔널 필드. 고밝기+밝은 배경(AQUA_SMOKE_BG) 격리 캡처에서 사각형/수평선 아티팩트 없음 확인. 테스트 530(기존 512+18) 전부 통과, 미니멀 무회귀. 다음 step: 다시마 숲 하드스케이프는 아직 정12면체 — step3(rocks-upgrade)이 노이즈 변위로 격상, 캡처는 eval-theme-kelp*.png 패턴 재사용.",
+      "completed_at": "2026-07-17T23:24:47+0900"
+    },
+    {
+      "step": 3,
+      "name": "rocks-upgrade",
+      "status": "completed",
+      "eval": true,
+      "model": "sonnet",
+      "started_at": "2026-07-17T23:37:00+0900",
+      "summary": "rockHelpers.ts 신설(TDD 10개): displaceRockPositions(basePositions, seed, strength)가 버텍스별 위치기반 sine-hash로 반경 방향 변위를 준다. 해시 입력 좌표를 소수 5자리로 양자화해 three.js 폴리헤드론 서브디비전의 ULP급 부동소수 오차에도 강건하게 만들었고, 이를 통해 '같은 위치(인덱스 무관) → 완전히 동일한 변위'(flat-shading 중복 버텍스 면 찢어짐 가드)를 테스트로 확정. |변위|≤strength·NaN없음(원점 버텍스 0-division 가드)도 커버. Aquascape._buildHardscape에 rockStyle 분기 추가: 'classic'(미지정 포함)은 기존 DodecahedronGeometry(1,0) 그대로(미니멀 무변화 — 코드 경로 동일), 'displaced'는 IcosahedronGeometry(1,1)+displaceRockPositions+computeVertexNormals()+material.flatShading:true(createDisplacedRockGeometry). 큰 바위에만 적용되는 flattenY 배율(미지정 시 1)을 추가해 산호초의 '낮고 넓은 암반' 실루엣을 스케일만으로 표현(자갈/유목/generateHardscape 알고리즘은 무변경). 기존과 동일하게 MeshStandardMaterial+applyCausticToStandardMaterial+applyWaterDepthToMaterial+_opaqueMaterials 등록이라 caustic/water-depth/투명 슬라이더 자동 연동. themeRegistry.BackgroundThemeHardscape.rock에 rockStyle?/displaceSeed?/displaceStrength?/flattenY? 옵셔널 필드 추가(BackgroundThemeKelp와 동일한 확장 패턴). config.ts THEME: kelp-forest는 rockCount 8→5(spec §3.2 '3~5개')로 조정 + rock에 rockStyle:'displaced', displaceSeed:811, displaceStrength:0.24(어두운 회갈 큰 바위, 자갈/유목은 기존 수준 유지). coral-reef는 rockStyle:'displaced', displaceSeed:613, displaceStrength:0.14(완만한 변위), flattenY:0.42(밝은 석회색의 낮고 넓은 암반) — 개수·배치는 기존 초기값 유지. 테스트 540개(기존 530+신규 10) 전부 통과, lint/build 통과. smoke 4종(plain·kelp·coral) 전부 pass=true·health.theme 리드백 일치·console error 0·blank:false. 캡처를 8x 확대해 직접 확인: kelp 바위는 뚜렷한 각진 flat-shading 페이스가 보이는 자연스러운 불규칙 바위 실루엣(찢어짐·스파이크 없음), coral 암반은 가로로 넓고 낮은(flattenY 효과) 밝은 톤 슬랩 실루엣으로 명확히 구분됨. 미니멀은 코드 경로가 이전과 동일(rockStyle 분기가 항상 'classic'으로 귀결, flatShading=false, flattenY=1 무연산)이라 구조적으로도 무변화이며 캡처로도 확인. 다음 step(4, coral)이 참조할 것: coral-reef의 낮은 암반(theme.hardscape.rock, maxHeightAboveSand 0.45+flattenY 0.42) 위/주변에 산호 클러스터를 얹으면 됨 — 암반 지오메트리 생성 함수는 createDisplacedRockGeometry(Aquascape.ts)로 분리되어 있어 산호 전용 지오메트리는 별도 함수로 병행 추가하는 패턴을 따르면 된다.",
+      "completed_at": "2026-07-17T23:47:00+0900"
+    },
+    {
+      "step": 4,
+      "name": "coral",
+      "status": "completed",
+      "eval": true,
+      "model": "opus",
+      "started_at": "2026-07-17T23:52:00+0900",
+      "summary": "coralHelpers.ts 신설(TDD 26개): generateBranchCoral(재귀 분기 트리 — 같은 시드 동일 출력·자식 start===부모 end 연결성·radius/길이 레벨당 단조 감소·분기 수 childCount^depth 공식 부합)과 generateCoralClusters(스트라타 x 배치로 좌우 고른 분포 보장 — 균일 랜덤은 시드 따라 한쪽 몰림, 캡처로 확인·수정. 처음 3개는 팔레트 회전 순열로 주황/분홍/보라 3색 모두 등장 보장. z 뒤쪽 가중, 타입 branch/brain/fan 라운드로빈). Aquascape._buildCoral: 가지=BranchSpec→CylinderGeometry(radialSegments 5) mergeGeometries 병합(메인+사이드 트리 포함 클러스터당 드로우콜 1), 뇌=SphereGeometry 반구 2개(메인+사이드) displaceRockPositions(strength 0.06) 변위 후 병합·smooth 셰이딩+미로(groove) 무늬 CanvasTexture(map+emissiveMap — 민무늬 돔은 뇌 산호로 안 읽힘), 부채=부채꼴+방사 갈래 컷 알파 텍스처를 그래스 카드 셰이더로 렌더(전체 fan 하나의 InstancedMesh, _grassMaterials 편승해 무드/투명 자동, 스웨이 미세 0.022). 가지·뇌는 MeshStandard+caustic+_opaqueMaterials — 단 applyWaterDepthToMaterial은 의도적으로 미적용(청록 깊이 틴트가 주황/분홍을 갈색으로 죽임, 캡처 확인) + emissive(자기 색×0.3)로 어두운 무드에서도 생기 유지. config CORAL 상수(팔레트 0xff8c5a/0xff6f9c/0x9d6bff, branch/brain/fan 파라미터)·THEME coral-reef에 coral{seed 344, count 5, area z −4.0~−2.35(뷰 깊이 9 이내 — 더 뒤는 물 페이드로 채도 급감)} 추가, themeRegistry에 BackgroundThemeCoral 옵셔널 필드. 미학 4회 반복(크기 확대→스트라타 배치→팔레트 순환+뇌 무늬→waterDepth 제거+emissive 조정): 낮 캡처에서 산호 3종 형태·주황/분홍/보라 팝 확인, 심야(23.5h) 캡처에서 색조 유지(죽은 회색 아님)·emissive 0.4→0.3 하향으로 심야 형광 위화감 제거, 고밝기+밝은 배경(AQUA_SMOKE_BG 225) 캡처에서 사각형/수평선 아티팩트 없음(부채 카드 포함). 테스트 566(기존 540+26)·lint·build·smoke 4종(plain/coral/night/bright) 전부 통과, eval_vision은 CLI 인증 만료로 skipped 통과(정상 — 미학은 캡처 직접 확인). 다음 step(5, theme-ui): 테마 3종 시각 요소 완성 — ControlPanel 세그먼트 버튼과 persistence.themeId 저장 연결만 남음(Aquascape.setTheme/getTheme/THEME_REGISTRY 준비 완료).",
+      "completed_at": "2026-07-18T00:25:00+0900"
+    },
+    {
+      "step": 5,
+      "name": "theme-ui",
+      "status": "completed",
+      "eval": true,
+      "model": "sonnet",
+      "started_at": "2026-07-18T00:38:00+0900",
+      "summary": "themeSegment.ts 신설(TDD 6개): computeThemeSegmentState(options, selectedId)가 THEME_REGISTRY 기반 세그먼트 버튼의 active 여부를 계산(순서 보존, 단일 선택 보장, 무매칭시 전부 비활성, 필드는 스프레드 대신 명시적 추출이라 호출측이 넘기는 BackgroundTheme의 sandColor/plants 등 잉여 필드가 결과에 유출되지 않음 — 테스트로 고정). ControlPanel에 '배경 테마' 섹션 추가(표시·조명 컬럼, 시간대 반응 토글 다음): THEME_REGISTRY를 순회해 버튼 3개를 생성(id·displayName 하드코딩 없음 — 테마 추가 시 자동 반영), 기존 feature-chip과 동일한 이중 신호(aria-pressed + .cp__theme-btn--active 클래스), aria-label로 접근성 이름 보강, :focus-visible 링 포함. onThemeChange(id) 콜백 신설 + setTheme(id) public 메서드(내부적으로 computeThemeSegmentState 재사용) — 클릭 핸들러가 자기 상태 갱신 후 콜백을 호출하고, main.ts는 생성자 직후 controlPanel.setTheme(initialThemeId)로 재시작 복원값을 초기 선택 상태에 주입한다(클로저 버그 없음 — for...of+const로 버튼별 theme.id 캡처 확인). main.ts의 onThemeChange 콜백은 settings.themeId 갱신 + aquascape.setTheme(getTheme(id)) + setAppliedTheme(id)(health.theme 리드백을 UI 경로에서도 동기화 — smoke의 AQUA_SMOKE_THEME 훅과 동일 계약) + persistSoon()(기존 8개 설정 콜백과 동일한 디바운스 저장 패턴, 즉시 savePersisted 우회 없음). persistence.ts/themeHelpers.ts는 이미 step0에서 themeId 저장·복원·하위호환·유령id보정이 전부 유닛테스트로 커버되어 있어 무변경 — 이번 step은 그 위에 UI를 얹었을 뿐이라 실제 Electron 재시작 흐름은 코드 추적(중복 없음 확인)+기존 회귀 테스트로 검증했고, 사용자 컴퓨터에서 눈에 보이는 라이브 Electron 창을 새로 띄우는 검증은 하지 않았다(메모리 원칙: 헤들리스 우선). 도움말 모달에 '배경 테마' 항목 1줄 추가(시간대 반응 다음). CSS: .cp__theme-segment(flex row)·.cp__theme-btn(+--active, 기존 lure-btn/feature-chip과 동일한 색 토큰) 신설, 기존 :focus-visible 셀렉터 목록에 추가. 패널 2열/힌트슬롯/드래그 레이아웃과 computeMouseIgnore 등 투과 로직은 무변경(섹션 추가만, 재설계 없음). 테스트 566→572(+6) 전부 통과, lint/build 통과, smoke 2종(기본 + AQUA_SMOKE_OPEN_PANEL) 전부 pass=true·콘솔 에러 0. eval-panel-theme.png 캡처(8x 확대 확인)에서 '배경 테마' 라벨 아래 3버튼(미니멀=teal 활성 강조, 다시마 숲=좁은 버튼폭으로 2줄 줌바꿈되지만 잘림·겹침 없이 온전히 렌더, 산호초) 확인 — health.theme:'minimal'과 활성 버튼이 일치. 다음 step(6, polish-docs): 테마 3종 전부 UI에서 전환 가능한 상태로 완성됨 — CLAUDE.md/README 등 문서에 사용법 반영 후보.",
+      "completed_at": "2026-07-18T00:52:00+0900"
+    },
+    {
+      "step": 6,
+      "name": "polish-docs",
+      "status": "completed",
+      "eval": true,
+      "model": "sonnet",
+      "started_at": "2026-07-18T00:55:00+0900",
+      "summary": "3테마 최종 조율(config 값만): 캡처 비교로 오케스트레이터 미학 메모 4건 처리 — ① 가지 산호 '마른 나뭇가지' 인상을 CORAL.branch(childCount [2,3]→[2,4], radiusDecay 0.68→0.74, spreadAngle 0.62→0.72) 소폭 상향으로 완화(컬러 팝·클러스터 중앙 트임은 원래도 양호해 미변경). ② 부채 산호 '성게' 인상을 CORAL.fan(veinCount 11→8, veinGapRatio 0.5→0.36, fanHalfAngle 1.35→1.05, yawJitter 1.2→0.55, baseSolidRatio 0.1→0.18) 2회 반복(config만)으로 완화 — 캡처에서 방사형 가시 다발이 두꺼운 갈래+한 방향에 가까운 부채 실루엣으로 변함. ③ 패널 '다시마 숲' 라벨 2줄 줌바꿈: displayName 공백 제거만으론 미해결(한글은 word-break 기본값상 공백 없어도 음절 경계에서 줄바꿈 허용 — 캡처로 직접 확인 후 원인 특정) → controlPanel.css `.cp__theme-btn`에 white-space:nowrap+font-size 11→10px+padding 6px 4px→6px 2px로 해결(레이아웃 구조·flex 1등분 불변). displayName은 스펙 문서와의 정합을 위해 '다시마 숲'(공백 유지)으로 원복. ④ HANDOFF 라이브 QA 미검증 목록에 '패널 테마 클릭→앱 재시작 복원 왕복(라이브 GUI, step5는 유닛/코드 추적만)' 추가. 문서 갱신: CLAUDE.md '현재 구현 상태'에 '배경 테마 시스템 추가(2026-07-18)' 섹션 신설(테마 3종·주요 파일·AQUA_SMOKE_THEME·eval_vision.py 플래그·미학 조율 요약) + 런타임eval 훅 나열에 AQUA_SMOKE_THEME 추가(기존 누락 보완); HANDOFF.md 최상단 '✅ 현재 상태' 블록에 새 불릿(날짜 2026-07-18로 갱신) + 라이브 QA 미검증 5항목(step6.md 4개 + 오케스트레이터 메모 1개); README.md 기능 목록에 '배경 테마' 1줄 + 컨트롤 표에 행 추가(패널 실제 순서와 정합); docs/UI_GUIDE.md에 '세그먼트 버튼(배경 테마 선택)' 컴포넌트 스펙 추가(토글 다음). docs/media/themes/ 신설, 대표 캡처 3장(theme-minimal/kelp-forest/coral-reef.png) 커밋. 하위호환 재확인: 기본 npm run smoke(AQUA_SMOKE_THEME 미설정)의 health.theme='minimal' 확인(fresh localStorage). 검증: test 572(무변화, 이 step은 조율+문서라 신규 테스트 없음)·lint·build·smoke 3종(기본/kelp-forest/coral-reef, 전부 pass=true·errorConsole=[]·theme 리드백 일치) 전부 통과. eval_vision.py 2종은 CLI 인증 만료로 skipped(pass=true, 정상 — CLAUDE.md 기존 지침대로 미학 최종 판정은 캡처 직접 비교로 수행). phase 8-background-themes 전체 완료 — 미니멀/다시마숲/산호초 3테마가 패널에서 전환·영속 가능한 상태.",
+      "completed_at": "2026-07-18T01:15:00+0900"
+    }
+  ],
+  "created_at": "2026-07-17T22:18:55+0900",
+  "completed_at": "2026-07-18T01:28:21+0900"
+}

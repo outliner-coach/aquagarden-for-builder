@@ -202,8 +202,9 @@ export interface PlantInstanceData {
 
 /**
  * 결정적 의사 난수 생성기 (mulberry32).
+ * kelpHelpers 등 다른 시드 결정적 배치 생성기도 이 rng를 재사용한다(export).
  */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let s = seed | 0
   return () => {
     s = (s + 0x6d2b79f5) | 0

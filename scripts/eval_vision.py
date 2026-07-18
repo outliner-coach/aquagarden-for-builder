@@ -13,10 +13,12 @@
 claude CLI(멀티모달)를 -p 모드로 호출. CLI/이미지/파싱 실패 시 skipped=True로 통과(파이프라인 차단 방지).
 
 Usage:
-    python3 scripts/eval_vision.py <screenshot.png> [reference.png]   # phase 모드
+    python3 scripts/eval_vision.py <screenshot.png> [reference.png]   # phase 모드 (기존 형식, 하위호환)
+    python3 scripts/eval_vision.py <screenshot.png> [reference.png] [--intent "<text>"] [--min-score N]
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -92,9 +94,16 @@ def _step_prompt(shot_abs: str, step_goal: str, intent: str) -> str:
 
 def _run_claude(prompt: str, timeout: int) -> tuple[bool, str]:
     """(ok, text). ok=False면 skip 사유가 text."""
+    # 채점 모델(토큰 효율): 루브릭 채점은 sonnet으로 충분하며 호출 빈도가 높다.
+    # AQUA_EVAL_VISION_MODEL로 override, 빈 문자열이면 CLI 기본 모델 사용.
+    cmd = ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json"]
+    model = os.environ.get("AQUA_EVAL_VISION_MODEL", "sonnet")
+    if model:
+        cmd += ["--model", model]
+    cmd.append(prompt)
     try:
         r = subprocess.run(
-            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
+            cmd,
             cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
         )
     except FileNotFoundError:
@@ -158,12 +167,36 @@ def judge_visual(screenshot: str, reference: str | None = None,
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("usage: eval_vision.py <screenshot.png> [reference.png]", file=sys.stderr)
-        sys.exit(2)
-    shot = sys.argv[1]
-    ref = sys.argv[2] if len(sys.argv) > 2 else str(ROOT / "reference_image.png")
-    verdict = judge_visual(shot, ref, mode="phase")
+    parser = argparse.ArgumentParser(
+        prog="eval_vision.py",
+        description="비전 LLM 미적 판정 (phase 모드).",
+    )
+    parser.add_argument("screenshot", help="평가할 스크린샷 경로")
+    parser.add_argument(
+        "reference", nargs="?", default=None,
+        help="참고 이미지 경로 (기본: reference_image.png)",
+    )
+    parser.add_argument(
+        "--intent", default=None,
+        help="DEFAULT_INTENT를 대체할 설계 의도 텍스트 (judge_visual의 intent로 전달)",
+    )
+    parser.add_argument(
+        "--min-score", type=int, default=None, dest="min_score",
+        help="이번 실행의 종합 점수 임계값 override (AQUA_EVAL_MIN_SCORE보다 우선)",
+    )
+    # 기존 위치 인자 호출(`eval_vision.py <shot> [reference]`)과 100% 하위호환:
+    # 두 플래그를 생략하면 이전과 동일하게 DEFAULT_INTENT·환경변수 기반 임계값을 사용한다.
+    args = parser.parse_args()
+
+    shot = args.screenshot
+    ref = args.reference if args.reference is not None else str(ROOT / "reference_image.png")
+    intent = args.intent if args.intent is not None else DEFAULT_INTENT
+
+    if args.min_score is not None:
+        global PHASE_MIN_SCORE
+        PHASE_MIN_SCORE = args.min_score
+
+    verdict = judge_visual(shot, ref, intent, mode="phase")
     print(json.dumps(verdict, ensure_ascii=False, indent=2))
     sys.exit(0 if verdict.get("pass", True) else 1)
 

@@ -264,8 +264,14 @@ class StepExecutor:
             sys.exit(1)
 
         prompt = preamble + step_file.read_text()
+        # step별 모델 배정(토큰 효율): index.json step의 "model" 필드 > AQUA_STEP_MODEL env > CLI 기본.
+        cmd = ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json"]
+        model = step.get("model") or os.environ.get("AQUA_STEP_MODEL")
+        if model:
+            cmd += ["--model", model]
+        cmd.append(prompt)
         result = subprocess.run(
-            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
+            cmd,
             cwd=self._root, capture_output=True, text=True, timeout=1800,
         )
 

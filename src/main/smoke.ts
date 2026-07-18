@@ -11,6 +11,9 @@
  *   AQUA_SMOKE_SHOT    스크린샷 PNG 경로 (기본 ./eval-screenshot.png)
  *   AQUA_SMOKE_READY_TIMEOUT_MS  ready 대기 한계 (기본 20000)
  *   AQUA_SMOKE_SETTLE_MS         ready 이후 추가 렌더 대기 (기본 2500)
+ *   AQUA_SMOKE_THEME   강제 적용할 배경 테마 id(minimal/kelp-forest/coral-reef 등). renderer의
+ *                      __AQUA_APPLY_THEME__ 훅을 호출해 전환하고, health.theme 리드백을 요청값과
+ *                      대조해 판정(smokeEval.evaluateSmoke의 requestedTheme)한다.
  */
 import { app, nativeImage } from 'electron'
 import type { BrowserWindow } from 'electron'
@@ -161,6 +164,27 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
       .catch((e: unknown) => `error: ${String(e)}`)
   }
 
+  // 선택: 배경 테마 강제 전환(테마별 스모크/비전 게이트용, step2/4/6이 사용). 테마 UI가 아직
+  // 없어도(step5 범위) main.ts의 __AQUA_APPLY_THEME__ 훅을 직접 호출한다. 물고기 위치가 매
+  // 실행 달라 캡처 diff로는 전환 검증이 불가능하므로, 적용된 id를 health.theme으로 리드백해
+  // 요청값과 대조한다(무드 훅과 동일한 원리 — 조용한 실패로 "무변화 캡처"가 나오는 것 방지).
+  const requestedTheme = process.env['AQUA_SMOKE_THEME'] ?? null
+  if (requestedTheme !== null) {
+    await win.webContents
+      .executeJavaScript(
+        `(() => {
+          const fn = window.__AQUA_APPLY_THEME__;
+          if (typeof fn !== 'function') return false;
+          fn(${JSON.stringify(requestedTheme)});
+          return true;
+        })()`,
+      )
+      .catch(() => false)
+    // Aquascape.setTheme의 dispose→rebuild는 동기이지만, 재빌드된 지오메트리가 반영된
+    // 프레임이 실제로 그려지도록 소폭 대기한다.
+    await delay(800)
+  }
+
   // 선택: 컨트롤 패널을 펼친 상태로 캡처(패널 UI 시각 검증용).
   // smoke 모드는 IPC 핸들러를 등록하지 않아 창 성장 요청(setWindowSize)이 no-op이다.
   // → 패널을 DOM에서 직접 표시하고, 캡처가 잘리지 않게 창 높이를 키운다(smoke 전용 계측).
@@ -203,7 +227,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     fatal = (fatal ? fatal + '; ' : '') + `capturePage 실패: ${String(e)}`
   }
 
-  const result = evaluateSmoke({ consoleMsgs, health, pixel, fatal })
+  const result = evaluateSmoke({ consoleMsgs, health, pixel, fatal, requestedTheme })
   const report = {
     pass: result.pass,
     failures: result.failures,
@@ -212,6 +236,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     screenshot: SHOT,
     errorConsole: consoleMsgs.filter((m) => m.level >= 2).slice(0, 50),
     ...(moodHook !== null ? { moodHook } : {}),
+    ...(requestedTheme !== null ? { themeRequested: requestedTheme } : {}),
   }
   writeFileSync(REPORT, JSON.stringify(report, null, 2))
 

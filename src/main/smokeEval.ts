@@ -15,6 +15,8 @@ export interface SmokeHealth {
   fishActive: number
   errors: string[]
   frames: number
+  /** 적용된 배경 테마 id (health.ts 리드백). 옵셔널: 구버전 리포트/테스트 호환. */
+  theme?: string
 }
 
 export interface PixelStats {
@@ -116,6 +118,12 @@ export interface SmokeInput {
   minFrames?: number
   /** 투명 픽셀 최소 비율 — 투과 보존 (기본 0.01) */
   minTransparentRatio?: number
+  /**
+   * 요청된 배경 테마 id (AQUA_SMOKE_THEME). 지정되면 health.theme과 대조해 불일치(유령 id 등
+   * 훅이 무시한 경우 포함) 시 fail — 물고기 위치가 매 실행 달라 캡처 diff로는 전환을 검증할 수
+   * 없으므로, 리드백 대조가 유일한 객관적 판정 수단이다.
+   */
+  requestedTheme?: string | null
 }
 
 export interface SmokeResult {
@@ -140,6 +148,13 @@ export function evaluateSmoke(input: SmokeInput): SmokeResult {
     if (input.health.fishActive < minFish) failures.push(`활성 물고기 부족 (${input.health.fishActive} < ${minFish})`)
     for (const e of input.health.errors) {
       if (textMatchesError(e)) failures.push(`renderer error: ${truncate(e)}`)
+    }
+  }
+
+  if (input.requestedTheme != null) {
+    const applied = input.health?.theme
+    if (applied !== input.requestedTheme) {
+      failures.push(`테마 리드백 불일치 (요청=${input.requestedTheme}, 적용=${applied ?? '없음'})`)
     }
   }
 

@@ -20,8 +20,9 @@ import { sceneOpacityFactor } from './core/sceneOpacity'
 import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER } from '../shared/config'
 import { moodForHour, IDENTITY_MOOD, type Mood } from './lighting/moodHelpers'
 import { setCausticMood } from './entities/caustics'
+import { getTheme, DEFAULT_THEME_ID } from './entities/themeRegistry'
 import type { AppSettings } from '../shared/types'
-import { markReady, setFishActive, tickFrame } from './health'
+import { markReady, setFishActive, tickFrame, setAppliedTheme } from './health'
 import { loadPersisted, savePersisted, type PersistedState } from './persistence'
 
 const container = document.getElementById('app')!
@@ -45,8 +46,27 @@ const sceneRoot = new SceneRoot(container)
 const lighting = new Lighting(sceneRoot.scene)
 sceneRoot.add(lighting)
 
-const aquascape = new Aquascape()
+// 복원된 themeId(없으면 기본 테마)로 Aquascape를 생성 — persistence.loadPersisted가 이미
+// 하위호환 보정(누락/비문자열/유령 id → 기본값)을 거쳤으므로 여기서는 그대로 조회한다.
+const initialThemeId = persisted?.settings.themeId ?? DEFAULT_THEME_ID
+const aquascape = new Aquascape(getTheme(initialThemeId))
 sceneRoot.add(aquascape)
+setAppliedTheme(initialThemeId)
+
+// 스모크 전용 강제 훅(AQUA_SMOKE_MOOD의 __AQUA_MOOD_HOUR__ 패턴과 일관) — 테마 전환 UI가 아직
+// 없어도(step5 범위) smoke가 테마를 지시할 수 있게 한다. 존재하지 않는 id는 무시(콘솔 경고만) —
+// health.ts는 console.error만 훅하므로 console.warn은 스모크가 에러로 오판하지 않는다.
+;(window as unknown as { __AQUA_APPLY_THEME__?: (id: string) => void }).__AQUA_APPLY_THEME__ = (
+  id: string,
+) => {
+  try {
+    const target = getTheme(id)
+    aquascape.setTheme(target)
+    setAppliedTheme(id)
+  } catch {
+    console.warn(`[theme] 알 수 없는 테마 id 무시: ${id}`)
+  }
+}
 
 const fishSchool = new FishSchool()
 sceneRoot.add(fishSchool)
@@ -113,6 +133,7 @@ const settings: AppSettings = persisted?.settings ?? {
   zoom: ZOOM.default,
   enabledFeatures: [],
   moodReactive: false,
+  themeId: DEFAULT_THEME_ID,
 }
 let currentAlwaysOnTop = persisted?.alwaysOnTop ?? true
 sceneRoot.setZoom(settings.zoom)
@@ -348,6 +369,12 @@ const controlPanel = new ControlPanel(
       applyMood()
       persistSoon()
     },
+    onThemeChange(id: string) {
+      settings.themeId = id
+      aquascape.setTheme(getTheme(id))
+      setAppliedTheme(id)
+      persistSoon()
+    },
     onLureModeChange(mode) {
       foodLure.setMode(mode)
     },
@@ -356,6 +383,9 @@ const controlPanel = new ControlPanel(
     },
   },
 )
+
+// 복원된(또는 기본) themeId를 패널 세그먼트의 초기 선택 상태로 주입한다.
+controlPanel.setTheme(initialThemeId)
 
 // FoodLure → ControlPanel 모드 동기화 (토글 해제 시 UI 반영)
 foodLure.onModeChange = (mode) => {

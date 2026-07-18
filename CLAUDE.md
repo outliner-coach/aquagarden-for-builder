@@ -52,11 +52,26 @@ npm run smoke    # 빌드 + headless 런타임 eval (셰이더/렌더 깨짐·�
 - **절전**: `RENDER.maxFps=30` 프레임 캡(`shouldTick`) + WebGL `powerPreference:'low-power'`.
 - **기타**: lure 20초 무활동 자동 해제, 도움말 항목 보강(확대·시간대·대사·단축키)·우측 정렬.
 
+### 테마 품질 개선 phase 9 (2026-07-18 — v0.9.0로 main 병합됨)
+사용자 라이브 평가("밀도 부족·테마별 지형 필요") 반영. 레퍼런스 기준: `docs/media/reference/`(CC0/PD 실사 2장+관찰 노트).
+- **지형**: `terrainHelpers.sandHeightAt`(순수·결정적 — edge taper·front-flat(z>−1.5, 크롤러 보호)·마운드 높이≤0.6(물고기 클리핑 방지) TDD 가드). 다시마 숲=암반 기복+큰바위 9개, 산호초=리프 마운드 2개+모래 채널, 미니멀=무변위(하위호환).
+- **다시마 군락화**: `generateKelpClusters` — 홀드패스트 18포기×4~6가닥=~86가닥, 원근 레이어(z→청록 헤이즈 색 lerp, 알파 불변), 황금-올리브 톤, leaflet 잎 실루엣.
+- **산호 피복**: `generateReefColonies` — 콜로니 30+개(뭉게 마운드 주역+가지 thicket, 대20/중40/소40)를 타입×팔레트 병합 렌더. fan은 빨간 세로선 아티팩트로 제거. 분홍/마젠타+크림/골드 팔레트.
+- 게이트: test **621**·lint·build·테마별 smoke·비전 채점(인증 복구, 실채점) 통과. 미결: 마운드 융기감이 높이 상한 탓에 약함(비전 hardscape 45 지적, 라이브 확인 항목).
+
+### 배경 테마 시스템 추가 (2026-07-18 — v0.9.0로 main 병합됨)
+배경(아쿠아스케이프)을 **교체형 테마 3종**으로 확장. 설계: `docs/superpowers/specs/2026-07-17-background-themes-design.md`, 하네스 `phases/8-background-themes`(step 0~6). test **572**·lint·build·smoke pass. 요약:
+- **테마 3종**: 미니멀(기존 그대로, 기본값·하위호환)·다시마 숲(절차적 리본 26개, 가장자리·뒤쪽 집중 배치+버텍스 셰이더 벤딩으로 굽이침)·산호초(가지·뇌·부채 산호 클러스터+밝은 낮은 암반). `THEME` 상수(`src/shared/config.ts`)+`themeRegistry.ts`(조회·기본값·하위호환 로드)로 데이터 정의, `Aquascape.setTheme()`이 dispose→rebuild. 순수 헬퍼: `kelpHelpers.ts`(배치 폴오프·벤딩), `coralHelpers.ts`(가지 분기 트리·클러스터 배치), `rockHelpers.ts`(변위 바위 — 다시마숲 큰 바위·산호초 암반 공용).
+- **UI·영속**: 패널 '배경 테마' 세그먼트(`themeSegment.ts`, `THEME_REGISTRY` 순회라 테마 추가 시 버튼 자동 반영)에서 전환, `persistence.ts`가 `themeId` 저장(미저장 시 미니멀).
+- **eval 훅**: `AQUA_SMOKE_THEME=<id>`로 headless 테마 강제 전환(`window.__AQUA_APPLY_THEME__`, `health.theme` 리드백을 요청값과 대조해 불일치 시 스모크 실패). `scripts/eval_vision.py`에 `--intent "<text>"`/`--min-score N` 플래그 추가(테마별 설계 의도·임계값 override, 기존 위치 인자 호출은 하위호환 — 상세 `docs/EVAL.md`).
+- **미학 조율(step6)**: 가지 산호가 마른 나뭇가지처럼 앙상해 보이던 것을 `CORAL.branch`(childCount/radiusDecay/spreadAngle) 소폭 상향으로, 부채 산호가 성게처럼 읽히던 것을 `CORAL.fan`(veinCount/veinGapRatio/fanHalfAngle/yawJitter) 소폭 조정으로 완화(캡처 비교로 확정, 컬러 팝·클러스터 중앙 트임은 원래도 양호해 그대로 둠). 패널 '다시마 숲' 라벨 2줄 줌바꿈은 한글이 공백 없이도 음절 경계에서 줄바꿈되는 특성 때문에 표시명 변경만으론 해결이 안 돼, `.cp__theme-btn`에 `white-space:nowrap`+폰트/패딩 소폭 축소로 해결.
+- 라이브 QA 미검증 항목은 `docs/HANDOFF.md` "현재 상태" 참고.
+
 ## 런타임 eval (CRITICAL — 자기보고 불신)
 **`build/test/lint` 통과만으로 "동작/표시됨"을 단정하지 마라.** 그것들은 순수 로직만 검증하며, 실제 렌더가 깨져도 통과한다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 시각 변경 후엔 반드시 `npm run smoke`로 실제 렌더를 검증한다. 상세: **`docs/EVAL.md`**.
 - 스모크: `src/main/smoke.ts`+`smokeEval.ts` (`AQUA_SMOKE=1`). 콘솔 에러·헬스(`src/renderer/health.ts`)·`capturePage` 픽셀 분석.
-- **스모크는 localStorage를 비우고 시작한다(결정적 평가).** 사용자 영속 상태를 물려받으면 개체수·투명도·무드가 세션마다 달라 캡처 비교가 무의미해진다(실제로 무드 캡처가 "무변화"로 오판된 사고). 상태 구동은 훅으로: `AQUA_SMOKE_FISH`(개체수)·`AQUA_SMOKE_BRIGHTNESS`·`AQUA_SMOKE_TRANSPARENCY`·`AQUA_SMOKE_MOOD`(+`_HOUR`, off→on 재적용·`moodHook` 리드백)·`AQUA_SMOKE_FEATURES`·`AQUA_SMOKE_OPEN_PANEL`.
-- 비전: `scripts/eval_vision.py` (항목별 채점, phase끝). 하네스 `scripts/execute.py`가 `"eval":true` step·phase끝에서 자동 게이트·반복.
+- **스모크는 localStorage를 비우고 시작한다(결정적 평가).** 사용자 영속 상태를 물려받으면 개체수·투명도·무드가 세션마다 달라 캡처 비교가 무의미해진다(실제로 무드 캡처가 "무변화"로 오판된 사고). 상태 구동은 훅으로: `AQUA_SMOKE_FISH`(개체수)·`AQUA_SMOKE_BRIGHTNESS`·`AQUA_SMOKE_TRANSPARENCY`·`AQUA_SMOKE_MOOD`(+`_HOUR`, off→on 재적용·`moodHook` 리드백)·`AQUA_SMOKE_FEATURES`·`AQUA_SMOKE_OPEN_PANEL`·`AQUA_SMOKE_THEME`(배경 테마 id 강제, `health.theme` 리드백).
+- 비전: `scripts/eval_vision.py` (항목별 채점, phase끝). `--intent "<text>"`/`--min-score N`로 테마별 설계 의도·임계값을 override(위치 인자 호출은 하위호환). 하네스 `scripts/execute.py`가 `"eval":true` step·phase끝에서 자동 게이트·반복.
 
 ## 렌더링 컨벤션·함정 (재발 방지 — 실제로 겪은 버그들)
 - **투명 캔버스 셰이더 함정**: `THREE.Fog` 금지(불투명 안개 사각형). 풀스크린 블룸/`UnrealBloomPass` 금지(알파를 1로 강제 → 검은 배경). additive 효과는 **알파도 누적**해야 보인다(`blendSrcAlpha`를 Zero로 두면 색만 더해지고 OS premultiplied 합성에서 사라짐 — 라이트샤프트가 그랬다).

@@ -11,6 +11,11 @@ export interface AquaHealth {
   errors: string[]
   /** 첫 프레임 렌더 이후 경과 프레임 수 (eval이 렌더 루프 생존을 확인) */
   frames: number
+  /**
+   * 현재 적용된 배경 테마 id. 스모크(AQUA_SMOKE_THEME)가 요청 id와 대조해 전환이 실제
+   * 반영됐는지 리드백 검증한다(물고기 위치가 매 실행 달라 캡처 diff로는 검증 불가).
+   */
+  theme: string
 }
 
 const health: AquaHealth = {
@@ -18,6 +23,7 @@ const health: AquaHealth = {
   fishActive: 0,
   errors: [],
   frames: 0,
+  theme: '',
 }
 
 function pushError(msg: string): void {
@@ -59,4 +65,9 @@ export function setFishActive(n: number): void {
 
 export function tickFrame(): void {
   health.frames++
+}
+
+/** 적용된 배경 테마 id를 헬스에 반영한다(초기 적용 시·Aquascape.setTheme 전환 시 호출). */
+export function setAppliedTheme(id: string): void {
+  health.theme = id
 }

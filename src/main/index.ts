@@ -1,6 +1,8 @@
-import { app, globalShortcut, session } from 'electron'
+import { app, globalShortcut, ipcMain, session } from 'electron'
 import { createOverlayWindow } from './window'
 import { registerIpcHandlers } from './ipc'
+import { getTokenUsage } from './tokenUsage'
+import { IPC } from '../shared/ipc-channels'
 import { SHORTCUTS } from '../shared/config'
 
 const SMOKE = !!process.env['AQUA_SMOKE']
@@ -12,6 +14,11 @@ app.whenReady().then(async () => {
     // 재현성이 깨진다 — 항상 기본 설정으로 평가하도록 저장소를 비운다.
     await session.defaultSession.clearStorageData({ storages: ['localstorage'] })
     const win = createOverlayWindow({ show: false })
+    // 토큰 사용량은 send가 아닌 invoke 채널이라, 핸들러가 없으면 renderer의 invoke가 reject되어
+    // 폴러가 깨지고 스모크 에러 게이트에 걸린다. 스모크 경로엔 이 핸들러만 등록한다 — 창-제어
+    // (setWindowSize/Bounds) on-핸들러는 스모크가 no-op을 전제로 계측하므로(smoke.ts 참조)
+    // 전체 registerIpcHandlers를 부르면 스모크 거동이 바뀐다.
+    ipcMain.handle(IPC.GET_TOKEN_USAGE, () => getTokenUsage())
     const { runSmoke } = await import('./smoke')
     await runSmoke(win)
     return

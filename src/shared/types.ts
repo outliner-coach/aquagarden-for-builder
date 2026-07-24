@@ -66,6 +66,8 @@ export interface AquaBridge {
   setWindowBounds(x: number, y: number, width: number, height: number): void
   /** 앱 종료. frameless·always-on-top 오버레이라 메뉴/X가 없으므로 패널의 종료 버튼이 호출. (main에서 app.quit) */
   quitApp(): void
+  /** 계정 토큰 사용량 스냅샷 조회. 앱 유일의 요청/응답 IPC — main의 getTokenUsage를 호출한다(never throw). */
+  getTokenUsage(): Promise<TokenUsage>
 }
 
 /** 토큰 사용량 창(5시간/주간) 하나의 스냅샷. pct는 0..1, resetsAt는 epoch 초. */

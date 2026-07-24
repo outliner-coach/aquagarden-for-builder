@@ -959,6 +959,8 @@ export const TOKEN = {
   backoffMaxMs: 3_600_000,
   /** 429 백오프 지수 배율(레퍼런스 ×2). */
   backoffFactor: 2,
+  /** 물고기 탭이 평소 flavor 대사 대신 사용량 통계를 말할 확률(0..1, 튜닝값). 나머지는 어종 flavor. */
+  usageTapChance: 0.4,
   /** 밴드별 게이지 색. */
   colors: { ok: '#3fd0c9', warn: '#fb8500', critical: '#e5484d' },
 } as const

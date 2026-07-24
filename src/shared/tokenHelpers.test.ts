@@ -3,7 +3,7 @@ import {
   parseUsageResponse,
   usageLevel,
   bandForUsage,
-  fishTone,
+  windowBand,
   gaugeColor,
   formatReset,
   parseSmokeToken,
@@ -181,73 +181,82 @@ describe('bandForUsage — 더 제약적인 창이 밴드를 결정 (max)', () =
   })
 })
 
-describe('fishTone — 주간은 페이스 인지, 5시간은 절대치', () => {
+describe('windowBand — 주간(isWeekly=true)은 페이스 인지', () => {
   const WEEK = 7 * 24 * 60 * 60
   const NOW = 1_700_000_000
   // 경과 비율(0..1)로부터 resetsAt 역산: elapsed = 1 - (resetsAt - now) / WEEK.
   const resetAtElapsed = (elapsed: number): number => NOW + Math.round((1 - elapsed) * WEEK)
 
-  it('사용자 시나리오: 주간 34%인데 창 초반(~14% 경과) → 과속 → warn, focus weekly', () => {
-    const fiveHour = { pct: 0.1, resetsAt: NOW + 3600 }
+  it('사용자 시나리오: 주간 34%인데 창 초반(~14% 경과) → 과속 → warn', () => {
     const weekly = { pct: 0.34, resetsAt: resetAtElapsed(1 / 7) } // ~14.3% 경과 → projected ~2.4
-    expect(fishTone(fiveHour, weekly, NOW)).toEqual({ band: 'warn', focus: 'weekly' })
+    expect(windowBand(weekly, true, NOW)).toBe('warn')
   })
 
   it('같은 34%라도 창 중반(~60% 경과)이면 정상 페이스 → ok', () => {
-    const fiveHour = { pct: 0.1, resetsAt: NOW + 3600 }
     const weekly = { pct: 0.34, resetsAt: resetAtElapsed(0.6) } // projected ~0.57
-    expect(fishTone(fiveHour, weekly, NOW).band).toBe('ok')
+    expect(windowBand(weekly, true, NOW)).toBe('ok')
   })
 
   it('pacePctFloor 미만(주간 5%)은 과속이어도 여유로 봄 → ok', () => {
-    const fiveHour = { pct: 0.05, resetsAt: NOW + 3600 }
     const weekly = { pct: 0.05, resetsAt: resetAtElapsed(0.035) } // projected ~1.43(≥1.2)지만 pct<floor
-    expect(fishTone(fiveHour, weekly, NOW).band).toBe('ok')
+    expect(windowBand(weekly, true, NOW)).toBe('ok')
   })
 
-  it('5시간 절대 사용률이 높으면(90%) 정상 페이스 주간을 눌러 focus fiveHour', () => {
-    const fiveHour = { pct: 0.9, resetsAt: NOW + 3600 }
-    const weekly = { pct: 0.2, resetsAt: resetAtElapsed(0.6) } // on-track
-    const tone = fishTone(fiveHour, weekly, NOW)
-    expect(tone.band).toBe('warn')
-    expect(tone.focus).toBe('fiveHour')
-  })
-
-  it('주간 절대 critical(97%)은 페이스와 무관하게 critical, focus weekly', () => {
-    const fiveHour = { pct: 0.1, resetsAt: NOW + 3600 }
+  it('주간 절대 critical(97%)은 페이스와 무관하게 critical', () => {
     const weekly = { pct: 0.97, resetsAt: resetAtElapsed(0.9) } // 경과가 많아도(느린 페이스) 절대 critical
-    expect(fishTone(fiveHour, weekly, NOW)).toEqual({ band: 'critical', focus: 'weekly' })
+    expect(windowBand(weekly, true, NOW)).toBe('critical')
   })
 
-  it('5시간은 페이스 보정을 받지 않는다 (창 초반 50%도 그대로 ok)', () => {
-    const fiveHour = { pct: 0.5, resetsAt: NOW + 5 * 3600 } // 방금 시작한 5시간 블록(초반)
-    const weekly = { pct: 0.1, resetsAt: resetAtElapsed(0.5) }
-    expect(fishTone(fiveHour, weekly, NOW).band).toBe('ok')
-  })
-
-  it('동률 밴드면 사용률이 높은 창을 focus로 (tie → higher %)', () => {
-    // 둘 다 ok, weekly가 더 높음 → weekly
-    const a = fishTone({ pct: 0.3, resetsAt: NOW + 3600 }, { pct: 0.5, resetsAt: resetAtElapsed(0.9) }, NOW)
-    expect(a).toEqual({ band: 'ok', focus: 'weekly' })
-    // 둘 다 ok, fiveHour가 더 높음 → fiveHour
-    const b = fishTone({ pct: 0.5, resetsAt: NOW + 3600 }, { pct: 0.3, resetsAt: resetAtElapsed(0.9) }, NOW)
-    expect(b).toEqual({ band: 'ok', focus: 'fiveHour' })
+  it('주간 페이스는 ok→warn만 올린다 (절대 warn 대역+과속이어도 critical로는 못 만든다)', () => {
+    const weekly = { pct: 0.85, resetsAt: resetAtElapsed(0.5) } // 절대 warn(≥0.8), projected 1.7(≥1.2)
+    expect(windowBand(weekly, true, NOW)).toBe('warn')
   })
 
   it('nowSec를 주입받아 결정적이다 (같은 입력 반복 호출 시 불변, 시계 미접근)', () => {
-    const fh = { pct: 0.9, resetsAt: NOW + 3600 }
     const wk = { pct: 0.34, resetsAt: resetAtElapsed(1 / 7) }
-    const first = fishTone(fh, wk, NOW)
+    const first = windowBand(wk, true, NOW)
     for (let i = 0; i < 10; i++) {
-      expect(fishTone(fh, wk, NOW)).toEqual(first)
+      expect(windowBand(wk, true, NOW)).toBe(first)
     }
   })
 
   it('커스텀 임계값을 전달할 수 있다 (warnPct/criticalPct override)', () => {
-    // 절대 40%면 커스텀 warn 임계(0.4)로 warn — 페이스 무관
-    const fiveHour = { pct: 0.4, resetsAt: NOW + 3600 }
-    const weekly = { pct: 0.1, resetsAt: resetAtElapsed(0.9) }
-    expect(fishTone(fiveHour, weekly, NOW, 0.4, 0.9).band).toBe('warn')
+    // 절대 40%면 커스텀 warn 임계(0.4)로 warn — 정상 페이스여도 절대치가 이미 warn
+    const weekly = { pct: 0.4, resetsAt: resetAtElapsed(0.9) }
+    expect(windowBand(weekly, true, NOW, 0.4, 0.9)).toBe('warn')
+  })
+})
+
+describe('windowBand — 5시간(isWeekly=false)은 절대치 전용(페이스 무보정)', () => {
+  const NOW = 1_700_000_000
+
+  it('신선한 5시간 창 50%는 절대치로 ok (창 초반이어도 페이스 보정 없음)', () => {
+    const fiveHour = { pct: 0.5, resetsAt: NOW + 5 * 3600 } // 방금 시작한 5시간 블록
+    expect(windowBand(fiveHour, false, NOW)).toBe('ok')
+  })
+
+  it('정확히 warnPct(경계)면 warn', () => {
+    expect(windowBand({ pct: TOKEN.warnPct, resetsAt: NOW + 1800 }, false, NOW)).toBe('warn')
+  })
+
+  it('5시간 90% → warn (절대치)', () => {
+    expect(windowBand({ pct: 0.9, resetsAt: NOW + 1800 }, false, NOW)).toBe('warn')
+  })
+
+  it('5시간 97% → critical (절대치)', () => {
+    expect(windowBand({ pct: 0.97, resetsAt: NOW + 1800 }, false, NOW)).toBe('critical')
+  })
+
+  it('resetsAt/경과와 무관 — 같은 pct면 창 초반이든 임박이든 같은 밴드(페이스 미적용)', () => {
+    const early = { pct: 0.5, resetsAt: NOW + 5 * 3600 }
+    const late = { pct: 0.5, resetsAt: NOW + 60 }
+    expect(windowBand(early, false, NOW)).toBe(windowBand(late, false, NOW))
+    expect(windowBand(early, false, NOW)).toBe('ok')
+  })
+
+  it('usageLevel(절대치)과 동일한 결과를 낸다', () => {
+    const w = { pct: 0.82, resetsAt: NOW + 1800 }
+    expect(windowBand(w, false, NOW)).toBe(usageLevel(w.pct))
   })
 })
 

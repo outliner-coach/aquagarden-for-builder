@@ -129,18 +129,8 @@ export function bandForUsage(
   return usageLevel(Math.max(fiveHourPct, weeklyPct), warnPct, criticalPct)
 }
 
-/** 한 주(초). fishTone의 주간 창 경과 비율 계산에 쓴다. */
+/** 한 주(초). windowBand의 주간 창 경과 비율 계산에 쓴다. */
 const WEEK_SEC = 7 * 24 * 60 * 60
-
-/**
- * 물고기 대사 톤. band는 말투 강도, focus는 어느 창을 근거로 삼는지(대사가 인용할 창).
- * 게이지(패널 링)와 분리된 개념 — 링은 절대 사용률만 색으로 쓰고, 이 톤은 주간에 한해
- * 페이스(사용률 대비 남은 시간)를 반영한다.
- */
-export interface FishTone {
-  band: UsageLevel
-  focus: 'fiveHour' | 'weekly'
-}
 
 /**
  * 주간 창의 톤 밴드 — 절대치 위에 페이스 보정을 얹는다(5시간과 달리 긴 창이라 페이스가 의미 있음).
@@ -165,23 +155,22 @@ function weeklyToneLevel(
 }
 
 /**
- * 물고기 대사 톤을 정한다 — 주간은 페이스 인지, 5시간은 절대치 전용(짧은 롤링 창이라 페이스가
- * 자기보정적이고 노이즈가 큼). 더 제약적인(높은 rank) 창이 band·focus를 정하고, 동률이면
- * 사용률이 높은 창을 focus로 삼는다. nowSec는 주입 — 순수·결정적(시계 미접근).
+ * 한 창(5시간 또는 주간)의 대사 톤 밴드를 정한다. isWeekly=true면 주간 페이스 인지
+ * (weeklyToneLevel — 긴 창이라 리셋까지 남은 시간 대비 사용률로 ok→warn만 상향), false면 5시간
+ * 절대치(usageLevel — 짧은 롤링 창이라 페이스가 자기보정적·노이즈가 커서 절대치만 본다). 어느
+ * 창을 말할지는 호출자가 정한다(이 함수는 한 창만 본다). 게이지(패널 링)와 분리된 개념 — 링은
+ * 절대 사용률만 색으로 쓴다. nowSec는 주입 — 순수·결정적(시계 미접근).
  */
-export function fishTone(
-  fiveHour: TokenUsageWindow,
-  weekly: TokenUsageWindow,
+export function windowBand(
+  window: TokenUsageWindow,
+  isWeekly: boolean,
   nowSec: number,
   warnPct: number = TOKEN.warnPct,
   criticalPct: number = TOKEN.criticalPct,
-): FishTone {
-  const fh = usageLevel(fiveHour.pct, warnPct, criticalPct)
-  const wk = weeklyToneLevel(weekly, nowSec, warnPct, criticalPct)
-  const rank = { ok: 0, warn: 1, critical: 2 } as const
-  if (rank[wk] > rank[fh]) return { band: wk, focus: 'weekly' }
-  if (rank[fh] > rank[wk]) return { band: fh, focus: 'fiveHour' }
-  return weekly.pct >= fiveHour.pct ? { band: wk, focus: 'weekly' } : { band: fh, focus: 'fiveHour' } // 동률 → 높은 %
+): UsageLevel {
+  return isWeekly
+    ? weeklyToneLevel(window, nowSec, warnPct, criticalPct)
+    : usageLevel(window.pct, warnPct, criticalPct)
 }
 
 /** 밴드 → 게이지 색(hex). */

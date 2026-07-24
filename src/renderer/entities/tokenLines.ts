@@ -10,9 +10,9 @@
  * 빈 문자열을 반환하지 않는다(커버리지 불변식 — SPECIES_LINES를 Record<SpeciesId,...>로
  * 선언해 TS 컴파일 타임에도 10종 전부 채워졌는지 가드한다).
  *
- * 대사는 '관건(focus) 창' 하나만 인용한다 — 어느 창이 톤을 정했는지는 호출자(fishTone)가
- * 판정해 ctx.label('5시간'|'주간')·ctx.pct·ctx.resetText로 넘긴다. 이 파일은 밴드/포커스를
- * 재계산하지 않는다.
+ * 대사는 인용할 창 하나만 담는다 — 어느 창을(주간/5시간) 말할지는 호출자(resolveTapLineSource)가
+ * roll로 고르고 그 창의 톤(windowBand)을 계산해 ctx.label('5시간'|'주간')·ctx.pct·ctx.resetText로
+ * 넘긴다. 이 파일은 창 선택/밴드를 재계산하지 않는다.
  *
  * 톤 설계: ok는 여유로워 리셋 시각을 언급할 필요가 없고, warn/critical은 아껴야 하는 시점이라
  * 항상 ctx.resetText를 포함한다(수치는 모든 밴드가 최소 하나씩 포함). warn은 '페이스 주의'라

@@ -92,3 +92,14 @@ export interface TokenUsage {
   /** 조회 시각(epoch 초). */
   fetchedAt: number
 }
+
+/**
+ * 마지막 성공(state==='ok') 사용량 캐시 항목. 라이브 조회가 실패해도 직전 성공 스냅샷을
+ * "N분 전 기준"으로 보여주기 위해 재시작 간 유지한다(AppSettings와 분리 — 사용자 설정이 아니라 캐시).
+ * 보안: TokenUsage에는 자격증명 필드가 없다 — 사용률(%)·시각만 담긴다.
+ */
+export interface TokenUsageCache {
+  usage: TokenUsage
+  /** 저장 시각(epoch 초). 경과(age) = now − savedAt. */
+  savedAt: number
+}

@@ -1,5 +1,5 @@
 import { TOKEN } from './config'
-import type { TokenUsageWindow } from './types'
+import type { TokenUsage, TokenUsageWindow, TokenUsageCache } from './types'
 
 /**
  * 토큰 사용량 순수 헬퍼. 부수효과 없음(네트워크/시계/스토리지 접근 금지) — 시각은 모두 인자로
@@ -25,6 +25,8 @@ const MS_PER_SEC = 1000
 const SEC_PER_MIN = 60
 const MIN_PER_HOUR = 60
 const SEC_PER_HOUR = SEC_PER_MIN * MIN_PER_HOUR
+const HOUR_PER_DAY = 24
+const SEC_PER_DAY = SEC_PER_HOUR * HOUR_PER_DAY
 
 /** 요일 표기 (Date.getDay() 0=일 ~ 6=토). */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const
@@ -205,6 +207,54 @@ export function formatReset(resetsAt: number, now: number, mode: 'relative' | 'a
   const hours = Math.floor(diff / SEC_PER_HOUR)
   const mins = Math.floor((diff % SEC_PER_HOUR) / SEC_PER_MIN)
   return mins === 0 ? `${hours}시간 후` : `${hours}시간 ${mins}분 후`
+}
+
+/**
+ * 마지막 성공 조회로부터의 경과(초)를 한국어 표기로 — 마지막 성공값을 "N분 전 기준"으로 보여줄 때 쓴다.
+ * formatReset과 달리 시계를 아예 읽지 않는다(경과를 인자로만 받아 완전히 결정적). 경계:
+ * <60초 → "방금", <60분 → "N분 전", <24시간 → "N시간 전", 그 이상 → "N일 전". 각 구간은 내림.
+ * 음수 경과(시계 역행/저장 시점 오차)는 0으로 방어한다.
+ */
+export function formatAgo(ageSec: number): string {
+  const age = ageSec > 0 ? ageSec : 0
+  if (age < SEC_PER_MIN) return '방금'
+  if (age < SEC_PER_HOUR) return `${Math.floor(age / SEC_PER_MIN)}분 전`
+  if (age < SEC_PER_DAY) return `${Math.floor(age / SEC_PER_HOUR)}시간 전`
+  return `${Math.floor(age / SEC_PER_DAY)}일 전`
+}
+
+/**
+ * resolveDisplayUsage 결과. display=표시할 사용량(null=진짜 '연결 안 됨'), staleAgeSec=마지막
+ * 성공값을 stale로 보여줄 때의 경과(초, fresh/none이면 undefined), lastKnownGood=갱신된 캐시
+ * (라이브 ok면 그 값을 담은 새 항목, 그 외엔 입력 캐시를 그대로 반환 — 호출자가 참조 비교로
+ * 영속 재기록 여부를 판단한다).
+ */
+export interface DisplayUsageResolution {
+  display: TokenUsage | null
+  staleAgeSec?: number
+  lastKnownGood: TokenUsageCache | null
+}
+
+/**
+ * 라이브 조회 결과 + 기존 last-known-good → 표시 사용량을 정한다(순수·결정적, nowSec 주입).
+ *  - live.state==='ok' → live를 fresh로 표시하고 last-known-good을 live로 갱신(savedAt=nowSec).
+ *  - live가 unavailable/null(예외) → last-known-good이 있으면 그것을 stale로(age=max(0,nowSec−savedAt)),
+ *    없으면 display=null(진짜 연결 안 됨). last-known-good은 그대로 유지한다(동일 참조 반환).
+ * 패널 링과 물고기 대사가 함께 이 display를 쓰므로, 끊겨도 마지막 수치가 이어진다.
+ */
+export function resolveDisplayUsage(
+  live: TokenUsage | null,
+  lastKnownGood: TokenUsageCache | null,
+  nowSec: number,
+): DisplayUsageResolution {
+  if (live !== null && live.state === 'ok') {
+    return { display: live, lastKnownGood: { usage: live, savedAt: nowSec } }
+  }
+  if (lastKnownGood !== null) {
+    const age = Math.max(0, nowSec - lastKnownGood.savedAt)
+    return { display: lastKnownGood.usage, staleAgeSec: age, lastKnownGood }
+  }
+  return { display: null, lastKnownGood: null }
 }
 
 /**

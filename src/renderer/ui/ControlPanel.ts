@@ -4,7 +4,7 @@ import type { LureMode } from '../entities/FoodLure'
 import { THEME_REGISTRY } from '../entities/themeRegistry'
 import { zoomToSliderPercent, sliderPercentToZoom } from '../core/zoomHelpers'
 import { computeThemeSegmentState } from './themeSegment'
-import { usageLevel, gaugeColor, formatReset } from '../../shared/tokenHelpers'
+import { usageLevel, gaugeColor, formatReset, formatAgo } from '../../shared/tokenHelpers'
 import type { TokenUsage, TokenUsageWindow } from '../../shared/types'
 import './controlPanel.css'
 
@@ -107,6 +107,8 @@ export class ControlPanel {
   private readonly _tokenRingsRow: HTMLDivElement
   private readonly _fiveHourRing: TokenRingRefs
   private readonly _weeklyRing: TokenRingRefs
+  /** 마지막 성공값(stale) 표시 시 "N분 전 기준" 노트. fresh면 숨김. */
+  private readonly _tokenStaleNote: HTMLDivElement
 
   constructor(
     container: HTMLElement,
@@ -259,6 +261,12 @@ export class ControlPanel {
     this._weeklyRing = this._createTokenRing(tokenRingsRow, '주간')
     this._panel.appendChild(tokenRingsRow)
     this._tokenRingsRow = tokenRingsRow
+    // 마지막 성공값 표시 시 "N분 전 기준" 노트(fresh면 숨김). 링 바로 아래(전폭).
+    const staleNote = document.createElement('div')
+    staleNote.className = 'cp__token-stale-note'
+    staleNote.style.display = 'none'
+    this._panel.appendChild(staleNote)
+    this._tokenStaleNote = staleNote
     this._setTokenRingsVisible(initialShowToken)
     // 최초 데이터 도착 전(main이 아직 updateTokenUsage를 안 불렀을 때) 회색 placeholder로 시작.
     this.updateTokenUsage(null)
@@ -464,17 +472,39 @@ export class ControlPanel {
    * 외부(main)에서 토큰 사용량 스냅샷을 전달하면 두 게이지(5시간/주간)를 다시 그린다.
    * null이거나 state==='unavailable'이면 두 링 모두 회색 '연결 안 됨' placeholder로 표시한다
    * (섹션 자체는 숨기지 않음 — 토글 on/off는 별개의 관심사).
+   *
+   * staleAgeSec가 주어지면(마지막 성공값을 라이브 실패 상태에서 보여주는 경우) 링을 실제 %/색으로
+   * 그리되 흐리게(dim) 표시하고 "N분 전 기준" 노트를 붙인다. 생략(fresh)이면 원복 + 노트 없음.
+   * 하위호환: 두 번째 인자는 옵셔널 — 기존 호출부(updateTokenUsage(usage))는 그대로 fresh로 동작한다.
    */
-  updateTokenUsage(usage: TokenUsage | null): void {
+  updateTokenUsage(usage: TokenUsage | null, staleAgeSec?: number): void {
     // now는 렌더 시점 기준(라이브 UI) — 순수 헬퍼(formatReset)엔 그대로 주입만 한다.
     const now = Date.now() / 1000
     if (usage === null || usage.state === 'unavailable') {
       this._renderRing(this._fiveHourRing, null, now, 'relative')
       this._renderRing(this._weeklyRing, null, now, 'absolute')
+      this._applyTokenStale(undefined) // 진짜 연결 안 됨 — dim/노트 없음
       return
     }
     this._renderRing(this._fiveHourRing, usage.fiveHour ?? null, now, 'relative')
     this._renderRing(this._weeklyRing, usage.weekly ?? null, now, 'absolute')
+    this._applyTokenStale(staleAgeSec)
+  }
+
+  /**
+   * stale 표시 상태를 반영한다. ageSec가 있으면 링 행을 흐리게(dim) + "N분 전 기준" 노트,
+   * 없으면(fresh) 원복 + 노트 숨김. 링 자체는 실제 %/밴드 색 그대로다(정보는 유지, 신뢰도만 낮춤).
+   */
+  private _applyTokenStale(ageSec: number | undefined): void {
+    const stale = ageSec !== undefined
+    this._tokenRingsRow.classList.toggle('cp__token-rings--stale', stale)
+    if (stale) {
+      this._tokenStaleNote.textContent = `${formatAgo(ageSec)} 기준`
+      this._tokenStaleNote.style.display = 'block'
+    } else {
+      this._tokenStaleNote.textContent = ''
+      this._tokenStaleNote.style.display = 'none'
+    }
   }
 
   private _emitEnabledFeatures(): void {
@@ -484,9 +514,10 @@ export class ControlPanel {
     this._callbacks.onEnabledFeaturesChange(ids)
   }
 
-  /** 토큰 게이지 링 행의 표시/숨김(섹션 표시 토글용). */
+  /** 토큰 게이지 링 행의 표시/숨김(섹션 표시 토글용). 숨기면 stale 노트도 함께 숨긴다. */
   private _setTokenRingsVisible(visible: boolean): void {
     this._tokenRingsRow.style.display = visible ? 'flex' : 'none'
+    if (!visible) this._tokenStaleNote.style.display = 'none'
   }
 
   private _appendSectionLabel(parent: HTMLElement, text: string): void {

@@ -23,9 +23,10 @@ import { FISH, LIGHT, WINDOW, SCENE, CAMERA, ZOOM, MOOD, RENDER, DRAG, TOKEN } f
 import { moodForHour, IDENTITY_MOOD, type Mood } from './lighting/moodHelpers'
 import { setCausticMood } from './entities/caustics'
 import { getTheme, DEFAULT_THEME_ID } from './entities/themeRegistry'
-import type { AppSettings, TokenUsage } from '../shared/types'
+import type { AppSettings, TokenUsage, TokenUsageCache } from '../shared/types'
+import { resolveDisplayUsage } from '../shared/tokenHelpers'
 import { markReady, setFishActive, tickFrame, setAppliedTheme, setTerrainClips, setTokenUsageHealth } from './health'
-import { loadPersisted, savePersisted, type PersistedState } from './persistence'
+import { loadPersisted, savePersisted, loadTokenLastKnown, saveTokenLastKnown, type PersistedState } from './persistence'
 
 const container = document.getElementById('app')!
 
@@ -506,17 +507,42 @@ const fishDialogue = new FishDialogue(
 // 받는다 — 토큰 값은 이 파일 어디에도 들어오지 않는다.
 // 전력 규칙: 렌더 루프를 멈추는 것과 동일한 표시/숨김 신호(settings.hidden)로 폴링도 멈춘다
 // (유휴 시 네트워크/CPU 0). 표시 ON이고 창이 표시 중일 때만 폴링한다.
-let latestTokenUsage: TokenUsage | null = null
+// 마지막 성공값(state==='ok') 캐시 — 라이브 조회가 실패해도 직전 성공 스냅샷을 dimmed로 이어
+// 보여준다(연결 끊겨도 "N분 전 기준"). 재시작 간 영속되며 시작 시 로드한다.
+let lastKnownGood: TokenUsageCache | null = loadTokenLastKnown()
+// 표시 사용량 + 경과(stale일 때만) — 패널 링과 물고기 대사가 함께 읽는 단일 소스.
+let displayTokenUsage: TokenUsage | null = null
+let displayTokenStaleAgeSec: number | undefined = undefined
 let _tokenTimer: ReturnType<typeof setInterval> | null = null
 
-/** 헬스 리드백 갱신 — 토글 상태 + 최신 스냅샷 상태/사용률(%)만. 토큰/자격증명은 절대 넣지 않는다. */
+/** 헬스 리드백 갱신 — 토글 상태 + 표시 스냅샷 상태/사용률(%)/stale 여부만. 토큰/자격증명은 절대 넣지 않는다. */
 function refreshTokenHealth(): void {
   setTokenUsageHealth({
     enabled: settings.showTokenUsage,
-    state: latestTokenUsage?.state ?? 'unavailable',
-    fiveHourPct: latestTokenUsage?.fiveHour?.pct ?? null,
-    weeklyPct: latestTokenUsage?.weekly?.pct ?? null,
+    state: displayTokenUsage?.state ?? 'unavailable',
+    fiveHourPct: displayTokenUsage?.fiveHour?.pct ?? null,
+    weeklyPct: displayTokenUsage?.weekly?.pct ?? null,
+    stale: displayTokenStaleAgeSec !== undefined,
   })
+}
+
+/**
+ * 라이브 조회 결과(또는 null=예외/첫 조회 미도래)를 표시 사용량으로 반영한다: ok면 fresh + 마지막
+ * 성공값 갱신·영속, 실패면 마지막 성공값이 있으면 stale로(없으면 진짜 '연결 안 됨'). 패널 링·물고기
+ * provider·헬스에 함께 전파한다. 순수 판정은 resolveDisplayUsage(shared)가, 부수효과(영속·DOM·헬스)는 여기서만.
+ */
+function applyTokenResult(live: TokenUsage | null): void {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const res = resolveDisplayUsage(live, lastKnownGood, nowSec)
+  displayTokenUsage = res.display
+  displayTokenStaleAgeSec = res.staleAgeSec
+  // ok였을 때만 새 캐시 참조가 반환된다 — 참조가 바뀐 경우에만 영속(불필요한 쓰기 억제).
+  if (res.lastKnownGood !== lastKnownGood) {
+    lastKnownGood = res.lastKnownGood
+    if (lastKnownGood !== null) saveTokenLastKnown(lastKnownGood)
+  }
+  controlPanel.updateTokenUsage(displayTokenUsage, displayTokenStaleAgeSec)
+  refreshTokenHealth()
 }
 
 /** 1회 조회 — main 브리지 호출(계약상 never-throw이나 방어적으로 reject→unavailable 처리). */
@@ -527,9 +553,7 @@ async function fetchTokenUsage(): Promise<void> {
   } catch {
     u = { state: 'unavailable', fetchedAt: Math.floor(Date.now() / 1000) }
   }
-  latestTokenUsage = u
-  controlPanel.updateTokenUsage(u)
-  refreshTokenHealth()
+  applyTokenResult(u)
 }
 
 /** 즉시 1회 조회(간격 대기 없음). 표시 OFF거나 숨김이면 no-op(전력 규칙·표시 규칙). */
@@ -552,8 +576,9 @@ function syncTokenPolling(): void {
   }
 }
 
-// 물고기 대사 provider: 탭 시점의 최신 표시 여부·사용량 스냅샷을 읽는다(FishDialogue가 종·상태로 분기).
-fishDialogue.setTokenUsageProvider(() => ({ show: settings.showTokenUsage, usage: latestTokenUsage }))
+// 물고기 대사 provider: 탭 시점의 표시 여부 + 표시 사용량(fresh든 stale이든)을 읽는다 — stale이면
+// 물고기가 마지막 성공 수치를 말한다(연결 끊겨도 flavor로 떨어지지 않음). FishDialogue가 종·상태로 분기.
+fishDialogue.setTokenUsageProvider(() => ({ show: settings.showTokenUsage, usage: displayTokenUsage }))
 
 // ── 카메라 궤도 드래그 + 탭 중재 ──
 // 캔버스 드래그(클릭 임계 초과)=카메라 회전, 임계 이내에서 뗌=탭(먹이/놀래키기·대사).
@@ -679,8 +704,14 @@ applyInteractive()
 // 시작 시 무드 반영(복원된 moodReactive가 ON이면 즉시 적용, OFF면 항등 유지).
 applyMood()
 
-// 시작 시 토큰 사용량 폴러 기동. 헬스 token을 먼저 초기화(조회 전에도 enabled 노출)한 뒤,
-// 표시 ON이고 숨김이 아니면 즉시 1회 조회(간격 대기 없음 — 스모크 게이트 결정성) + 주기 폴링 시작.
+// 시작 시 토큰 사용량 폴러 기동. 마지막 성공값 캐시가 있고 표시 ON이면, 첫 async 조회가 돌아오기
+// 전에 즉시 그 값을 stale로 표시해 패널이 비지 않게 한다(캐시만 반영 — 네트워크 없음, 전력 규칙 무관).
+// 첫 조회가 끝나면 fresh(ok) 또는 stale 유지(unavailable)로 갱신된다. 캐시 없으면 기존대로 enabled만 리드백.
+// 그 뒤 표시 ON이고 숨김이 아니면 즉시 1회 조회(간격 대기 없음 — 스모크 게이트 결정성) + 주기 폴링 시작.
 // 숨김 상태로 복원됐다면 조회하지 않는다(전력 규칙) — 표시로 전환될 때 onHiddenChange가 재개한다.
-refreshTokenHealth()
+if (lastKnownGood !== null && settings.showTokenUsage) {
+  applyTokenResult(null)
+} else {
+  refreshTokenHealth()
+}
 syncTokenPolling()

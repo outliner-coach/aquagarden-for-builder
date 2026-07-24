@@ -7,8 +7,11 @@ import {
   gaugeColor,
   formatReset,
   parseSmokeToken,
+  formatAgo,
+  resolveDisplayUsage,
 } from './tokenHelpers'
 import { TOKEN } from './config'
+import type { TokenUsage, TokenUsageCache } from './types'
 
 describe('parseUsageResponse — limits[]', () => {
   it("kind 'session'을 fiveHour로 매핑 (utilization 0..100 → 0..1)", () => {
@@ -343,5 +346,102 @@ describe('parseSmokeToken', () => {
   it('빈 필드 → null', () => {
     expect(parseSmokeToken('34,')).toBeNull()
     expect(parseSmokeToken(',87')).toBeNull()
+  })
+})
+
+describe('formatAgo — 경과 표기(순수·결정적, 시계 미접근)', () => {
+  it('0초 → "방금" (경계)', () => {
+    expect(formatAgo(0)).toBe('방금')
+  })
+
+  it('59초 → "방금" (분 경계 직전)', () => {
+    expect(formatAgo(59)).toBe('방금')
+  })
+
+  it('60초 → "1분 전" (분 경계)', () => {
+    expect(formatAgo(60)).toBe('1분 전')
+  })
+
+  it('중간 분값은 내림', () => {
+    expect(formatAgo(61)).toBe('1분 전')
+    expect(formatAgo(150)).toBe('2분 전')
+  })
+
+  it('59분(3540초) → "59분 전" (시간 경계 직전)', () => {
+    expect(formatAgo(59 * 60)).toBe('59분 전')
+  })
+
+  it('60분(3600초) → "1시간 전" (시간 경계)', () => {
+    expect(formatAgo(60 * 60)).toBe('1시간 전')
+  })
+
+  it('23시간(82800초) → "23시간 전" (일 경계 직전)', () => {
+    expect(formatAgo(23 * 3600)).toBe('23시간 전')
+  })
+
+  it('24시간(86400초) → "1일 전" (일 경계)', () => {
+    expect(formatAgo(24 * 3600)).toBe('1일 전')
+  })
+
+  it('여러 날은 내림 표기', () => {
+    expect(formatAgo(3 * 24 * 3600 + 5)).toBe('3일 전')
+  })
+
+  it('음수 경과는 0으로 방어 → "방금" (시계 역행/저장 오차)', () => {
+    expect(formatAgo(-10)).toBe('방금')
+  })
+})
+
+describe('resolveDisplayUsage — 라이브 결과 → 표시 사용량(fresh/stale/none)', () => {
+  const okUsage: TokenUsage = {
+    state: 'ok',
+    fiveHour: { pct: 0.34, resetsAt: 5000 },
+    weekly: { pct: 0.87, resetsAt: 9000 },
+    fetchedAt: 1000,
+  }
+  const unavailable: TokenUsage = { state: 'unavailable', fetchedAt: 2000 }
+
+  it('라이브 ok → fresh 표시(staleAgeSec 없음) + last-known 갱신(savedAt=now)', () => {
+    const r = resolveDisplayUsage(okUsage, null, 12345)
+    expect(r.display).toBe(okUsage)
+    expect(r.staleAgeSec).toBeUndefined()
+    expect(r.lastKnownGood).toEqual({ usage: okUsage, savedAt: 12345 })
+  })
+
+  it('라이브 ok는 기존 캐시가 있어도 새 성공값으로 교체', () => {
+    const prev: TokenUsageCache = { usage: okUsage, savedAt: 100 }
+    const fresh: TokenUsage = { ...okUsage, fiveHour: { pct: 0.5, resetsAt: 6000 } }
+    const r = resolveDisplayUsage(fresh, prev, 200)
+    expect(r.display).toBe(fresh)
+    expect(r.lastKnownGood).toEqual({ usage: fresh, savedAt: 200 })
+  })
+
+  it('라이브 unavailable + 캐시 있음 → 캐시를 stale로(age=now−savedAt), 캐시는 유지', () => {
+    const prev: TokenUsageCache = { usage: okUsage, savedAt: 1000 }
+    const r = resolveDisplayUsage(unavailable, prev, 1600)
+    expect(r.display).toBe(okUsage)
+    expect(r.staleAgeSec).toBe(600)
+    expect(r.lastKnownGood).toBe(prev) // 동일 참조 — 영속 재기록 안 함
+  })
+
+  it('라이브 null(예외로 간주) + 캐시 있음 → 동일하게 stale', () => {
+    const prev: TokenUsageCache = { usage: okUsage, savedAt: 1000 }
+    const r = resolveDisplayUsage(null, prev, 2200)
+    expect(r.display).toBe(okUsage)
+    expect(r.staleAgeSec).toBe(1200)
+    expect(r.lastKnownGood).toBe(prev)
+  })
+
+  it('라이브 unavailable + 캐시 없음 → display null(진짜 연결 안 됨), staleAgeSec 없음', () => {
+    const r = resolveDisplayUsage(unavailable, null, 5000)
+    expect(r.display).toBeNull()
+    expect(r.staleAgeSec).toBeUndefined()
+    expect(r.lastKnownGood).toBeNull()
+  })
+
+  it('stale age는 음수로 내려가지 않는다(now < savedAt 방어)', () => {
+    const prev: TokenUsageCache = { usage: okUsage, savedAt: 9000 }
+    const r = resolveDisplayUsage(unavailable, prev, 8000)
+    expect(r.staleAgeSec).toBe(0)
   })
 })

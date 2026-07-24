@@ -1,4 +1,4 @@
-import type { AppSettings } from '../shared/types'
+import type { AppSettings, TokenUsage, TokenUsageWindow, TokenUsageCache } from '../shared/types'
 import { ZOOM, CAMERA } from '../shared/config'
 import { resolveThemeId } from './entities/themeHelpers'
 import { THEME_REGISTRY, DEFAULT_THEME_ID } from './entities/themeRegistry'
@@ -91,5 +91,53 @@ export function savePersisted(state: PersistedState): void {
     localStorage.setItem(KEY, JSON.stringify(state))
   } catch {
     /* 저장 실패는 무시(프라이빗 모드/용량 등) */
+  }
+}
+
+/**
+ * 마지막 성공(state==='ok') 사용량 캐시 전용 키. AppSettings(state.v1)와 분리한다 —
+ * 사용자 설정이 아니라 캐시이므로 설정 저장/복원 로직에 섞지 않는다.
+ */
+const TOKEN_LAST_KNOWN_KEY = 'aquagarden.tokenLastKnown'
+
+/** 창(window) 하나가 유효한 형식인지(pct·resetsAt 유한수). 손상/구버전 캐시 방어. */
+function isValidWindow(w: unknown): w is TokenUsageWindow {
+  if (typeof w !== 'object' || w === null) return false
+  const r = w as Record<string, unknown>
+  return isFiniteNumber(r.pct) && isFiniteNumber(r.resetsAt)
+}
+
+/**
+ * 마지막 성공 사용량 캐시를 읽는다. 없거나 형식이 어긋나면 null(방어적) — 손상/구버전 캐시가
+ * UI를 깨뜨리지 않게 한다. 저장은 state==='ok'만 하므로 로드도 ok가 아니면 거부하고, 표시 가능한
+ * 창(fiveHour/weekly)이 하나도 없으면(둘 다 손상) 거부한다.
+ * 보안: TokenUsage에는 자격증명 필드가 없다 — 사용률(%)·시각만 담긴다.
+ */
+export function loadTokenLastKnown(): TokenUsageCache | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_LAST_KNOWN_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as Partial<TokenUsageCache>
+    const u = p?.usage as Partial<TokenUsage> | undefined
+    if (!u || u.state !== 'ok' || !isFiniteNumber(u.fetchedAt) || !isFiniteNumber(p.savedAt)) {
+      return null
+    }
+    const usage: TokenUsage = { state: 'ok', fetchedAt: u.fetchedAt }
+    if (isValidWindow(u.fiveHour)) usage.fiveHour = u.fiveHour
+    if (isValidWindow(u.weekly)) usage.weekly = u.weekly
+    // 표시할 창이 하나도 없으면 캐시로서 무의미 — 거부(진짜 '연결 안 됨'으로 폴백).
+    if (usage.fiveHour === undefined && usage.weekly === undefined) return null
+    return { usage, savedAt: p.savedAt }
+  } catch {
+    return null
+  }
+}
+
+/** 마지막 성공 사용량 캐시를 저장한다(전용 키). 실패는 무시(프라이빗 모드/용량 등). */
+export function saveTokenLastKnown(entry: TokenUsageCache): void {
+  try {
+    localStorage.setItem(TOKEN_LAST_KNOWN_KEY, JSON.stringify(entry))
+  } catch {
+    /* 저장 실패는 무시 */
   }
 }

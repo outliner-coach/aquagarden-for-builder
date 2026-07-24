@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { loadPersisted, savePersisted, type PersistedState } from '../persistence'
+import {
+  loadPersisted,
+  savePersisted,
+  loadTokenLastKnown,
+  saveTokenLastKnown,
+  type PersistedState,
+} from '../persistence'
 import { ZOOM } from '../../shared/config'
 import { DEFAULT_THEME_ID } from '../entities/themeRegistry'
+import type { TokenUsageCache } from '../../shared/types'
 
 // jsdom localStorage가 없으면 메모리 목으로 대체
 function installLocalStorage(): void {
@@ -187,5 +194,86 @@ describe('persistence themeId', () => {
     const bad2 = { ...base, settings: { ...base.settings, themeId: null } }
     localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad2))
     expect(loadPersisted()?.settings.themeId).toBe(DEFAULT_THEME_ID)
+  })
+})
+
+describe('persistence tokenLastKnown (마지막 성공값 캐시)', () => {
+  beforeEach(() => installLocalStorage())
+
+  const TOKEN_KEY = 'aquagarden.tokenLastKnown'
+  const okCache: TokenUsageCache = {
+    usage: {
+      state: 'ok',
+      fiveHour: { pct: 0.34, resetsAt: 5000 },
+      weekly: { pct: 0.87, resetsAt: 9000 },
+      fetchedAt: 1000,
+    },
+    savedAt: 4321,
+  }
+
+  it('저장한 마지막 성공값을 그대로 복원', () => {
+    saveTokenLastKnown(okCache)
+    expect(loadTokenLastKnown()).toEqual(okCache)
+  })
+
+  it('AppSettings 상태(state.v1)와 분리된 전용 키를 쓴다 (설정 캐시 아님)', () => {
+    saveTokenLastKnown(okCache)
+    expect(localStorage.getItem('aquagarden.state.v1')).toBeNull()
+    expect(localStorage.getItem(TOKEN_KEY)).not.toBeNull()
+  })
+
+  it('키 없음 → null', () => {
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('JSON 형식 불량 → null (방어적 로드)', () => {
+    localStorage.setItem(TOKEN_KEY, '{not json')
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('usage 없음 → null', () => {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ savedAt: 100 }))
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it("usage.state가 'ok'가 아니면 → null (성공값만 캐시한다)", () => {
+    localStorage.setItem(
+      TOKEN_KEY,
+      JSON.stringify({ usage: { state: 'unavailable', fetchedAt: 1 }, savedAt: 100 }),
+    )
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('savedAt이 유한수가 아니면 → null', () => {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ usage: okCache.usage }))
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('fetchedAt이 유한수가 아니면 → null', () => {
+    const badUsage = { state: 'ok', fiveHour: { pct: 0.3, resetsAt: 1 }, weekly: { pct: 0.5, resetsAt: 2 } }
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ usage: badUsage, savedAt: 100 }))
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('유효한 창이 하나도 없으면 → null (표시 불가)', () => {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ usage: { state: 'ok', fetchedAt: 1 }, savedAt: 100 }))
+    expect(loadTokenLastKnown()).toBeNull()
+  })
+
+  it('한쪽 창만 유효하면 그 창만 복원(손상된 창은 드롭)', () => {
+    const oneWin = { state: 'ok', fiveHour: { pct: 0.4, resetsAt: 10 }, weekly: { pct: 'x' }, fetchedAt: 5 }
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ usage: oneWin, savedAt: 100 }))
+    const loaded = loadTokenLastKnown()
+    expect(loaded?.usage.fiveHour).toEqual({ pct: 0.4, resetsAt: 10 })
+    expect(loaded?.usage.weekly).toBeUndefined()
+    expect(loaded?.savedAt).toBe(100)
+  })
+
+  it('창의 pct/resetsAt이 비수치(NaN 등)면 그 창을 드롭', () => {
+    const bad = { state: 'ok', fiveHour: { pct: 0.4, resetsAt: NaN }, weekly: { pct: 0.9, resetsAt: 20 }, fetchedAt: 5 }
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ usage: bad, savedAt: 100 }))
+    const loaded = loadTokenLastKnown()
+    expect(loaded?.usage.fiveHour).toBeUndefined()
+    expect(loaded?.usage.weekly).toEqual({ pct: 0.9, resetsAt: 20 })
   })
 })

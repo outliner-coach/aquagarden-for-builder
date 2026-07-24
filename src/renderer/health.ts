@@ -18,6 +18,11 @@ export interface TokenHealth {
   fiveHourPct: number | null
   /** 주간 창 사용률(0..1). 데이터 없으면 null. */
   weeklyPct: number | null
+  /**
+   * 표시값이 마지막 성공값(stale)인지. 라이브 ok(fresh)면 false, 라이브 실패로 캐시를 보여주면 true.
+   * 스모크 주입 경로는 라이브 ok라 항상 fresh(false) — 게이트는 state/enabled/%만 대조한다.
+   */
+  stale: boolean
 }
 
 export interface AquaHealth {
@@ -50,7 +55,7 @@ const health: AquaHealth = {
   frames: 0,
   theme: '',
   terrainClips: 0,
-  token: { enabled: false, state: 'unavailable', fiveHourPct: null, weeklyPct: null },
+  token: { enabled: false, state: 'unavailable', fiveHourPct: null, weeklyPct: null, stale: false },
 }
 
 function pushError(msg: string): void {

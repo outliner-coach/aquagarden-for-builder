@@ -4,7 +4,7 @@ import { getSpecies } from './speciesRegistry'
 import type { SpeciesId } from './speciesRegistry'
 import { pickDialogue } from './dialogueHelpers'
 import type { FishSchool } from './FishSchool'
-import { bandForUsage, formatReset } from '../../shared/tokenHelpers'
+import { fishTone, formatReset } from '../../shared/tokenHelpers'
 import type { UsageLevel } from '../../shared/tokenHelpers'
 import { usageLineForSpecies } from './tokenLines'
 import type { UsageLineContext } from './tokenLines'
@@ -20,18 +20,21 @@ export type TapLineSource = { kind: 'usage'; band: UsageLevel; ctx: UsageLineCon
  * 탭 시 사용량 대사(usage) vs 기존 어종 flavor 대사 중 어느 경로를 쓸지 결정하는 순수 함수.
  * 조건: show===true && usage.state==='ok' && fiveHour·weekly 창이 둘 다 있어야 usage 경로
  * ("데이터가 준비됨"의 기준 — TokenUsage.fiveHour/weekly는 state==='ok'여도 파싱 결과에 따라
- * 한쪽만 채워질 수 있어 optional이다. 하나라도 없으면 bandForUsage/ctx를 안전하게 못 만들어
+ * 한쪽만 채워질 수 있어 optional이다. 하나라도 없으면 fishTone/ctx를 안전하게 못 만들어
  * flavor로 폴백). 그 외(기능 off, unavailable, 창 데이터 일부 누락)는 전부 flavor.
- * band는 두 창 중 더 제약적인(높은) 사용률이 정한다(bandForUsage). now는 호출자가 주입해
- * formatReset에 그대로 전달한다(순수성 유지 — 내부에서 시계를 읽지 않음).
+ * band·focus는 fishTone이 정한다 — 주간은 페이스(사용률 대비 남은 시간)를, 5시간은 절대치를
+ * 본다. ctx는 톤을 정한 '관건(focus) 창' 하나만 담아 대사가 그 창을 인용하게 한다(주간이면
+ * 리셋을 절대표기 "금 18시", 5시간이면 상대표기 "2시간 11분 후"). now는 호출자가 주입한다
+ * (순수성 유지 — 내부에서 시계를 읽지 않음). 패널 링 게이지는 이 톤과 무관하게 절대치 색을 쓴다.
  */
 export function resolveTapLineSource(show: boolean, usage: TokenUsage | null, now: number): TapLineSource {
   if (show && usage !== null && usage.state === 'ok' && usage.fiveHour !== undefined && usage.weekly !== undefined) {
-    const band = bandForUsage(usage.fiveHour.pct, usage.weekly.pct)
+    const { band, focus } = fishTone(usage.fiveHour, usage.weekly, now)
+    const win = focus === 'weekly' ? usage.weekly : usage.fiveHour
     const ctx: UsageLineContext = {
-      fiveHourPct: usage.fiveHour.pct,
-      weeklyPct: usage.weekly.pct,
-      resetText: formatReset(usage.fiveHour.resetsAt, now, 'relative'),
+      label: focus === 'weekly' ? '주간' : '5시간',
+      pct: win.pct,
+      resetText: formatReset(win.resetsAt, now, focus === 'weekly' ? 'absolute' : 'relative'),
     }
     return { kind: 'usage', band, ctx }
   }

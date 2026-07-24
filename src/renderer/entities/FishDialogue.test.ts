@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolveTapLineSource } from './FishDialogue'
-import { bandForUsage, formatReset } from '../../shared/tokenHelpers'
+import { formatReset } from '../../shared/tokenHelpers'
 import type { TokenUsage } from '../../shared/types'
 
 /**
@@ -44,59 +44,65 @@ describe('resolveTapLineSource — flavor로 폴백하는 경우', () => {
 })
 
 describe('resolveTapLineSource — usage 경로(show && state==="ok" && 두 창 모두 존재)', () => {
-  it('kind가 usage이고 ctx가 fiveHour/weekly pct·resetText를 그대로 담는다', () => {
-    const result = resolveTapLineSource(true, OK_BOTH, NOW)
-    expect(result.kind).toBe('usage')
-    if (result.kind !== 'usage') return
-    expect(result.ctx.fiveHourPct).toBe(OK_BOTH.fiveHour!.pct)
-    expect(result.ctx.weeklyPct).toBe(OK_BOTH.weekly!.pct)
-    expect(result.ctx.resetText).toBe(formatReset(OK_BOTH.fiveHour!.resetsAt, NOW, 'relative'))
-  })
+  const WEEK = 7 * 24 * 60 * 60
 
-  it('band는 bandForUsage(fiveHourPct, weeklyPct)와 일치한다', () => {
-    const result = resolveTapLineSource(true, OK_BOTH, NOW)
-    expect(result.kind).toBe('usage')
-    if (result.kind !== 'usage') return
-    expect(result.band).toBe(bandForUsage(OK_BOTH.fiveHour!.pct, OK_BOTH.weekly!.pct))
-  })
-
-  it('weekly가 critical이고 fiveHour가 ok여도 더 제약적인 weekly가 band를 정한다', () => {
+  it('주간 과속(창 초반 34%) → band warn, focus weekly: ctx.label "주간"·pct 주간값·reset 절대표기', () => {
     const usage: TokenUsage = {
       state: 'ok',
       fiveHour: { pct: 0.1, resetsAt: NOW + 3600 },
-      weekly: { pct: 0.97, resetsAt: NOW + 86400 },
+      weekly: { pct: 0.34, resetsAt: NOW + Math.round((6 / 7) * WEEK) }, // ~14% 경과 → projected ~2.4
       fetchedAt: NOW,
     }
     const result = resolveTapLineSource(true, usage, NOW)
     expect(result.kind).toBe('usage')
     if (result.kind !== 'usage') return
-    expect(result.band).toBe('critical')
+    expect(result.band).toBe('warn')
+    expect(result.ctx.label).toBe('주간')
+    expect(result.ctx.pct).toBe(0.34)
+    // 주간 focus는 절대표기(요일+시)로 리셋을 표기한다(상대표기와 달라야 함).
+    expect(result.ctx.resetText).toBe(formatReset(usage.weekly!.resetsAt, NOW, 'absolute'))
   })
 
-  it('fiveHour가 critical이고 weekly가 ok여도 더 제약적인 fiveHour가 band를 정한다', () => {
+  it('5시간 절대 사용률이 높으면 focus fiveHour: ctx.label "5시간"·pct 5시간값·reset 상대표기', () => {
     const usage: TokenUsage = {
       state: 'ok',
-      fiveHour: { pct: 0.97, resetsAt: NOW + 3600 },
-      weekly: { pct: 0.1, resetsAt: NOW + 86400 },
+      fiveHour: { pct: 0.97, resetsAt: NOW + 1800 },
+      weekly: { pct: 0.2, resetsAt: NOW + Math.round(0.4 * WEEK) }, // 60% 경과, 정상 페이스
       fetchedAt: NOW,
     }
     const result = resolveTapLineSource(true, usage, NOW)
     expect(result.kind).toBe('usage')
     if (result.kind !== 'usage') return
-    expect(result.band).toBe('critical')
-  })
-
-  it('resetText는 weekly가 아니라 fiveHour.resetsAt 기준으로 계산된다', () => {
-    const usage: TokenUsage = {
-      state: 'ok',
-      fiveHour: { pct: 0.5, resetsAt: NOW + 120 },
-      weekly: { pct: 0.5, resetsAt: NOW + 999_999 },
-      fetchedAt: NOW,
-    }
-    const result = resolveTapLineSource(true, usage, NOW)
-    expect(result.kind).toBe('usage')
-    if (result.kind !== 'usage') return
+    expect(result.band).toBe('critical') // 0.97 ≥ criticalPct(절대치)
+    expect(result.ctx.label).toBe('5시간')
+    expect(result.ctx.pct).toBe(0.97)
     expect(result.ctx.resetText).toBe(formatReset(usage.fiveHour!.resetsAt, NOW, 'relative'))
-    expect(result.ctx.resetText).not.toBe(formatReset(usage.weekly!.resetsAt, NOW, 'relative'))
+  })
+
+  it('두 창 모두 정상 페이스면 band ok', () => {
+    const usage: TokenUsage = {
+      state: 'ok',
+      fiveHour: { pct: 0.3, resetsAt: NOW + 3600 },
+      weekly: { pct: 0.34, resetsAt: NOW + Math.round(0.4 * WEEK) }, // 60% 경과 → projected ~0.57
+      fetchedAt: NOW,
+    }
+    const result = resolveTapLineSource(true, usage, NOW)
+    expect(result.kind).toBe('usage')
+    if (result.kind !== 'usage') return
+    expect(result.band).toBe('ok')
+  })
+
+  it('주간 절대 critical(97%)은 페이스와 무관하게 band critical, focus weekly', () => {
+    const usage: TokenUsage = {
+      state: 'ok',
+      fiveHour: { pct: 0.1, resetsAt: NOW + 3600 },
+      weekly: { pct: 0.97, resetsAt: NOW + Math.round(0.1 * WEEK) }, // 90% 경과(느린 페이스)여도 절대 critical
+      fetchedAt: NOW,
+    }
+    const result = resolveTapLineSource(true, usage, NOW)
+    expect(result.kind).toBe('usage')
+    if (result.kind !== 'usage') return
+    expect(result.band).toBe('critical')
+    expect(result.ctx.label).toBe('주간')
   })
 })

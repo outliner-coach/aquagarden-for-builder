@@ -127,6 +127,61 @@ export function bandForUsage(
   return usageLevel(Math.max(fiveHourPct, weeklyPct), warnPct, criticalPct)
 }
 
+/** 한 주(초). fishTone의 주간 창 경과 비율 계산에 쓴다. */
+const WEEK_SEC = 7 * 24 * 60 * 60
+
+/**
+ * 물고기 대사 톤. band는 말투 강도, focus는 어느 창을 근거로 삼는지(대사가 인용할 창).
+ * 게이지(패널 링)와 분리된 개념 — 링은 절대 사용률만 색으로 쓰고, 이 톤은 주간에 한해
+ * 페이스(사용률 대비 남은 시간)를 반영한다.
+ */
+export interface FishTone {
+  band: UsageLevel
+  focus: 'fiveHour' | 'weekly'
+}
+
+/**
+ * 주간 창의 톤 밴드 — 절대치 위에 페이스 보정을 얹는다(5시간과 달리 긴 창이라 페이스가 의미 있음).
+ * critical은 절대치 전용(정말 한도에 임박) — 페이스로 critical을 만들지 않는다. 페이스는 ok→warn만
+ * 올린다(리셋 시점 예상 사용률 projected = pct/경과비율 이 임계 이상이면 과속으로 본다).
+ * nowSec는 주입 — 내부에서 시계를 읽지 않아 결정적이다.
+ */
+function weeklyToneLevel(
+  w: TokenUsageWindow,
+  nowSec: number,
+  warnPct: number,
+  criticalPct: number,
+): UsageLevel {
+  const abs = usageLevel(w.pct, warnPct, criticalPct)
+  if (abs === 'critical') return 'critical' // critical은 절대치 전용(실제 한도 임박)
+  const elapsed = 1 - (w.resetsAt - nowSec) / WEEK_SEC
+  if (w.pct >= TOKEN.pacePctFloor && elapsed >= TOKEN.paceMinElapsed && elapsed <= 1) {
+    const projected = w.pct / elapsed // 창 끝까지 선형 투영
+    if (projected >= TOKEN.paceWarnProjection) return abs === 'ok' ? 'warn' : abs // 페이스는 ok→warn만 상향
+  }
+  return abs
+}
+
+/**
+ * 물고기 대사 톤을 정한다 — 주간은 페이스 인지, 5시간은 절대치 전용(짧은 롤링 창이라 페이스가
+ * 자기보정적이고 노이즈가 큼). 더 제약적인(높은 rank) 창이 band·focus를 정하고, 동률이면
+ * 사용률이 높은 창을 focus로 삼는다. nowSec는 주입 — 순수·결정적(시계 미접근).
+ */
+export function fishTone(
+  fiveHour: TokenUsageWindow,
+  weekly: TokenUsageWindow,
+  nowSec: number,
+  warnPct: number = TOKEN.warnPct,
+  criticalPct: number = TOKEN.criticalPct,
+): FishTone {
+  const fh = usageLevel(fiveHour.pct, warnPct, criticalPct)
+  const wk = weeklyToneLevel(weekly, nowSec, warnPct, criticalPct)
+  const rank = { ok: 0, warn: 1, critical: 2 } as const
+  if (rank[wk] > rank[fh]) return { band: wk, focus: 'weekly' }
+  if (rank[fh] > rank[wk]) return { band: fh, focus: 'fiveHour' }
+  return weekly.pct >= fiveHour.pct ? { band: wk, focus: 'weekly' } : { band: fh, focus: 'fiveHour' } // 동률 → 높은 %
+}
+
 /** 밴드 → 게이지 색(hex). */
 export function gaugeColor(level: UsageLevel): string {
   return TOKEN.colors[level]

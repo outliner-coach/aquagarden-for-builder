@@ -7,8 +7,8 @@ import type { UsageLevel } from '../../shared/tokenHelpers'
 const BANDS: readonly UsageLevel[] = ['ok', 'warn', 'critical']
 
 const CTX: UsageLineContext = {
-  fiveHourPct: 0.42,
-  weeklyPct: 0.77,
+  label: '주간',
+  pct: 0.77,
   resetText: '3시간 27분 후',
 }
 
@@ -103,24 +103,31 @@ describe('usageLineForSpecies — idx 결정성', () => {
   })
 })
 
-/* ── 수치 삽입: 퍼센트를 정수로 반올림해 포함한다 ── */
+/* ── focus 창 인용: label·pct·resetText를 대사에 삽입한다 ── */
 
-describe('usageLineForSpecies — 수치 삽입 포맷', () => {
-  it('fiveHourPct를 반올림한 정수 퍼센트를 대사에 포함한다', () => {
-    const ctx: UsageLineContext = { fiveHourPct: 0.426, weeklyPct: 0.1, resetText: '곧' }
+describe('usageLineForSpecies — focus 창 삽입 포맷', () => {
+  it('ctx.pct를 반올림한 정수 퍼센트를 대사에 포함한다', () => {
+    const ctx: UsageLineContext = { label: '5시간', pct: 0.426, resetText: '곧' }
     const line = usageLineForSpecies('tetra-a', 'ok', ctx, 0)
     expect(line).toContain('43%') // Math.round(42.6) = 43
   })
 
-  it('weeklyPct를 반올림한 정수 퍼센트를 대사에 포함한다', () => {
-    const ctx: UsageLineContext = { fiveHourPct: 0.1, weeklyPct: 0.774, resetText: '곧' }
+  it('다른 pct도 반올림한 정수 퍼센트로 포함한다', () => {
+    const ctx: UsageLineContext = { label: '주간', pct: 0.774, resetText: '곧' }
     const line = usageLineForSpecies('tetra-a', 'ok', ctx, 1)
     expect(line).toContain('77%') // Math.round(77.4) = 77
   })
 
+  it('ctx.label(관건 창 이름)을 대사에 그대로 포함한다', () => {
+    const weekly: UsageLineContext = { label: '주간', pct: 0.34, resetText: '금 18시' }
+    expect(usageLineForSpecies('tetra-a', 'ok', weekly, 0)).toContain('주간')
+    const five: UsageLineContext = { label: '5시간', pct: 0.34, resetText: '곧' }
+    expect(usageLineForSpecies('tetra-a', 'ok', five, 0)).toContain('5시간')
+  })
+
   it('0%와 100% 경계값도 깨지지 않는다', () => {
-    const zero: UsageLineContext = { fiveHourPct: 0, weeklyPct: 0, resetText: '곧' }
-    const full: UsageLineContext = { fiveHourPct: 1, weeklyPct: 1, resetText: '월 9시' }
+    const zero: UsageLineContext = { label: '5시간', pct: 0, resetText: '곧' }
+    const full: UsageLineContext = { label: '주간', pct: 1, resetText: '월 9시' }
     for (const species of SPECIES_REGISTRY) {
       for (const band of BANDS) {
         expect(usageLineForSpecies(species.id, band, zero, 0).length).toBeGreaterThan(0)
@@ -130,9 +137,21 @@ describe('usageLineForSpecies — 수치 삽입 포맷', () => {
   })
 
   it('critical 밴드는 resetText를 문자 그대로 포함한다 (임의 종 샘플)', () => {
-    const ctx: UsageLineContext = { fiveHourPct: 0.99, weeklyPct: 0.99, resetText: '화 15시' }
+    const ctx: UsageLineContext = { label: '주간', pct: 0.99, resetText: '화 15시' }
     const line = usageLineForSpecies('lionfish', 'critical', ctx, 0)
     expect(line).toContain('화 15시')
+  })
+
+  it('모든 종의 warn/critical 대사는 resetText를 포함한다 (창-무관 표기 가드)', () => {
+    // resetText가 절대표기("금 18시")여도 상대표기("2시간 11분 후")여도 자연스럽게 삽입돼야 한다.
+    const absolute: UsageLineContext = { label: '주간', pct: 0.34, resetText: '금 18시' }
+    for (const species of SPECIES_REGISTRY) {
+      for (const band of ['warn', 'critical'] as const) {
+        for (let idx = 0; idx < 2; idx++) {
+          expect(usageLineForSpecies(species.id, band, absolute, idx)).toContain(absolute.resetText)
+        }
+      }
+    }
   })
 })
 

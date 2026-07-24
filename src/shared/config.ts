@@ -928,3 +928,39 @@ export const DRAG = {
   // 스킵되던 문제(#4) 방지. 화면 좌표(screenX/Y) 기준.
   clickThresholdPx: 4,
 } as const
+
+/**
+ * 토큰 사용량 게이지. Anthropic 공식 OAuth 사용률 API(계정 전체 %·리셋 시각)를 정본으로
+ * 읽어 상단 바에 밴드(ok/warn/critical)로 표시한다. 자격증명/토큰 값은 이 상수·타입 어디에도
+ * 저장하지 않는다(읽기 전용, main 프로세스에서만 취급). 폴링/캐시/타임아웃·밴드 임계값은 tunable.
+ */
+export const TOKEN = {
+  /** 공식 사용률 엔드포인트 (Claude Code의 /usage가 쓰는 OAuth API). */
+  apiUrl: 'https://api.anthropic.com/api/oauth/usage',
+  /** anthropic-beta 헤더 값 (OAuth 사용률 API 요구). */
+  betaHeader: 'oauth-2025-04-20',
+  /** 폴링 주기(ms) — 10분. */
+  pollIntervalMs: 600_000,
+  /** 캐시 TTL(ms) — 1분. 중복 조회 억제. */
+  cacheTtlMs: 60_000,
+  /** 요청 타임아웃(ms). */
+  requestTimeoutMs: 8_000,
+  /** 밴드 임계값: ok→warn (사용률 0..1). */
+  warnPct: 0.8,
+  /** 밴드 임계값: warn→critical (사용률 0..1). */
+  criticalPct: 0.95,
+  /** 페이스 판정에 필요한 최소 사용률(0..1) — 그 이하는 페이스와 무관하게 여유로 본다. */
+  pacePctFloor: 0.1,
+  /** 창 경과 비율이 이 값 미만이면 페이스 판정을 보류한다(창 초반 투영 노이즈 방지). */
+  paceMinElapsed: 0.03,
+  /** 리셋 시점 예상 사용률(=pct/경과비율)이 이 값 이상이면 과속 → 주의로 올린다. */
+  paceWarnProjection: 1.2,
+  /** 429 백오프 상한(ms) — 60분(레퍼런스 3600s). */
+  backoffMaxMs: 3_600_000,
+  /** 429 백오프 지수 배율(레퍼런스 ×2). */
+  backoffFactor: 2,
+  /** 물고기 탭이 평소 flavor 대사 대신 사용량 통계를 말할 확률(0..1, 튜닝값). 나머지는 어종 flavor. */
+  usageTapChance: 0.4,
+  /** 밴드별 게이지 색. */
+  colors: { ok: '#3fd0c9', warn: '#fb8500', critical: '#e5484d' },
+} as const

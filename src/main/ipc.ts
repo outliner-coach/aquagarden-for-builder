@@ -10,6 +10,7 @@ import type {
 } from '../shared/types'
 import { setAlwaysOnTop, setWindowHeight, setWindowSize, setWindowBounds } from './window'
 import { setMouseIgnore, moveWindowBy } from './overlay'
+import { getTokenUsage } from './tokenUsage'
 
 /** 화이트리스트 IPC 채널을 등록한다. */
 export function registerIpcHandlers(win: BrowserWindow): void {
@@ -41,4 +42,8 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   ipcMain.on(IPC.QUIT_APP, () => {
     app.quit()
   })
+
+  // 유일한 요청/응답(invoke) 채널 — 계정 토큰 사용량을 조회해 반환한다. getTokenUsage는 절대
+  // throw하지 않으므로(내부에서 state:'unavailable'로 흡수) 핸들러도 renderer로 reject을 넘기지 않는다.
+  ipcMain.handle(IPC.GET_TOKEN_USAGE, () => getTokenUsage())
 }

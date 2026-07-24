@@ -10,6 +10,17 @@ export interface ConsoleMsg {
   line: number
 }
 
+/**
+ * 토큰 사용량 게이지 헬스 리드백(health.ts TokenHealth의 스모크측 미러). 보안: 토큰/자격증명은
+ * 절대 담기지 않는다 — 표시 토글·조회 상태·사용률(%)만.
+ */
+export interface SmokeTokenHealth {
+  enabled: boolean
+  state: 'ok' | 'unavailable'
+  fiveHourPct: number | null
+  weeklyPct: number | null
+}
+
 export interface SmokeHealth {
   ready: boolean
   fishActive: number
@@ -23,6 +34,11 @@ export interface SmokeHealth {
    * 옵셔널: 구버전 리포트/테스트 호환.
    */
   terrainClips?: number
+  /**
+   * 토큰 사용량 게이지 헬스(health.ts 리드백). 스모크가 표시 토글·조회 상태·사용률(%)을 대조한다.
+   * 옵셔널: 구버전 리포트/테스트 호환. 보안: 사용률(%)·상태만 — 토큰/자격증명은 담기지 않는다.
+   */
+  token?: SmokeTokenHealth
 }
 
 export interface PixelStats {
@@ -130,6 +146,15 @@ export interface SmokeInput {
    * 없으므로, 리드백 대조가 유일한 객관적 판정 수단이다.
    */
   requestedTheme?: string | null
+  /**
+   * 토큰 스모크 게이트 기대값 — `parseSmokeToken(AQUA_SMOKE_TOKEN)` 결과(사용률 0..1, %가 아님).
+   * 두 모드를 한 경로로 판정한다(스모크는 실네트워크/Keychain 미접촉 — T3가 AQUA_SMOKE에서 격리):
+   *  - `{fiveHour, weekly}`(주입): health.token이 state==='ok' & enabled===true & 사용률 근사 일치여야 함.
+   *  - `null`(미주입/형식불량): health.token.state==='unavailable'여야 함(격리 경로가 지켜졌다는 증거).
+   * `undefined`(미지정)면 토큰 게이트 스킵 — 구버전 스모크/유닛테스트 하위호환.
+   * 보안: 이 필드에는 토큰/자격증명이 아니라 사용률(%)만 담긴다.
+   */
+  requestedToken?: { fiveHour: number; weekly: number } | null
 }
 
 export interface SmokeResult {
@@ -166,6 +191,31 @@ export function evaluateSmoke(input: SmokeInput): SmokeResult {
     }
   }
 
+  // 토큰 사용량 게이지 리드백 대조(AQUA_SMOKE_TOKEN). 실네트워크/Keychain을 태우지 않고도(T3 격리)
+  // 게이지가 진짜 구동됐는지 health.token으로 검증한다. 한 경로가 주입/미주입 두 모드를 처리한다.
+  // 보안: state·enabled·사용률(%)만 읽는다 — 토큰/자격증명은 절대 기대·기록하지 않는다.
+  if (input.requestedToken !== undefined) {
+    const tok = input.health?.token
+    if (input.requestedToken === null) {
+      // 미주입 모드 — 조회 격리(네트워크/Keychain 미접촉)의 증거로 unavailable이어야 한다.
+      if (tok?.state !== 'unavailable') {
+        failures.push(`토큰 리드백: 미주입인데 state≠unavailable (state=${tok?.state ?? '없음'})`)
+      }
+    } else if (!tok) {
+      failures.push('토큰 리드백 없음 (health.token 부재)')
+    } else {
+      // 주입 모드 — state ok + 표시 ON + 두 창 사용률이 주입값과 근사 일치.
+      if (tok.state !== 'ok') failures.push(`토큰 리드백: state≠ok (state=${tok.state})`)
+      if (tok.enabled !== true) failures.push(`토큰 리드백: enabled≠true (enabled=${tok.enabled})`)
+      if (!approxPct(tok.fiveHourPct, input.requestedToken.fiveHour)) {
+        failures.push(`토큰 리드백: 5시간 사용률 불일치 (기대≈${input.requestedToken.fiveHour}, 적용=${tok.fiveHourPct ?? '없음'})`)
+      }
+      if (!approxPct(tok.weeklyPct, input.requestedToken.weekly)) {
+        failures.push(`토큰 리드백: 주간 사용률 불일치 (기대≈${input.requestedToken.weekly}, 적용=${tok.weeklyPct ?? '없음'})`)
+      }
+    }
+  }
+
   const errMsgs = input.consoleMsgs.filter(messageIsError)
   if (errMsgs.length > 0) {
     const uniq = Array.from(new Set(errMsgs.map((m) => truncate(m.message)))).slice(0, 10)
@@ -184,4 +234,12 @@ export function evaluateSmoke(input: SmokeInput): SmokeResult {
 
 function truncate(s: string, n = 160): string {
   return s.length > n ? s.slice(0, n) + '…' : s
+}
+
+/** 토큰 사용률(0..1) 근사 비교 허용오차. 주입·리드백이 동일 parseSmokeToken에서 나와 사실상 동일값이나, 스펙대로 소폭 epsilon으로 대조. */
+const TOKEN_PCT_EPSILON = 1e-6
+
+/** 리드백 사용률(actual, null 가능)이 기대값(expected)과 epsilon 내로 일치하는지. null이면 불일치. */
+function approxPct(actual: number | null, expected: number): boolean {
+  return actual !== null && Math.abs(actual - expected) <= TOKEN_PCT_EPSILON
 }

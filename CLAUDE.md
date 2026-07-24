@@ -81,6 +81,15 @@ phase 9의 "지형 높이를 물고기 바닥(minY −1.2) 아래로 캡핑" 접
 - **입력 중재(CRITICAL)**: FishDialogue·FoodLure는 원래 pointerdown 즉발이라 드래그 시작마다 오발동한다 — 둘 다 `handleTap(x,y)`로 이전하고 main.ts 탭/드래그 중재(클릭 임계 `DRAG.clickThresholdPx` 재사용, pointer capture로 창 밖 추적)가 탭에서만 호출한다. 캔버스에 pointerdown 즉발 리스너를 새로 달지 말 것(같은 충돌 재발).
 - **QA**: `__AQUA_SET_CAMERA__`/`AQUA_SMOKE_CAM`은 프로덕트 궤도 상태와 동기화(훅은 클램프 없음 — 무대 세트 밖 점검용). 각도 스윕 결과와 한계는 `docs/EVAL.md`·`eval-camera-angles.png`. 데브 편의: `AQUA_DEVTOOLS=1 npm run dev`가 분리형 데브툴즈를 로드 완료 후 연다(로드 전에 열면 빈 컨텍스트에 붙음).
 
+### 토큰 사용량·한도 표시 (2026-07-24)
+자매 프로젝트 token_dashboard의 사용량·한도 확인 기능을 수족관에 통합. test **760**·lint·build·스모크(주입/미주입 결정적) 통과.
+- **표현 2채널**: 패널 '토큰' 섹션 링 게이지 2개(5시간·주간 사용률%+리셋 시각, 색=여유 청록→주의 주황→임박 빨강) + 물고기 탭 시 어종 성격 담은 사용량 대사(3단계 톤, 톤 기준=`bandForUsage`=max(5시간,주간), 미가용 시 기존 대사로 강등). 배경 무드 연동은 반려.
+- **데이터(main 전용)**: `tokenUsage.ts`가 Keychain `Claude Code-credentials`(만료 확인)→env `CLAUDE_CODE_OAUTH_TOKEN` 폴백으로 토큰 확보 → 공식 사용량 API(`TOKEN.apiUrl`, `anthropic-beta` 헤더) 조회 → `tokenHelpers.parseUsageResponse`(kind `weekly_all`만, `weekly_scoped` 무시, 상위 `five_hour`/`seven_day` 폴백)로 파싱. 캐시 TTL+429 지수 백오프. **이 앱 최초의 `invoke` IPC** `api:get-token-usage`(preload `window.aqua.getTokenUsage`).
+- **보안·절전(CRITICAL)**: OAuth 토큰은 로그·디스크·화면·`health.token`·`AppSettings`·반환 payload 어디에도 남기지 않는다(순수 로컬 변수만). 렌더러 폴러는 `settings.hidden`이면 정지(렌더 루프와 동일 게이팅), 기동 시 1회 즉시 조회 후 `TOKEN.pollIntervalMs` 간격.
+- **순수 헬퍼(TDD)**: `tokenHelpers.ts`(parse·usageLevel·bandForUsage·gaugeColor·formatReset·parseSmokeToken), `tokenLines.ts`(어종×3밴드 대사+폴백, `Record<SpeciesId>`로 커버리지 컴파일 가드). 매직넘버는 `TOKEN`(config.ts).
+- **스모크 훅**: `AQUA_SMOKE=1`에선 실 Keychain·네트워크 차단, `AQUA_SMOKE_TOKEN="34,87"` 주입값만 사용(없으면 'unavailable'). `smokeEval.ts`가 `health.token`(state·%, 토큰 없음)을 주입값과 대조해 불일치 시 실패. 새 `invoke` 핸들러는 스모크 분기(`index.ts`, `runSmoke` 전)에도 등록해야 reject 안 됨.
+- **UI·영속**: 패널 토글 `AppSettings.showTokenUsage`(기본 on, 미저장 시 백필). 미가용 시 링은 옅은 '연결 안 됨' 자리표시(숨기지 않음).
+
 ## 런타임 eval (CRITICAL — 자기보고 불신)
 **`build/test/lint` 통과만으로 "동작/표시됨"을 단정하지 마라.** 그것들은 순수 로직만 검증하며, 실제 렌더가 깨져도 통과한다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 시각 변경 후엔 반드시 `npm run smoke`로 실제 렌더를 검증한다. 상세: **`docs/EVAL.md`**.
 - 스모크: `src/main/smoke.ts`+`smokeEval.ts` (`AQUA_SMOKE=1`). 콘솔 에러·헬스(`src/renderer/health.ts`)·`capturePage` 픽셀 분석.

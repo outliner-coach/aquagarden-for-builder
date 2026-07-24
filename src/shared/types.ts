@@ -9,6 +9,8 @@ export interface AppSettings {
   enabledFeatures: string[]
   /** 시간대 반응(무드) 조명 on/off. 하위호환: 없으면 false. */
   moodReactive: boolean
+  /** 토큰 사용량 게이지·대사 표시 on/off. 하위호환: 없으면 표시(true). */
+  showTokenUsage: boolean
   /** 배경 테마 id(themeRegistry 참조). 하위호환: 없거나 유령 id면 기본 테마('minimal'). */
   themeId?: string
   /**
@@ -66,4 +68,38 @@ export interface AquaBridge {
   setWindowBounds(x: number, y: number, width: number, height: number): void
   /** 앱 종료. frameless·always-on-top 오버레이라 메뉴/X가 없으므로 패널의 종료 버튼이 호출. (main에서 app.quit) */
   quitApp(): void
+  /** 계정 토큰 사용량 스냅샷 조회. 앱 유일의 요청/응답 IPC — main의 getTokenUsage를 호출한다(never throw). */
+  getTokenUsage(): Promise<TokenUsage>
+}
+
+/** 토큰 사용량 창(5시간/주간) 하나의 스냅샷. pct는 0..1, resetsAt는 epoch 초. */
+export interface TokenUsageWindow {
+  pct: number
+  resetsAt: number
+}
+
+/** 사용량 조회 상태. 'unavailable'이면 window 필드(fiveHour/weekly)는 없다. */
+export type TokenUsageState = 'ok' | 'unavailable'
+
+/**
+ * 계정 토큰 사용량 스냅샷. state==='unavailable'이면 fiveHour/weekly는 생략된다.
+ * 보안: 토큰/자격증명(accessToken 등) 필드를 절대 추가하지 않는다.
+ */
+export interface TokenUsage {
+  state: TokenUsageState
+  fiveHour?: TokenUsageWindow
+  weekly?: TokenUsageWindow
+  /** 조회 시각(epoch 초). */
+  fetchedAt: number
+}
+
+/**
+ * 마지막 성공(state==='ok') 사용량 캐시 항목. 라이브 조회가 실패해도 직전 성공 스냅샷을
+ * "N분 전 기준"으로 보여주기 위해 재시작 간 유지한다(AppSettings와 분리 — 사용자 설정이 아니라 캐시).
+ * 보안: TokenUsage에는 자격증명 필드가 없다 — 사용률(%)·시각만 담긴다.
+ */
+export interface TokenUsageCache {
+  usage: TokenUsage
+  /** 저장 시각(epoch 초). 경과(age) = now − savedAt. */
+  savedAt: number
 }

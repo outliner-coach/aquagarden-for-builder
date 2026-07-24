@@ -22,3 +22,6 @@ eval-screenshot.png
 .DS_Store
 /eval-theme-*
 /eval-panel-*
+
+# dryforge 실행 산출물
+.dryforge/

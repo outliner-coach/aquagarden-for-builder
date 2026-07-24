@@ -14,10 +14,17 @@
  *   AQUA_SMOKE_THEME   강제 적용할 배경 테마 id(minimal/kelp-forest/coral-reef 등). renderer의
  *                      __AQUA_APPLY_THEME__ 훅을 호출해 전환하고, health.theme 리드백을 요청값과
  *                      대조해 판정(smokeEval.evaluateSmoke의 requestedTheme)한다.
+ *   AQUA_SMOKE_TOKEN   토큰 사용량 게이지 결정적 검증("fiveHour,weekly" 퍼센트, 예: "34,87").
+ *                      실네트워크/Keychain을 태우지 않고(T3가 AQUA_SMOKE에서 격리) health.token
+ *                      리드백을 대조한다 — 주입 시 state=ok·사용률 근사 일치, 미주입 시
+ *                      state=unavailable(smokeEval.evaluateSmoke의 requestedToken). 보안: 이 값은
+ *                      사용률(%)일 뿐 토큰/자격증명이 아니다.
+ *   AQUA_SMOKE_TOKEN_TIMEOUT_MS  토큰 헬스(폴러 첫 async 조회) 대기 한계 (기본 8000)
  */
 import { app, nativeImage } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { writeFileSync } from 'fs'
+import { parseSmokeToken } from '../shared/tokenHelpers'
 import {
   evaluatePixels,
   evaluateSmoke,
@@ -29,6 +36,7 @@ const REPORT = process.env['AQUA_SMOKE_REPORT'] || 'eval-report.json'
 const SHOT = process.env['AQUA_SMOKE_SHOT'] || 'eval-screenshot.png'
 const READY_TIMEOUT = Number(process.env['AQUA_SMOKE_READY_TIMEOUT_MS'] || 20000)
 const SETTLE = Number(process.env['AQUA_SMOKE_SETTLE_MS'] || 2500)
+const TOKEN_HEALTH_TIMEOUT = Number(process.env['AQUA_SMOKE_TOKEN_TIMEOUT_MS'] || 8000)
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -230,6 +238,12 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     await delay(1500)
   }
 
+  // 토큰 사용량 헬스 리드백 게이트(AQUA_SMOKE_TOKEN). 폴러 첫 조회가 async라 조기 리드로 오판하지
+  // 않도록, 주입 모드(파싱 성공)면 state==='ok'까지, 미주입이면 token 필드가 정의될 때까지 기다린 뒤
+  // readHealth로 함께 수집한다. 실네트워크/Keychain은 T3가 AQUA_SMOKE에서 격리한다(여기선 리드백만).
+  const requestedToken = parseSmokeToken(process.env['AQUA_SMOKE_TOKEN'])
+  await waitForTokenHealth(win, requestedToken !== null)
+
   const health = await readHealth(win)
 
   // 스크린샷 + 픽셀 분석
@@ -248,7 +262,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     fatal = (fatal ? fatal + '; ' : '') + `capturePage 실패: ${String(e)}`
   }
 
-  const result = evaluateSmoke({ consoleMsgs, health, pixel, fatal, requestedTheme })
+  const result = evaluateSmoke({ consoleMsgs, health, pixel, fatal, requestedTheme, requestedToken })
   const report = {
     pass: result.pass,
     failures: result.failures,
@@ -258,6 +272,8 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     errorConsole: consoleMsgs.filter((m) => m.level >= 2).slice(0, 50),
     ...(moodHook !== null ? { moodHook } : {}),
     ...(requestedTheme !== null ? { themeRequested: requestedTheme } : {}),
+    // 기대 사용률(%, 토큰/자격증명 아님) — 미주입이면 null. 리드백 대조 디버깅용.
+    tokenRequested: requestedToken,
   }
   writeFileSync(REPORT, JSON.stringify(report, null, 2))
 
@@ -277,6 +293,25 @@ async function waitForReady(win: BrowserWindow): Promise<void> {
     await delay(300)
   }
   throw new Error(`ready 신호 타임아웃 (${READY_TIMEOUT}ms)`)
+}
+
+/**
+ * 토큰 헬스 리드백이 안정될 때까지 대기(waitForReady와 동형). token 필드가 정의되고, expectOk면
+ * state==='ok'가 될 때까지 폴링한다 — 폴러 첫 async 조회 전에 읽어 오판하는 것을 막는다.
+ * 타임아웃 시 throw하지 않고 반환한다: 실제 리드백 값으로 evaluateSmoke가 정확한 실패 사유를
+ * 내도록(예외는 원인이 불명확한 fatal로 뭉개짐). state 문자열만 읽고 토큰/자격증명은 읽지 않는다.
+ */
+async function waitForTokenHealth(win: BrowserWindow, expectOk: boolean): Promise<void> {
+  const deadline = Date.now() + TOKEN_HEALTH_TIMEOUT
+  while (Date.now() < deadline) {
+    const state = await win.webContents
+      .executeJavaScript(
+        'window.__AQUA_HEALTH__ && window.__AQUA_HEALTH__.token ? window.__AQUA_HEALTH__.token.state : null',
+      )
+      .catch(() => null)
+    if (state !== null && (!expectOk || state === 'ok')) return
+    await delay(200)
+  }
 }
 
 async function readHealth(win: BrowserWindow): Promise<SmokeHealth> {

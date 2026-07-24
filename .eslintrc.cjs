@@ -14,5 +14,5 @@ module.exports = {
     node: true,
     browser: true
   },
-  ignorePatterns: ['dist/', 'out/', 'node_modules/']
+  ignorePatterns: ['dist/', 'out/', 'node_modules/', '.dryforge/']
 }

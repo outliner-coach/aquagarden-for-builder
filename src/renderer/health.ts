@@ -5,12 +5,37 @@
  * 상시 로드되지만 비용은 0에 가깝다(이벤트 핸들러 등록 + 작은 객체).
  */
 
+/**
+ * 토큰 사용량 게이지 헬스(스모크 리드백). 보안: 토큰/자격증명(accessToken 등)은 절대 넣지 않는다 —
+ * 표시 토글 여부·조회 상태·사용률(%)만 노출한다.
+ */
+export interface TokenHealth {
+  /** 사용자 토큰 사용량 표시 토글(settings.showTokenUsage) 상태. */
+  enabled: boolean
+  /** 최신 스냅샷 조회 상태. 미조회/실패 시 'unavailable'. */
+  state: 'ok' | 'unavailable'
+  /** 5시간 창 사용률(0..1). 데이터 없으면 null. */
+  fiveHourPct: number | null
+  /** 주간 창 사용률(0..1). 데이터 없으면 null. */
+  weeklyPct: number | null
+  /**
+   * 표시값이 마지막 성공값(stale)인지. 라이브 ok(fresh)면 false, 라이브 실패로 캐시를 보여주면 true.
+   * 스모크 주입 경로는 라이브 ok라 항상 fresh(false) — 게이트는 state/enabled/%만 대조한다.
+   */
+  stale: boolean
+}
+
 export interface AquaHealth {
   ready: boolean
   fishActive: number
   errors: string[]
   /** 첫 프레임 렌더 이후 경과 프레임 수 (eval이 렌더 루프 생존을 확인) */
   frames: number
+  /**
+   * 토큰 사용량 게이지 상태. 스모크가 표시 토글·조회 상태·사용률(%)을 리드백 검증한다.
+   * 보안: 토큰/자격증명 값은 절대 담기지 않는다(사용률 %와 상태만).
+   */
+  token: TokenHealth
   /**
    * 현재 적용된 배경 테마 id. 스모크(AQUA_SMOKE_THEME)가 요청 id와 대조해 전환이 실제
    * 반영됐는지 리드백 검증한다(물고기 위치가 매 실행 달라 캡처 diff로는 검증 불가).
@@ -30,6 +55,7 @@ const health: AquaHealth = {
   frames: 0,
   theme: '',
   terrainClips: 0,
+  token: { enabled: false, state: 'unavailable', fiveHourPct: null, weeklyPct: null, stale: false },
 }
 
 function pushError(msg: string): void {
@@ -81,4 +107,12 @@ export function setAppliedTheme(id: string): void {
 /** 물고기 지형 관통 누적 감지 횟수를 헬스에 반영한다(렌더 루프에서 FishSchool 값 미러링). */
 export function setTerrainClips(n: number): void {
   health.terrainClips = n
+}
+
+/**
+ * 토큰 사용량 헬스를 반영한다(표시 토글·매 조회마다 main.ts에서 호출).
+ * 보안: 인자로 토큰/자격증명을 받지 않는다 — 표시 여부·조회 상태·사용률(%)만.
+ */
+export function setTokenUsageHealth(t: TokenHealth): void {
+  health.token = t
 }

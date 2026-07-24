@@ -949,6 +949,10 @@ export const TOKEN = {
   warnPct: 0.8,
   /** 밴드 임계값: warn→critical (사용률 0..1). */
   criticalPct: 0.95,
+  /** 429 백오프 상한(ms) — 60분(레퍼런스 3600s). */
+  backoffMaxMs: 3_600_000,
+  /** 429 백오프 지수 배율(레퍼런스 ×2). */
+  backoffFactor: 2,
   /** 밴드별 게이지 색. */
   colors: { ok: '#3fd0c9', warn: '#fb8500', critical: '#e5484d' },
 } as const

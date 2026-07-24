@@ -22,7 +22,6 @@ import type { TokenUsage } from '../shared/types'
 
 // 단위·프로토콜 상수 (매직 넘버 회피).
 const MS_PER_SEC = 1000
-const MINUTE_MS = 60_000
 const HTTP_TOO_MANY_REQUESTS = 429
 /** Keychain accessToken 최소 길이(초과여야 유효). 레퍼런스 Official.swift: token.count > 20. */
 const MIN_TOKEN_LEN = 20
@@ -32,13 +31,10 @@ const KEYCHAIN_SERVICE = 'Claude Code-credentials'
 const ENV_TOKEN_KEY = 'CLAUDE_CODE_OAUTH_TOKEN'
 
 /**
- * 429 백오프 스케줄 파라미터. 이상적으로는 TOKEN(config)에 두겠으나 이 태스크(T3)는 config.ts를
- * 수정하지 않으므로 로컬 상수로 문서화한다. 레퍼런스 App.swift: officialBackoff = min(3600s, ×2),
- * base 600s. base는 TOKEN.pollIntervalMs(10분)와 동일 값이라 그대로 재사용한다.
+ * 429 백오프 스케줄. 레퍼런스 App.swift: officialBackoff = min(cap, ×factor), base 600s.
+ * 하한(base)은 TOKEN.pollIntervalMs(10분)와 동일 값이라 재사용하고, 상한·배율은 TOKEN에 둔다.
  */
 const BACKOFF_MIN_MS = TOKEN.pollIntervalMs // 10분(정상 폴링 간격 = 백오프 하한)
-const BACKOFF_MAX_MS = 60 * MINUTE_MS // 60분 상한(레퍼런스 3600s)
-const BACKOFF_FACTOR = 2 // 지수 배율(레퍼런스 backoff × 2)
 
 /** 스모크 resetsAt 스텁(초). 결정적 평가를 위해 near-future 고정 오프셋. */
 const SMOKE_RESET_STUB_SEC = 60 * 60 // 1시간 후
@@ -69,8 +65,8 @@ export function isCacheFresh(
 export function advanceBackoffMs(
   currentMs: number,
   minMs: number = BACKOFF_MIN_MS,
-  maxMs: number = BACKOFF_MAX_MS,
-  factor: number = BACKOFF_FACTOR,
+  maxMs: number = TOKEN.backoffMaxMs,
+  factor: number = TOKEN.backoffFactor,
 ): number {
   return Math.min(maxMs, Math.max(minMs, currentMs * factor))
 }

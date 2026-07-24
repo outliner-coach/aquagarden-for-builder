@@ -6,4 +6,6 @@ export const IPC = {
   SET_WINDOW_SIZE: 'overlay:set-window-size',
   SET_WINDOW_BOUNDS: 'overlay:set-window-bounds',
   QUIT_APP: 'overlay:quit-app',
+  /** 토큰 사용량 조회 — 앱 유일의 요청/응답(invoke) 채널. 나머지는 모두 단방향 send. */
+  GET_TOKEN_USAGE: 'api:get-token-usage',
 } as const

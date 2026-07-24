@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isCacheFresh, advanceBackoffMs, extractOAuthToken } from './tokenUsage'
+import { isCacheFresh, advanceBackoffMs, extractOAuthToken, extractProcessToken } from './tokenUsage'
 import { TOKEN } from '../shared/config'
 
 // 순수 결정 로직만 테스트한다(시계는 인자로 주입 → 결정적). 네트워크·Keychain은
@@ -7,6 +7,25 @@ import { TOKEN } from '../shared/config'
 // 지점(캐시 신선도·429 백오프 스케줄·Keychain JSON 만료 판정)을 test-first로 가드한다.
 
 const MINUTE_MS = 60_000
+
+describe('extractProcessToken — 실행 세션 env 토큰 추출(순수)', () => {
+  const long = 'x'.repeat(80)
+  it('ps eww 출력에서 CLAUDE_CODE_OAUTH_TOKEN 값을 뽑는다', () => {
+    expect(extractProcessToken(`PID TT  STAT USER CLAUDE_CODE_OAUTH_TOKEN=${long} FOO=1`)).toBe(long)
+  })
+  it('여러 env 사이에서도 공백까지만 추출', () => {
+    expect(extractProcessToken(`A=1 CLAUDE_CODE_OAUTH_TOKEN=${long} B=2\nnext`)).toBe(long)
+  })
+  it('토큰 없으면 null', () => {
+    expect(extractProcessToken('PID TT STAT USER SOME_OTHER=abc')).toBeNull()
+  })
+  it('최소 길이 이하면 null(오탐 방지)', () => {
+    expect(extractProcessToken('CLAUDE_CODE_OAUTH_TOKEN=short')).toBeNull()
+  })
+  it('빈 출력이면 null', () => {
+    expect(extractProcessToken('')).toBeNull()
+  })
+})
 
 describe('isCacheFresh — 캐시 신선도(주입 시계)', () => {
   it('TTL 미만 경과면 fresh(true)', () => {

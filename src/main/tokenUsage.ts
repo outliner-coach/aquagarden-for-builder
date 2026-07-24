@@ -142,10 +142,14 @@ function smokeUsage(): TokenUsage {
 }
 
 /**
- * 토큰 확보(우선순위): ① macOS Keychain 'Claude Code-credentials'(만료 통과 시) → ② 환경변수
- * CLAUDE_CODE_OAUTH_TOKEN. 둘 다 없으면 null. 반환 토큰은 로컬로만 다룬다(로그 금지).
+ * 토큰 확보(우선순위): ① 실행 중인 Claude 세션 env의 CLAUDE_CODE_OAUTH_TOKEN(항상 신선) → ②
+ * macOS Keychain 'Claude Code-credentials'(만료 안 됐을 때만) → ③ 직접 지정한 환경변수. 모두 없으면
+ * null. Keychain 저장 accessToken은 CLI가 메모리에서 갱신해 자주 만료 상태이므로 실행 세션 토큰을
+ * 우선한다(token_dashboard와 동일 전략). 반환 토큰은 로컬로만 다룬다(로그 금지).
  */
 function acquireToken(): string | null {
+  const fromProc = tokenFromRunningProcess()
+  if (fromProc !== null) return fromProc
   const fromKeychain = tokenFromKeychain()
   if (fromKeychain !== null) return fromKeychain
   const env = process.env[ENV_TOKEN_KEY]
@@ -171,6 +175,44 @@ function tokenFromKeychain(): string | null {
   } catch {
     return null // 항목 없음/security 실패 — 토큰·오류를 로깅하지 않는다
   }
+}
+
+/**
+ * 실행 중인 Claude 세션의 프로세스 env에서 CLAUDE_CODE_OAUTH_TOKEN을 읽는다(신선한 토큰). pgrep으로
+ * claude pid를 찾아 `ps eww`로 env를 덤프하고 extractProcessToken으로 추출한다. Windows 미지원(null).
+ * 실패/미발견은 조용히 null. 토큰·오류는 로깅하지 않는다(security 규칙).
+ */
+function tokenFromRunningProcess(): string | null {
+  if (process.platform === 'win32') return null // pgrep/ps eww는 unix 전용
+  try {
+    const pidsRaw = execFileSync('pgrep', ['-f', 'claude'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: TOKEN.requestTimeoutMs,
+    })
+    const pids = pidsRaw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => /^\d+$/.test(s))
+      .slice(0, 20)
+    if (pids.length === 0) return null
+    const out = execFileSync('ps', ['eww', ...pids], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: TOKEN.requestTimeoutMs,
+    })
+    return extractProcessToken(out)
+  } catch {
+    return null // pgrep/ps 실패 — 로깅하지 않는다
+  }
+}
+
+/** `ps eww` 출력에서 CLAUDE_CODE_OAUTH_TOKEN 값을 추출한다(순수). 최소 길이 초과만 유효. */
+export function extractProcessToken(psOutput: string): string | null {
+  const m = psOutput.match(/CLAUDE_CODE_OAUTH_TOKEN=(\S+)/)
+  if (m === null) return null
+  const tok = m[1]
+  return tok.length > MIN_TOKEN_LEN ? tok : null
 }
 
 type FetchOutcome =

@@ -29,6 +29,12 @@ const MIN_TOKEN_LEN = 20
 const KEYCHAIN_SERVICE = 'Claude Code-credentials'
 /** 우선순위 ② 환경변수 이름. */
 const ENV_TOKEN_KEY = 'CLAUDE_CODE_OAUTH_TOKEN'
+/**
+ * ps eww로 스캔할 claude 매칭 프로세스 상한. 실행 중인 Claude Code 세션 자체가 'claude' 매칭
+ * 프로세스를 여럿(20+) 띄우면 토큰 보유 프로세스가 뒤로 밀려, 상한이 낮으면 놓친다(라이브에서
+ * 실제로 26개 중 토큰이 21번째 이후라 head-20이 놓침). 넉넉히 잡되 인자 폭주는 막는다.
+ */
+const MAX_SCAN_PROCS = 100
 
 /**
  * 429 백오프 스케줄. 레퍼런스 App.swift: officialBackoff = min(cap, ×factor), base 600s.
@@ -194,7 +200,7 @@ function tokenFromRunningProcess(): string | null {
       .split('\n')
       .map((s) => s.trim())
       .filter((s) => /^\d+$/.test(s))
-      .slice(0, 20)
+      .slice(0, MAX_SCAN_PROCS)
     if (pids.length === 0) return null
     const out = execFileSync('ps', ['eww', ...pids], {
       encoding: 'utf8',

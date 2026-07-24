@@ -4,10 +4,46 @@ import { getSpecies } from './speciesRegistry'
 import type { SpeciesId } from './speciesRegistry'
 import { pickDialogue } from './dialogueHelpers'
 import type { FishSchool } from './FishSchool'
+import { bandForUsage, formatReset } from '../../shared/tokenHelpers'
+import type { UsageLevel } from '../../shared/tokenHelpers'
+import { usageLineForSpecies } from './tokenLines'
+import type { UsageLineContext } from './tokenLines'
+import type { TokenUsage } from '../../shared/types'
+
+/** setTokenUsageProvider에 주입하는 콜백 — 탭 시점의 최신 표시 여부·사용량 스냅샷을 읽는다. */
+export type TokenUsageProvider = () => { show: boolean; usage: TokenUsage | null }
+
+/** resolveTapLineSource의 판정 결과. usage면 대사 생성에 필요한 band·ctx까지 함께 담는다. */
+export type TapLineSource = { kind: 'usage'; band: UsageLevel; ctx: UsageLineContext } | { kind: 'flavor' }
 
 /**
- * 물고기 클릭 → 어종별 랜덤 대사 말풍선(DOM).
+ * 탭 시 사용량 대사(usage) vs 기존 어종 flavor 대사 중 어느 경로를 쓸지 결정하는 순수 함수.
+ * 조건: show===true && usage.state==='ok' && fiveHour·weekly 창이 둘 다 있어야 usage 경로
+ * ("데이터가 준비됨"의 기준 — TokenUsage.fiveHour/weekly는 state==='ok'여도 파싱 결과에 따라
+ * 한쪽만 채워질 수 있어 optional이다. 하나라도 없으면 bandForUsage/ctx를 안전하게 못 만들어
+ * flavor로 폴백). 그 외(기능 off, unavailable, 창 데이터 일부 누락)는 전부 flavor.
+ * band는 두 창 중 더 제약적인(높은) 사용률이 정한다(bandForUsage). now는 호출자가 주입해
+ * formatReset에 그대로 전달한다(순수성 유지 — 내부에서 시계를 읽지 않음).
+ */
+export function resolveTapLineSource(show: boolean, usage: TokenUsage | null, now: number): TapLineSource {
+  if (show && usage !== null && usage.state === 'ok' && usage.fiveHour !== undefined && usage.weekly !== undefined) {
+    const band = bandForUsage(usage.fiveHour.pct, usage.weekly.pct)
+    const ctx: UsageLineContext = {
+      fiveHourPct: usage.fiveHour.pct,
+      weeklyPct: usage.weekly.pct,
+      resetText: formatReset(usage.fiveHour.resetsAt, now, 'relative'),
+    }
+    return { kind: 'usage', band, ctx }
+  }
+  return { kind: 'flavor' }
+}
+
+/**
+ * 물고기 클릭 → 대사 말풍선(DOM).
  * clickThrough===false && hidden===false 일 때만 동작.
+ * `setTokenUsageProvider`로 provider를 등록하면(선택), 표시 on + 사용량 데이터 준비 시
+ * 어종별 flavor 대사 대신 토큰 사용량 대사를 말한다(resolveTapLineSource가 판정).
+ * provider 미등록(기본값)이면 이전과 동일하게 flavor 대사만 사용한다(하위호환).
  */
 export class FishDialogue {
   private readonly _container: HTMLElement
@@ -20,6 +56,8 @@ export class FishDialogue {
 
   private _bubble: HTMLDivElement | null = null
   private _hideTimer: ReturnType<typeof setTimeout> | null = null
+  private _tokenUsageProvider: TokenUsageProvider | null = null
+  private _usageLineIdx = 0
 
   constructor(
     container: HTMLElement,
@@ -37,6 +75,14 @@ export class FishDialogue {
 
   dispose(): void {
     this._removeBubble()
+  }
+
+  /**
+   * 토큰 사용량 provider 등록(선택). null로 호출하면 해제 — 이전 flavor-only 동작으로 복귀.
+   * main.ts가 아직 이 setter를 호출하지 않아도(provider 미등록) 기존 동작은 그대로다.
+   */
+  setTokenUsageProvider(provider: TokenUsageProvider | null): void {
+    this._tokenUsageProvider = provider
   }
 
   /**
@@ -58,10 +104,26 @@ export class FishDialogue {
     const speciesId = fish.speciesId
     if (!speciesId) return
 
-    const line = this._pickLine(speciesId)
+    const line = this._resolveLine(speciesId)
     if (!line) return
 
     this._showBubble(line, clientX, clientY)
+  }
+
+  /**
+   * 탭한 물고기가 할 말을 고른다 — provider가 등록돼 있고 resolveTapLineSource가 'usage'를
+   * 판정하면 사용량 대사, 그 외(provider 미등록 포함)는 기존 flavor 대사.
+   * now(Date.now()/1000)는 여기(라이브 UI 경계)에서 한 번만 읽어 순수 헬퍼엔 주입만 한다.
+   */
+  private _resolveLine(speciesId: SpeciesId): string | null {
+    if (this._tokenUsageProvider) {
+      const { show, usage } = this._tokenUsageProvider()
+      const source = resolveTapLineSource(show, usage, Date.now() / 1000)
+      if (source.kind === 'usage') {
+        return usageLineForSpecies(speciesId, source.band, source.ctx, this._nextUsageLineIdx())
+      }
+    }
+    return this._pickLine(speciesId)
   }
 
   private _pickLine(speciesId: SpeciesId): string | null {
@@ -69,6 +131,13 @@ export class FishDialogue {
     if (species.dialogue.length === 0) return null
     const idx = pickDialogue(species.dialogue.length, Math.random())
     return species.dialogue[idx]
+  }
+
+  /** 사용량 대사 idx용 내부 증가 카운터(라이브 UI라 Math.random도 무방하나, 순회로 다양성 보장). */
+  private _nextUsageLineIdx(): number {
+    const idx = this._usageLineIdx
+    this._usageLineIdx += 1
+    return idx
   }
 
   private _showBubble(text: string, clickX: number, clickY: number): void {

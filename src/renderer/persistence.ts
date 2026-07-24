@@ -62,6 +62,8 @@ export function loadPersisted(): PersistedState | null {
           : [],
         // moodReactive: 하위호환(구버전 저장값엔 없음). boolean 아니면 false.
         moodReactive: typeof s.moodReactive === 'boolean' ? s.moodReactive : false,
+        // showTokenUsage: 하위호환(구버전 저장값엔 없음). boolean 아니면 표시(true) 기본.
+        showTokenUsage: typeof s.showTokenUsage === 'boolean' ? s.showTokenUsage : true,
         // cameraYaw/Pitch: 하위호환(구버전 저장값엔 없음). 숫자 아니면 0(정면),
         // 드래그 클램프 범위로 보정(QA 훅으로 극단 각이 저장된 경우 무대 세트 범위로 복귀).
         cameraYaw: isFiniteNumber(s.cameraYaw)

@@ -24,6 +24,7 @@ const base: PersistedState = {
     zoom: 1.5,
     enabledFeatures: ['manta', 'whale'],
     moodReactive: true,
+    showTokenUsage: true,
     themeId: 'kelp-forest',
   },
   alwaysOnTop: true,
@@ -121,6 +122,36 @@ describe('persistence moodReactive', () => {
     const bad = { ...base, settings: { ...base.settings, moodReactive: 'yes' } }
     localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad))
     expect(loadPersisted()?.settings.moodReactive).toBe(false)
+  })
+})
+
+describe('persistence showTokenUsage', () => {
+  beforeEach(() => installLocalStorage())
+
+  it('저장한 showTokenUsage를 그대로 복원', () => {
+    savePersisted(base)
+    expect(loadPersisted()?.settings.showTokenUsage).toBe(true)
+  })
+
+  it('false로 저장한 showTokenUsage도 그대로 복원 (기본값에 삼켜지지 않음)', () => {
+    savePersisted({ ...base, settings: { ...base.settings, showTokenUsage: false } })
+    expect(loadPersisted()?.settings.showTokenUsage).toBe(false)
+  })
+
+  it('showTokenUsage 없는 (구버전) 저장본도 유효 — 표시(true)로 보정', () => {
+    const legacy = { ...base, settings: { ...base.settings } } as Record<string, unknown>
+    delete (legacy.settings as Record<string, unknown>).showTokenUsage
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(legacy))
+    const loaded = loadPersisted()
+    expect(loaded).not.toBeNull()
+    expect(loaded?.settings.showTokenUsage).toBe(true)
+    expect(loaded?.settings.fishCount).toBe(20) // 나머지 설정 보존
+  })
+
+  it('showTokenUsage가 boolean이 아니면 표시(true)로 보정', () => {
+    const bad = { ...base, settings: { ...base.settings, showTokenUsage: 'yes' } }
+    localStorage.setItem('aquagarden.state.v1', JSON.stringify(bad))
+    expect(loadPersisted()?.settings.showTokenUsage).toBe(true)
   })
 })
 

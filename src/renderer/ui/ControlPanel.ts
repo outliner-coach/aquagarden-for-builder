@@ -1,10 +1,19 @@
-import { FISH, COLORS, ZOOM } from '../../shared/config'
+import { FISH, COLORS, ZOOM, TOKEN } from '../../shared/config'
 import { setupButtonDrag, setupPanelDrag } from './drag'
 import type { LureMode } from '../entities/FoodLure'
 import { THEME_REGISTRY } from '../entities/themeRegistry'
 import { zoomToSliderPercent, sliderPercentToZoom } from '../core/zoomHelpers'
 import { computeThemeSegmentState } from './themeSegment'
+import { usageLevel, gaugeColor, formatReset } from '../../shared/tokenHelpers'
+import type { TokenUsage, TokenUsageWindow } from '../../shared/types'
 import './controlPanel.css'
+
+/** 토큰 게이지 링 하나(5시간 또는 주간)의 DOM 참조. */
+interface TokenRingRefs {
+  ring: HTMLDivElement
+  pct: HTMLSpanElement
+  reset: HTMLDivElement
+}
 
 /** ControlPanel이 외부에 알려주는 콜백 인터페이스 */
 export interface ControlPanelCallbacks {
@@ -31,6 +40,8 @@ export interface ControlPanelCallbacks {
   onThemeChange: (id: string) => void
   /** 앱 종료 요청(파괴적). main이 app.quit 수행. */
   onQuit: () => void
+  /** 토큰 사용량 섹션 표시/숨김 토글 변경. 하위호환: main이 아직 안 넘겨줘도 생성자가 동작. */
+  onShowTokenUsageChange?: (show: boolean) => void
 }
 
 /** 초기 상태 */
@@ -43,6 +54,8 @@ export interface ControlPanelState {
   alwaysOnTop: boolean
   zoom: number
   moodReactive: boolean
+  /** 토큰 사용량(도넛 게이지) 섹션 표시 여부. 하위호환: 없으면 표시(true)로 간주. */
+  showTokenUsage?: boolean
 }
 
 /**
@@ -89,6 +102,11 @@ export class ControlPanel {
   private readonly _featureGroupBody: HTMLDivElement
   /** 배경 테마 세그먼트 버튼(id→엘리먼트). setTheme이 선택 상태 갱신 시 조회한다. */
   private readonly _themeButtons = new Map<string, HTMLButtonElement>()
+  /** 토큰 섹션: 표시 토글, 링 2종(5시간/주간) DOM 참조. */
+  private readonly _tokenToggle: HTMLInputElement
+  private readonly _tokenRingsRow: HTMLDivElement
+  private readonly _fiveHourRing: TokenRingRefs
+  private readonly _weeklyRing: TokenRingRefs
 
   constructor(
     container: HTMLElement,
@@ -224,6 +242,26 @@ export class ControlPanel {
       this._themeButtons.set(theme.id, btn)
     }
     rightCol.appendChild(themeRow)
+
+    // ── 토큰(전폭): 계정 사용량 도넛 게이지 2종(5시간/주간) ──
+    const initialShowToken = state.showTokenUsage ?? true
+    this._appendSectionLabel(this._panel, '토큰')
+    this._tokenToggle = this._createToggle(
+      this._panel, '토큰 사용량 표시', initialShowToken,
+      (checked) => {
+        this._setTokenRingsVisible(checked)
+        callbacks.onShowTokenUsageChange?.(checked)
+      },
+    )
+    const tokenRingsRow = document.createElement('div')
+    tokenRingsRow.className = 'cp__token-rings'
+    this._fiveHourRing = this._createTokenRing(tokenRingsRow, '5시간')
+    this._weeklyRing = this._createTokenRing(tokenRingsRow, '주간')
+    this._panel.appendChild(tokenRingsRow)
+    this._tokenRingsRow = tokenRingsRow
+    this._setTokenRingsVisible(initialShowToken)
+    // 최초 데이터 도착 전(main이 아직 updateTokenUsage를 안 불렀을 때) 회색 placeholder로 시작.
+    this.updateTokenUsage(null)
 
     // ── 하단(전폭): 먹이/놀래키기 → 고정 힌트 슬롯 → 종료 ──
     this._hideToggle.addEventListener('change', () => this._updateHintSlot())
@@ -365,6 +403,10 @@ export class ControlPanel {
     this._moodToggle.checked = state.moodReactive
     this._zoomSlider.value = String(zoomToSliderPercent(state.zoom))
     this._zoomValue.textContent = `${zoomToSliderPercent(state.zoom)}%`
+    if (state.showTokenUsage !== undefined) {
+      this._tokenToggle.checked = state.showTokenUsage
+      this._setTokenRingsVisible(state.showTokenUsage)
+    }
     this._updateHintSlot()
   }
 
@@ -418,11 +460,33 @@ export class ControlPanel {
     }
   }
 
+  /**
+   * 외부(main)에서 토큰 사용량 스냅샷을 전달하면 두 게이지(5시간/주간)를 다시 그린다.
+   * null이거나 state==='unavailable'이면 두 링 모두 회색 '연결 안 됨' placeholder로 표시한다
+   * (섹션 자체는 숨기지 않음 — 토글 on/off는 별개의 관심사).
+   */
+  updateTokenUsage(usage: TokenUsage | null): void {
+    // now는 렌더 시점 기준(라이브 UI) — 순수 헬퍼(formatReset)엔 그대로 주입만 한다.
+    const now = Date.now() / 1000
+    if (usage === null || usage.state === 'unavailable') {
+      this._renderRing(this._fiveHourRing, null, now, 'relative')
+      this._renderRing(this._weeklyRing, null, now, 'absolute')
+      return
+    }
+    this._renderRing(this._fiveHourRing, usage.fiveHour ?? null, now, 'relative')
+    this._renderRing(this._weeklyRing, usage.weekly ?? null, now, 'absolute')
+  }
+
   private _emitEnabledFeatures(): void {
     const ids = Array.from(
       this._featureGroupBody.querySelectorAll<HTMLButtonElement>('.cp__feature-chip[aria-pressed=true]'),
     ).map((c) => c.dataset.speciesId!).filter(Boolean)
     this._callbacks.onEnabledFeaturesChange(ids)
+  }
+
+  /** 토큰 게이지 링 행의 표시/숨김(섹션 표시 토글용). */
+  private _setTokenRingsVisible(visible: boolean): void {
+    this._tokenRingsRow.style.display = visible ? 'flex' : 'none'
   }
 
   private _appendSectionLabel(parent: HTMLElement, text: string): void {
@@ -657,6 +721,68 @@ export class ControlPanel {
     parent.appendChild(row)
 
     return input
+  }
+
+  /** 토큰 게이지 링 하나(라벨 + 도넛 링 + 중앙 % + 리셋 텍스트)를 만들어 parent에 붙인다. */
+  private _createTokenRing(parent: HTMLElement, label: string): TokenRingRefs {
+    const col = document.createElement('div')
+    col.className = 'cp__token-ring-col'
+
+    const labelEl = document.createElement('div')
+    labelEl.className = 'cp__token-ring-label'
+    labelEl.textContent = label
+    col.appendChild(labelEl)
+
+    const ring = document.createElement('div')
+    ring.className = 'cp__token-ring'
+
+    const inner = document.createElement('div')
+    inner.className = 'cp__token-ring-inner'
+
+    const pct = document.createElement('span')
+    pct.className = 'cp__token-ring-pct'
+    inner.appendChild(pct)
+    ring.appendChild(inner)
+    col.appendChild(ring)
+
+    const reset = document.createElement('div')
+    reset.className = 'cp__token-ring-reset'
+    col.appendChild(reset)
+
+    parent.appendChild(col)
+    return { ring, pct, reset }
+  }
+
+  /**
+   * 링 하나를 데이터로 다시 그린다. win이 null이면(미가용) 회색 '연결 안 됨' placeholder,
+   * 아니면 usageLevel(pct)→gaugeColor로 그 창 자신의 밴드 색을 링 채움(conic-gradient)에 쓰고
+   * formatReset(mode)로 리셋 텍스트를 채운다.
+   */
+  private _renderRing(
+    refs: TokenRingRefs,
+    win: TokenUsageWindow | null,
+    now: number,
+    mode: 'relative' | 'absolute',
+  ): void {
+    if (win === null) {
+      refs.ring.style.background = COLORS.textDisabled
+      refs.pct.textContent = '—'
+      refs.pct.style.color = COLORS.textDisabled
+      refs.reset.textContent = '연결 안 됨'
+      refs.reset.style.color = COLORS.textDisabled
+      refs.ring.setAttribute('aria-label', '토큰 사용량 연결 안 됨')
+      return
+    }
+    const pct01 = Math.min(1, Math.max(0, win.pct))
+    const pctInt = Math.round(pct01 * 100)
+    const level = usageLevel(win.pct, TOKEN.warnPct, TOKEN.criticalPct)
+    const color = gaugeColor(level)
+    refs.ring.style.background = `conic-gradient(${color} ${pctInt}%, ${COLORS.sliderTrackEmpty} 0)`
+    refs.pct.textContent = `${pctInt}%`
+    refs.pct.style.color = COLORS.textPrimary
+    refs.reset.textContent = formatReset(win.resetsAt, now, mode)
+    refs.reset.style.color = COLORS.textSecondary
+    refs.ring.setAttribute('aria-label', `사용량 ${pctInt}%`)
   }
 
   /**

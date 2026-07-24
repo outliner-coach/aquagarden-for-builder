@@ -67,3 +67,24 @@ export interface AquaBridge {
   /** 앱 종료. frameless·always-on-top 오버레이라 메뉴/X가 없으므로 패널의 종료 버튼이 호출. (main에서 app.quit) */
   quitApp(): void
 }
+
+/** 토큰 사용량 창(5시간/주간) 하나의 스냅샷. pct는 0..1, resetsAt는 epoch 초. */
+export interface TokenUsageWindow {
+  pct: number
+  resetsAt: number
+}
+
+/** 사용량 조회 상태. 'unavailable'이면 window 필드(fiveHour/weekly)는 없다. */
+export type TokenUsageState = 'ok' | 'unavailable'
+
+/**
+ * 계정 토큰 사용량 스냅샷. state==='unavailable'이면 fiveHour/weekly는 생략된다.
+ * 보안: 토큰/자격증명(accessToken 등) 필드를 절대 추가하지 않는다.
+ */
+export interface TokenUsage {
+  state: TokenUsageState
+  fiveHour?: TokenUsageWindow
+  weekly?: TokenUsageWindow
+  /** 조회 시각(epoch 초). */
+  fetchedAt: number
+}

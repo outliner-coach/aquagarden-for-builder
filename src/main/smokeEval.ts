@@ -19,6 +19,8 @@ export interface SmokeTokenHealth {
   state: 'ok' | 'unavailable'
   fiveHourPct: number | null
   weeklyPct: number | null
+  /** 표시값이 마지막 성공값(라이브 실패)인지. 옵셔널: 구버전 리포트/테스트 호환. */
+  stale?: boolean
 }
 
 export interface SmokeHealth {
@@ -155,6 +157,12 @@ export interface SmokeInput {
    * 보안: 이 필드에는 토큰/자격증명이 아니라 사용률(%)만 담긴다.
    */
   requestedToken?: { fiveHour: number; weekly: number } | null
+  /**
+   * stale 표시 요청 여부 — `parseSmokeStaleAge(AQUA_SMOKE_TOKEN_STALE) !== null`. 주입 모드에서만
+   * 의미가 있다: true면 health.token.stale===true(마지막 성공값 표시), false면 stale이 아니어야
+   * 한다(fresh 주입이 fresh로 읽히는지). 라이브 실패인데 fresh로 읽히던 회귀를 스모크가 잡는다.
+   */
+  requestedTokenStale?: boolean
 }
 
 export interface SmokeResult {
@@ -212,6 +220,11 @@ export function evaluateSmoke(input: SmokeInput): SmokeResult {
       }
       if (!approxPct(tok.weeklyPct, input.requestedToken.weekly)) {
         failures.push(`토큰 리드백: 주간 사용률 불일치 (기대≈${input.requestedToken.weekly}, 적용=${tok.weeklyPct ?? '없음'})`)
+      }
+      // stale 표시 대조: 라이브 실패(마지막 성공값)는 stale로, 라이브 성공은 fresh로 읽혀야 한다.
+      const wantStale = input.requestedTokenStale === true
+      if (tok.stale !== wantStale) {
+        failures.push(`토큰 리드백: stale 불일치 (기대=${wantStale}, 적용=${tok.stale})`)
       }
     }
   }

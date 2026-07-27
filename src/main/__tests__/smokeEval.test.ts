@@ -207,3 +207,52 @@ describe('evaluateSmoke - 테마 리드백 (AQUA_SMOKE_THEME)', () => {
     expect(r.failures.some((f) => f.includes('테마'))).toBe(true)
   })
 })
+
+describe('evaluateSmoke - 토큰 stale 리드백 (AQUA_SMOKE_TOKEN_STALE)', () => {
+  const okToken = { enabled: true, state: 'ok' as const, fiveHourPct: 0.34, weeklyPct: 0.87 }
+  const req = { fiveHour: 0.34, weekly: 0.87 }
+
+  it('fresh 주입 + stale:false 리드백 → pass', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, token: { ...okToken, stale: false } }, pixel: okPixel,
+      fatal: null, requestedToken: req,
+    })
+    expect(r.pass).toBe(true)
+  })
+
+  // 회귀: 라이브 실패(마지막 성공값)인데 fresh로 읽히면 옛 값이 현재값처럼 보인다.
+  it('fresh 주입인데 stale:true로 읽히면 → fail', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, token: { ...okToken, stale: true } }, pixel: okPixel,
+      fatal: null, requestedToken: req,
+    })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('stale'))).toBe(true)
+  })
+
+  it('stale 요청(AQUA_SMOKE_TOKEN_STALE) + stale:true 리드백 → pass', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, token: { ...okToken, stale: true } }, pixel: okPixel,
+      fatal: null, requestedToken: req, requestedTokenStale: true,
+    })
+    expect(r.pass).toBe(true)
+  })
+
+  it('stale 요청인데 fresh로 읽히면 → fail(훅이 무시된 증거)', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [], health: { ...okHealth, token: { ...okToken, stale: false } }, pixel: okPixel,
+      fatal: null, requestedToken: req, requestedTokenStale: true,
+    })
+    expect(r.pass).toBe(false)
+    expect(r.failures.some((f) => f.includes('stale'))).toBe(true)
+  })
+
+  it('토큰 미주입 모드에선 stale 게이트를 적용하지 않는다', () => {
+    const r = evaluateSmoke({
+      consoleMsgs: [],
+      health: { ...okHealth, token: { enabled: true, state: 'unavailable', fiveHourPct: null, weeklyPct: null } },
+      pixel: okPixel, fatal: null, requestedToken: null,
+    })
+    expect(r.pass).toBe(true)
+  })
+})

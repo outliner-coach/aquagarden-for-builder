@@ -7,6 +7,7 @@ import {
   gaugeColor,
   formatReset,
   parseSmokeToken,
+  parseSmokeStaleAge,
   formatAgo,
   resolveDisplayUsage,
 } from './tokenHelpers'
@@ -448,9 +449,75 @@ describe('resolveDisplayUsage — 라이브 결과 → 표시 사용량(fresh/st
     expect(r.lastKnownGood).toBeNull()
   })
 
-  it('stale age는 음수로 내려가지 않는다(now < savedAt 방어)', () => {
-    const prev: TokenUsageCache = { usage: okUsage, savedAt: 9000 }
+  it('stale age는 음수로 내려가지 않는다(now < 데이터 시각 방어)', () => {
+    const future: TokenUsage = { ...okUsage, fetchedAt: 9000 }
+    const prev: TokenUsageCache = { usage: future, savedAt: 9000 }
     const r = resolveDisplayUsage(unavailable, prev, 8000)
     expect(r.staleAgeSec).toBe(0)
+  })
+
+  // 회귀: 라이브가 실패해도 main이 옛 성공 캐시를 state:'ok'로 되돌려주면 fresh로 오판해
+  // 55시간 묵은 값이 현재값처럼 보였다(2026-07-27 실기기). main은 이제 stale:true를 실어 보낸다.
+  it('라이브 ok + stale:true(main 캐시 재반환) → fresh가 아니라 stale로 표시(age=now−fetchedAt)', () => {
+    const staleLive: TokenUsage = { ...okUsage, fetchedAt: 1000, stale: true }
+    const r = resolveDisplayUsage(staleLive, null, 4600)
+    expect(r.display).toBe(staleLive)
+    expect(r.staleAgeSec).toBe(3600)
+  })
+
+  it('라이브 ok + stale:true는 캐시 savedAt을 now로 밀지 않는다(데이터 시각 보존)', () => {
+    const staleLive: TokenUsage = { ...okUsage, fetchedAt: 1000, stale: true }
+    const r = resolveDisplayUsage(staleLive, null, 4600)
+    // 캐시는 새로 생기되 savedAt은 실제 조회 시각(fetchedAt) — now(4600)가 아니다.
+    expect(r.lastKnownGood).toEqual({ usage: { ...okUsage, fetchedAt: 1000 }, savedAt: 1000 })
+    expect(r.lastKnownGood?.usage.stale).toBeUndefined() // stale 플래그는 캐시에 남기지 않는다
+  })
+
+  it('라이브 ok + stale:true가 기존 캐시보다 오래됐으면 캐시를 유지(동일 참조)', () => {
+    const prev: TokenUsageCache = { usage: { ...okUsage, fetchedAt: 5000 }, savedAt: 5000 }
+    const staleLive: TokenUsage = { ...okUsage, fetchedAt: 1000, stale: true }
+    const r = resolveDisplayUsage(staleLive, prev, 6000)
+    expect(r.lastKnownGood).toBe(prev)
+    expect(r.display).toBe(staleLive)
+    expect(r.staleAgeSec).toBe(5000)
+  })
+
+  it('캐시 stale age는 savedAt이 잘못 갱신돼 있어도 데이터 시각(fetchedAt) 기준', () => {
+    // savedAt이 now 직전으로 밀려 있어도(과거 버그가 남긴 항목) 실제 데이터는 fetchedAt 시각의 것.
+    const prev: TokenUsageCache = { usage: { ...okUsage, fetchedAt: 1000 }, savedAt: 100_000 }
+    const r = resolveDisplayUsage(unavailable, prev, 101_000)
+    expect(r.staleAgeSec).toBe(100_000)
+  })
+
+  it('레거시/손상 캐시(fetchedAt 비수치)는 savedAt으로 폴백', () => {
+    const legacy = { usage: { ...okUsage, fetchedAt: Number.NaN }, savedAt: 1000 } as TokenUsageCache
+    const r = resolveDisplayUsage(unavailable, legacy, 1600)
+    expect(r.staleAgeSec).toBe(600)
+  })
+})
+
+describe('parseSmokeStaleAge — stale 표시 검증 훅(AQUA_SMOKE_TOKEN_STALE)', () => {
+  it('양의 정수 초 문자열 → 그 값', () => {
+    expect(parseSmokeStaleAge('3600')).toBe(3600)
+  })
+
+  it('공백 허용', () => {
+    expect(parseSmokeStaleAge(' 90 ')).toBe(90)
+  })
+
+  it('미지정/빈 문자열 → null(훅 미사용)', () => {
+    expect(parseSmokeStaleAge(undefined)).toBeNull()
+    expect(parseSmokeStaleAge('')).toBeNull()
+    expect(parseSmokeStaleAge('   ')).toBeNull()
+  })
+
+  it('비수치·음수·0은 null(형식 불량 → 훅 무시)', () => {
+    expect(parseSmokeStaleAge('abc')).toBeNull()
+    expect(parseSmokeStaleAge('-5')).toBeNull()
+    expect(parseSmokeStaleAge('0')).toBeNull()
+  })
+
+  it('소수는 내림(초 단위)', () => {
+    expect(parseSmokeStaleAge('12.7')).toBe(12)
   })
 })

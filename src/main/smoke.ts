@@ -19,12 +19,15 @@
  *                      리드백을 대조한다 — 주입 시 state=ok·사용률 근사 일치, 미주입 시
  *                      state=unavailable(smokeEval.evaluateSmoke의 requestedToken). 보안: 이 값은
  *                      사용률(%)일 뿐 토큰/자격증명이 아니다.
+ *   AQUA_SMOKE_TOKEN_STALE  마지막 성공값 표시(라이브 실패) 상태를 강제할 경과 초(예: 196000).
+ *                      주입 스냅샷을 stale:true + fetchedAt=now−age로 만들어 흐린 링 + "N일 전 기준"
+ *                      노트를 캡처·리드백(health.token.stale) 검증한다. AQUA_SMOKE_TOKEN과 함께 쓴다.
  *   AQUA_SMOKE_TOKEN_TIMEOUT_MS  토큰 헬스(폴러 첫 async 조회) 대기 한계 (기본 8000)
  */
 import { app, nativeImage } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { writeFileSync } from 'fs'
-import { parseSmokeToken } from '../shared/tokenHelpers'
+import { parseSmokeToken, parseSmokeStaleAge } from '../shared/tokenHelpers'
 import {
   evaluatePixels,
   evaluateSmoke,
@@ -242,6 +245,8 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
   // 않도록, 주입 모드(파싱 성공)면 state==='ok'까지, 미주입이면 token 필드가 정의될 때까지 기다린 뒤
   // readHealth로 함께 수집한다. 실네트워크/Keychain은 T3가 AQUA_SMOKE에서 격리한다(여기선 리드백만).
   const requestedToken = parseSmokeToken(process.env['AQUA_SMOKE_TOKEN'])
+  // AQUA_SMOKE_TOKEN_STALE=<초>: 마지막 성공값 표시(흐린 링 + "N분 전 기준")를 강제해 캡처·리드백 검증.
+  const requestedTokenStale = parseSmokeStaleAge(process.env['AQUA_SMOKE_TOKEN_STALE']) !== null
   await waitForTokenHealth(win, requestedToken !== null)
 
   const health = await readHealth(win)
@@ -262,7 +267,15 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     fatal = (fatal ? fatal + '; ' : '') + `capturePage 실패: ${String(e)}`
   }
 
-  const result = evaluateSmoke({ consoleMsgs, health, pixel, fatal, requestedTheme, requestedToken })
+  const result = evaluateSmoke({
+    consoleMsgs,
+    health,
+    pixel,
+    fatal,
+    requestedTheme,
+    requestedToken,
+    requestedTokenStale,
+  })
   const report = {
     pass: result.pass,
     failures: result.failures,
@@ -274,6 +287,7 @@ export async function runSmoke(win: BrowserWindow): Promise<void> {
     ...(requestedTheme !== null ? { themeRequested: requestedTheme } : {}),
     // 기대 사용률(%, 토큰/자격증명 아님) — 미주입이면 null. 리드백 대조 디버깅용.
     tokenRequested: requestedToken,
+    ...(requestedTokenStale ? { tokenStaleRequested: true } : {}),
   }
   writeFileSync(REPORT, JSON.stringify(report, null, 2))
 

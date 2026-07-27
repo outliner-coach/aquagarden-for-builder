@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { isCacheFresh, advanceBackoffMs, extractOAuthToken, extractProcessToken } from './tokenUsage'
+import {
+  isCacheFresh,
+  advanceBackoffMs,
+  extractOAuthToken,
+  extractProcessToken,
+  staleOrUnavailable,
+} from './tokenUsage'
+import type { TokenUsage } from '../shared/types'
 import { TOKEN } from '../shared/config'
 
 // 순수 결정 로직만 테스트한다(시계는 인자로 주입 → 결정적). 네트워크·Keychain은
@@ -157,5 +164,35 @@ describe('extractOAuthToken — Keychain JSON 파싱 + 만료 판정(주입 시�
 
   it('빈 문자열 → null', () => {
     expect(extractOAuthToken('', NOW_MS)).toBeNull()
+  })
+})
+
+describe('staleOrUnavailable — 조회 실패 시 반환 스냅샷(순수)', () => {
+  const cached: TokenUsage = {
+    state: 'ok',
+    fiveHour: { pct: 0.1, resetsAt: 5000 },
+    weekly: { pct: 0.38, resetsAt: 9000 },
+    fetchedAt: 1000,
+  }
+
+  // 회귀: 실패 시 옛 캐시를 그대로(state:'ok', stale 표시 없이) 돌려주면 렌더러가 fresh로 오판해
+  // 55시간 묵은 값이 현재값처럼 보였다(2026-07-27 실기기, 429 락아웃 중).
+  it('캐시가 있으면 값은 유지하되 stale:true를 표시한다', () => {
+    const r = staleOrUnavailable(cached, 4600)
+    expect(r.state).toBe('ok')
+    expect(r.stale).toBe(true)
+    expect(r.fetchedAt).toBe(1000) // 데이터 시각은 조회 성공 시각을 유지(now로 밀지 않는다)
+    expect(r.fiveHour).toEqual(cached.fiveHour)
+    expect(r.weekly).toEqual(cached.weekly)
+  })
+
+  it('원본 캐시 객체를 변형하지 않는다(다음 호출도 동일 결과)', () => {
+    staleOrUnavailable(cached, 4600)
+    expect(cached.stale).toBeUndefined()
+  })
+
+  it('캐시가 없으면 unavailable(주입 시각)', () => {
+    const r = staleOrUnavailable(null, 4600)
+    expect(r).toEqual({ state: 'unavailable', fetchedAt: 4600 })
   })
 })

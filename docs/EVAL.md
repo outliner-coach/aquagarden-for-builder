@@ -24,6 +24,10 @@
 
 **테마 리드백(`AQUA_SMOKE_THEME=<id>`)**: renderer의 `window.__AQUA_APPLY_THEME__(id)` 훅(main.ts)을 호출해 UI 없이 배경 테마를 전환한다. 물고기 위치가 매 실행 달라 캡처 diff로는 전환을 검증할 수 없으므로, 적용된 id를 `__AQUA_HEALTH__.theme`으로 리드백해 요청값과 대조한다 — 불일치(유령 id 포함) 시 스모크 실패.
 
+**토큰 사용량(`AQUA_SMOKE_TOKEN="fiveHour,weekly"` 퍼센트)**: 실네트워크·Keychain을 태우지 않고(스모크에서 격리) 링 게이지를 결정적으로 구동한다. `health.token`(state·%·stale) 리드백을 요청값과 대조 — 불일치 시 실패. 미주입이면 `state=unavailable`이어야 한다(격리 증거).
+
+**마지막 성공값 표시(`AQUA_SMOKE_TOKEN_STALE=<초>`)**: 주입 스냅샷을 `stale:true` + `fetchedAt=now−초`로 만들어 **라이브 조회 실패 상태의 표시**(흐린 링 + "N일 전 기준" 노트)를 캡처·리드백 검증한다. 이 상태는 429 락아웃 등에서만 나타나 라이브로는 재현이 어렵고, 실제로 main이 옛 캐시를 `state:'ok'`로 되돌려주는 바람에 **표시가 fresh로 오판돼 55시간 묵은 값이 현재값처럼 노출된 회귀**(2026-07-27)가 있었다 — 그래서 스모크가 `health.token.stale`을 요청값과 대조해 게이트한다. 예: `AQUA_SMOKE_TOKEN="34,87" AQUA_SMOKE_TOKEN_STALE=196000 AQUA_SMOKE_OPEN_PANEL=1 npm run smoke`.
+
 **검사용 궤도 카메라(`AQUA_SMOKE_CAM="yaw,pitch[,dist]"` — 도/월드유닛)**: renderer의 `window.__AQUA_SET_CAMERA__(yaw, pitch, dist?)` 훅을 호출해 `CAMERA.orbit.target` 중심 궤도에서 캡처한다(순수 계산 `cameraHelpers.orbitCameraPose`, yaw0·pitch0·기본거리=기존 정면 카메라와 동일). 씬은 정면 고정 카메라 전제로 authoring돼 있어 프로덕트 기능이 아니라 "다른 각도에서의 파탄(모래 슬랩 경계·근접 왜곡·빈 배경)" 점검용 QA 훅이다. 2026-07-18 스윕 결과: ±15~20°·내려보기 30°까진 성립, 그 이상은 무대 세트 한계 노출(`eval-camera-angles.png`).
 
 ### 3. 비전 미적 판정 (LLM) — `scripts/eval_vision.py`

@@ -90,6 +90,12 @@ phase 9의 "지형 높이를 물고기 바닥(minY −1.2) 아래로 캡핑" 접
 - **스모크 훅**: `AQUA_SMOKE=1`에선 실 Keychain·네트워크 차단, `AQUA_SMOKE_TOKEN="34,87"` 주입값만 사용(없으면 'unavailable'). `smokeEval.ts`가 `health.token`(state·%, 토큰 없음)을 주입값과 대조해 불일치 시 실패. 새 `invoke` 핸들러는 스모크 분기(`index.ts`, `runSmoke` 전)에도 등록해야 reject 안 됨.
 - **UI·영속**: 패널 토글 `AppSettings.showTokenUsage`(기본 on, 미저장 시 백필). 미가용 시 링은 옅은 '연결 안 됨' 자리표시(숨기지 않음).
 
+#### stale(마지막 성공값) 표시 — 2026-07-27 회귀 수정 (CRITICAL)
+라이브 QA에서 **55시간 묵은 값이 현재값처럼 표시되고 있었다**(공식 API가 계정 단위 429로 락아웃, `Retry-After` ~30분). 원인은 실패 시 main이 마지막 성공 캐시를 **그대로 `state:'ok'`로** 되돌려준 것 — 렌더러는 `state==='ok'`면 fresh로 판정하므로 `"N분 전 기준"` stale 표시가 영원히 발동하지 않고, `lastKnownGood.savedAt`까지 매 폴링마다 now로 밀려 나이가 리셋됐다.
+- **불변식**: 실패 경로(429/네트워크/자격증명 없음/백오프 창)는 반드시 `staleOrUnavailable()`로 반환한다 — 캐시가 있으면 `stale:true`를 실어 보내고, 없으면 `unavailable`. **`cache`를 직접 return하지 말 것**(신선한 TTL 캐시 경로만 예외).
+- **나이 기준은 `usage.fetchedAt`**(데이터를 실제로 받아온 시각)이다. `savedAt`(저장 시각)을 기준으로 삼으면 재기록마다 나이가 리셋된다 — `resolveDisplayUsage`의 `dataTimeOf()`가 이 규칙을 담고, 레거시/손상 항목만 savedAt으로 폴백한다.
+- **검증**: 이 상태는 라이브 재현이 어려우므로 스모크 훅 `AQUA_SMOKE_TOKEN_STALE=<초>`로 강제해 캡처(흐린 링+"N일 전 기준")와 `health.token.stale` 리드백을 게이트한다(`docs/EVAL.md`). 유닛만으론 못 잡던 상태다 — 실제로 이 시각 상태는 버그 때문에 한 번도 렌더된 적이 없었다.
+
 ## 런타임 eval (CRITICAL — 자기보고 불신)
 **`build/test/lint` 통과만으로 "동작/표시됨"을 단정하지 마라.** 그것들은 순수 로직만 검증하며, 실제 렌더가 깨져도 통과한다(과거 셰이더 컴파일 오류가 전 항목 통과 상태로 빠져나간 사고의 원인). 시각 변경 후엔 반드시 `npm run smoke`로 실제 렌더를 검증한다. 상세: **`docs/EVAL.md`**.
 - 스모크: `src/main/smoke.ts`+`smokeEval.ts` (`AQUA_SMOKE=1`). 콘솔 에러·헬스(`src/renderer/health.ts`)·`capturePage` 픽셀 분석.

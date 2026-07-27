@@ -1,7 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import { TOKEN } from '../shared/config'
-import { parseUsageResponse, parseSmokeToken, type ParsedUsage } from '../shared/tokenHelpers'
+import {
+  parseUsageResponse,
+  parseSmokeToken,
+  parseSmokeStaleAge,
+  type ParsedUsage,
+} from '../shared/tokenHelpers'
 import type { TokenUsage } from '../shared/types'
 
 /**
@@ -78,6 +83,18 @@ export function advanceBackoffMs(
 }
 
 /**
+ * 조회 실패(429/네트워크/자격증명 없음) 시 반환할 스냅샷(순수·주입 시각). 마지막 성공 캐시가
+ * 있으면 값은 그대로 이어 보여주되 `stale: true`를 실어 보낸다 — 이 플래그가 없으면 렌더러가
+ * state:'ok'만 보고 fresh로 오판해 오래된 값을 현재값처럼 표시한다(2026-07-27 실기기: 429
+ * 락아웃 55시간 동안 옛 값이 최신처럼 노출된 회귀). 캐시가 없으면 진짜 'unavailable'.
+ * 원본 캐시 객체는 변형하지 않는다(복사).
+ */
+export function staleOrUnavailable(cached: TokenUsage | null, nowSec: number): TokenUsage {
+  if (cached === null) return { state: 'unavailable', fetchedAt: nowSec }
+  return { ...cached, stale: true }
+}
+
+/**
  * Keychain 항목 JSON에서 OAuth accessToken을 추출한다(순수·주입 시계·never throw). 레퍼런스
  * Official.swift.tokenFromKeychain 미러: `{ claudeAiOauth: { accessToken, expiresAt } }`, 래퍼가
  * 없으면 최상위를 oauth로 간주. accessToken은 길이 > MIN_TOKEN_LEN인 문자열이어야 하고, expiresAt이
@@ -139,12 +156,17 @@ function smokeUsage(): TokenUsage {
   const parsed = parseSmokeToken(process.env['AQUA_SMOKE_TOKEN'])
   if (parsed === null) return unavailable(nowSeconds())
   const resetsAt = nowSeconds() + SMOKE_RESET_STUB_SEC
-  return {
+  // AQUA_SMOKE_TOKEN_STALE=<초>: 라이브 실패 상태(마지막 성공값 표시)를 강제해 흐린 링 +
+  // "N분 전 기준" 노트를 캡처 검증한다. 미지정이면 평소처럼 fresh.
+  const staleAgeSec = parseSmokeStaleAge(process.env['AQUA_SMOKE_TOKEN_STALE'])
+  const usage: TokenUsage = {
     state: 'ok',
     fiveHour: { pct: parsed.fiveHour, resetsAt },
     weekly: { pct: parsed.weekly, resetsAt },
-    fetchedAt: nowSeconds(),
+    fetchedAt: staleAgeSec === null ? nowSeconds() : nowSeconds() - staleAgeSec,
   }
+  if (staleAgeSec !== null) usage.stale = true
+  return usage
 }
 
 /**
@@ -291,7 +313,7 @@ export async function getTokenUsage(): Promise<TokenUsage> {
     return inFlight
   } catch {
     // 동기 구간의 예기치 못한 오류까지 방어(스펙 하드 게이트: 절대 throw 금지).
-    return cache ?? unavailable(nowSeconds())
+    return staleOrUnavailable(cache, nowSeconds())
   }
 }
 
@@ -301,10 +323,10 @@ export async function getTokenUsage(): Promise<TokenUsage> {
  */
 async function doRefresh(nowMs: number): Promise<TokenUsage> {
   try {
-    if (nowMs < backoffUntilMs) return cache ?? unavailable(nowSeconds()) // 429 백오프 창
+    if (nowMs < backoffUntilMs) return staleOrUnavailable(cache, nowSeconds()) // 429 백오프 창
 
     const token = acquireToken()
-    if (token === null) return cache ?? unavailable(nowSeconds()) // 자격증명 없음
+    if (token === null) return staleOrUnavailable(cache, nowSeconds()) // 자격증명 없음
 
     const outcome = await fetchUsage(token)
     // 여기서부터 token은 더 이상 참조되지 않고 스코프를 벗어난다(어디에도 저장 안 됨).
@@ -319,15 +341,15 @@ async function doRefresh(nowMs: number): Promise<TokenUsage> {
     if (outcome.kind === 'rate-limited') {
       currentBackoffMs = advanceBackoffMs(currentBackoffMs) // 10→20→40→60분
       backoffUntilMs = Date.now() + currentBackoffMs
-      return cache ?? unavailable(nowSeconds()) // 캐시 유지(있으면)
+      return staleOrUnavailable(cache, nowSeconds()) // 캐시 유지(있으면)
     }
     // failed(비200/타임아웃/파싱): 429가 아니므로 백오프 리셋, 캐시 유지.
     currentBackoffMs = 0
     backoffUntilMs = 0
-    return cache ?? unavailable(nowSeconds())
+    return staleOrUnavailable(cache, nowSeconds())
   } catch {
     currentBackoffMs = 0
     backoffUntilMs = 0
-    return cache ?? unavailable(nowSeconds())
+    return staleOrUnavailable(cache, nowSeconds())
   }
 }

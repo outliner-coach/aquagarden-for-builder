@@ -225,9 +225,22 @@ export interface DisplayUsageResolution {
 }
 
 /**
+ * 캐시 항목의 데이터 시각(epoch 초) — 경과(age) 계산의 기준. 정본은 스냅샷을 실제로 받아온
+ * `usage.fetchedAt`이고, 비수치(레거시/손상 항목)일 때만 저장 시각(savedAt)으로 폴백한다.
+ * savedAt을 기준으로 삼으면 재기록 때마다 나이가 리셋돼 옛 값이 새 값처럼 보인다(실기기 회귀).
+ */
+function dataTimeOf(entry: TokenUsageCache): number {
+  const fetched = numeric(entry.usage.fetchedAt)
+  return fetched ?? entry.savedAt
+}
+
+/**
  * 라이브 조회 결과 + 기존 last-known-good → 표시 사용량을 정한다(순수·결정적, nowSec 주입).
- *  - live.state==='ok' → live를 fresh로 표시하고 last-known-good을 live로 갱신(savedAt=nowSec).
- *  - live가 unavailable/null(예외) → last-known-good이 있으면 그것을 stale로(age=max(0,nowSec−savedAt)),
+ *  - live.state==='ok' && !live.stale → live를 fresh로 표시하고 last-known-good을 갱신(savedAt=nowSec).
+ *  - live.state==='ok' && live.stale → main이 마지막 성공 캐시를 되돌려준 것이다: 값은 보여주되
+ *    stale로(age=max(0,nowSec−live.fetchedAt)). 캐시는 이 스냅샷이 더 새로울 때만 갱신하고
+ *    savedAt에는 **데이터 시각(fetchedAt)** 을 넣는다(nowSec을 넣으면 나이가 리셋된다).
+ *  - live가 unavailable/null(예외) → last-known-good이 있으면 그것을 stale로(age=max(0,nowSec−데이터 시각)),
  *    없으면 display=null(진짜 연결 안 됨). last-known-good은 그대로 유지한다(동일 참조 반환).
  * 패널 링과 물고기 대사가 함께 이 display를 쓰므로, 끊겨도 마지막 수치가 이어진다.
  */
@@ -237,10 +250,20 @@ export function resolveDisplayUsage(
   nowSec: number,
 ): DisplayUsageResolution {
   if (live !== null && live.state === 'ok') {
-    return { display: live, lastKnownGood: { usage: live, savedAt: nowSec } }
+    if (live.stale !== true) {
+      return { display: live, lastKnownGood: { usage: live, savedAt: nowSec } }
+    }
+    // main 캐시 재반환 — 표시는 stale, 캐시는 더 새로운 데이터일 때만 교체(stale 플래그는 벗겨 저장).
+    const dataAt = numeric(live.fetchedAt) ?? nowSec
+    const age = Math.max(0, nowSec - dataAt)
+    const newer = lastKnownGood === null || dataAt > dataTimeOf(lastKnownGood)
+    if (!newer) return { display: live, staleAgeSec: age, lastKnownGood }
+    const withoutFlag: TokenUsage = { ...live }
+    delete withoutFlag.stale // 캐시엔 값만 남긴다(stale은 "지금 라이브가 실패했다"는 런타임 신호)
+    return { display: live, staleAgeSec: age, lastKnownGood: { usage: withoutFlag, savedAt: dataAt } }
   }
   if (lastKnownGood !== null) {
-    const age = Math.max(0, nowSec - lastKnownGood.savedAt)
+    const age = Math.max(0, nowSec - dataTimeOf(lastKnownGood))
     return { display: lastKnownGood.usage, staleAgeSec: age, lastKnownGood }
   }
   return { display: null, lastKnownGood: null }
@@ -250,6 +273,21 @@ export function resolveDisplayUsage(
  * 스모크/QA 훅 문자열 파싱: "34,87"(퍼센트 0..100 두 개) → { fiveHour: 0.34, weekly: 0.87 }.
  * 공백 허용. 형식 불량(필드≠2개·비수치·빈 필드)·빈 문자열·undefined → null.
  */
+/**
+ * 스모크/QA 훅 문자열 파싱: AQUA_SMOKE_TOKEN_STALE("3600" 등, 초) → 마지막 성공 조회로부터의 경과.
+ * 지정되면 스모크가 주입 스냅샷을 `stale:true` + `fetchedAt = now − age`로 만들어, 라이브 실패
+ * 상태의 표시(흐린 링 + "N분 전 기준" 노트)를 결정적으로 캡처 검증할 수 있다. 양의 정수 초만
+ * 유효(0·음수·비수치·빈 값은 null=훅 미사용). 소수는 내림.
+ */
+export function parseSmokeStaleAge(str: string | undefined): number | null {
+  if (str === undefined) return null
+  const trimmed = str.trim()
+  if (trimmed === '') return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.floor(n)
+}
+
 export function parseSmokeToken(str: string | undefined): { fiveHour: number; weekly: number } | null {
   if (str === undefined) return null
   const parts = str.split(',')

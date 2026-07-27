@@ -89,8 +89,14 @@ export interface TokenUsage {
   state: TokenUsageState
   fiveHour?: TokenUsageWindow
   weekly?: TokenUsageWindow
-  /** 조회 시각(epoch 초). */
+  /** 조회 시각(epoch 초) — state==='ok'면 그 값을 실제로 받아온 시각. */
   fetchedAt: number
+  /**
+   * 이 스냅샷이 라이브 조회 성공이 아니라 main의 마지막 성공 캐시 재반환인지. 라이브가 실패
+   * (429/네트워크/자격증명)해도 값을 이어 보여주되, 렌더러가 fresh로 오판하지 않게 하는 신호다.
+   * (없음=fresh. 이 플래그 없이 캐시를 state:'ok'로 되돌려주던 시절엔 55시간 묵은 값이 현재값처럼 보였다.)
+   */
+  stale?: true
 }
 
 /**
